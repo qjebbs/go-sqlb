@@ -1,8 +1,8 @@
 package sqlb
 
 import (
+	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
-	"github.com/qjebbs/go-sqlf/v4/util"
 )
 
 // QueryBuilder is the SQL query builder.

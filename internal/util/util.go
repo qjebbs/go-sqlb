@@ -24,3 +24,12 @@ func Map[T1 any, T2 any](a []T1, f func(T1) T2) []T2 {
 	}
 	return b
 }
+
+// MapKeys returns the keys of a map as a slice.
+func MapKeys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}

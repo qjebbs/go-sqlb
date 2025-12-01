@@ -21,16 +21,6 @@ import "github.com/qjebbs/go-sqlf/v4"
 //		Select(bar.Column("*")).From(bar)
 func (b *QueryBuilder) With(name Table, builder sqlf.Builder) *QueryBuilder {
 	b.resetDepTablesCache()
-	cte := &cte{
-		table:   name,
-		Builder: builder,
-	}
-	b.ctes = append(b.ctes, cte)
-	b.ctesDict[name.AppliedName()] = cte
+	b.ctes.With(name, builder)
 	return b
-}
-
-type cte struct {
-	sqlf.Builder
-	table Table
 }

@@ -6,11 +6,9 @@ var _ (sqlf.Builder) = Table{}
 
 // Build implements sqlf.Builder
 func (t Table) Build(ctx *sqlf.Context) (query string, err error) {
-	if v := ctx.Value(depTablesKey{}); v != nil {
-		if deps, ok := v.(map[string]bool); ok && deps != nil {
-			// collecting
-			deps[t.AppliedName()] = true
-		}
+	if deps := depTablesFromContext(ctx); deps != nil {
+		// collecting
+		deps.tables[t] = true
 	}
 	return t.AppliedName(), nil
 }

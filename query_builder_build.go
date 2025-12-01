@@ -45,39 +45,29 @@ func (b *QueryBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	clauses := make([]string, 0)
 
-	// SHOULD NOT assume b is self-contained,
-	// b can depend on parent CTEs when it's a sub query.
-	dep := b.depTablesCache
-	if dep == nil {
-		dep, err = b.collectDependencies()
-		if err != nil {
-			return "", err
-		}
-		b.depTablesCache = dep
-	}
-	if v := ctx.Value(depTablesKey{}); v != nil {
-		if deps, ok := v.(map[string]bool); ok && deps != nil {
-			// report dependencies to parent query builder
-			for t := range dep {
-				deps[t.AppliedName()] = true
-			}
-			// collecting dependencies only,
-			// no need to build anything here
-			return "", nil
-		}
-	}
-	sq, err := b.buildCTEs(ctx, dep)
+	myDeps, err := b.collectDependencies()
 	if err != nil {
 		return "", err
 	}
-	if sq != "" {
-		clauses = append(clauses, sq)
+	if deps := depTablesFromContext(ctx); deps != nil {
+		for t := range myDeps.unresolved {
+			deps.tables[t] = true
+		}
+		// collecting dependencies only,
+		// no need to build anything here
+		return "", nil
 	}
-
+	with, err := b.ctes.buildRequired(ctx, myDeps.cteDeps)
+	if err != nil {
+		return "", err
+	}
+	if with != "" {
+		clauses = append(clauses, with)
+	}
 	// reserve a position for select
 	selectAt := len(clauses)
 	clauses = append(clauses, "")
-	from, err := b.buildFrom(ctx, dep)
+	from, err := b.buildFrom(ctx, myDeps.queryDeps)
 	if err != nil {
 		return "", err
 	}
@@ -142,48 +132,17 @@ func (b *QueryBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		query = strings.TrimSpace(query + " " + union)
 	}
 	if b.debug {
+		prefix := b.debugName
+		if prefix == "" {
+			prefix = "sqlb"
+		}
 		interpolated, err := util.Interpolate(query, ctx.Args())
 		if err != nil {
-			if b.debugName == "" {
-				fmt.Printf("debug: interpolated query: %s\n", err)
-			} else {
-				fmt.Printf("[%s] debug: interpolated query: %s\n", b.debugName, err)
-			}
+			fmt.Printf("[%s] interpolating: %s\n", prefix, err)
 		}
-		if b.debugName == "" {
-			fmt.Println(interpolated)
-		} else {
-			fmt.Printf("[%s] %s\n", b.debugName, interpolated)
-		}
+		fmt.Printf("[%s] %s\n", prefix, interpolated)
 	}
 	return query, nil
-}
-
-func (b *QueryBuilder) buildCTEs(ctx *sqlf.Context, dep map[Table]bool) (string, error) {
-	if len(b.ctes) == 0 {
-		return "", nil
-	}
-	clauses := make([]string, 0, len(b.ctes))
-	for _, cte := range b.ctes {
-		if !dep[cte.table] {
-			continue
-		}
-		query, err := cte.Build(ctx)
-		if err != nil {
-			return "", fmt.Errorf("build CTE '%s': %w", cte.table, err)
-		}
-		if query == "" {
-			continue
-		}
-		clauses = append(clauses, fmt.Sprintf(
-			"%s AS (%s)",
-			cte.table.Name, query,
-		))
-	}
-	if len(clauses) == 0 {
-		return "", nil
-	}
-	return "With " + strings.Join(clauses, ", "), nil
 }
 
 func (b *QueryBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
@@ -211,10 +170,10 @@ func (b *QueryBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 	return sel + ", " + touches, nil
 }
 
-func (b *QueryBuilder) buildFrom(ctx *sqlf.Context, dep map[Table]bool) (string, error) {
+func (b *QueryBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, error) {
 	tables := make([]string, 0, len(b.tables))
 	for _, t := range b.tables {
-		if (b.distinct || len(b.groupbys) > 0) && t.optional && !dep[t.table] {
+		if (b.distinct || len(b.groupbys) > 0) && t.optional && !dep.tables[t.table] {
 			continue
 		}
 		c, err := t.Builder.Build(ctx)

@@ -98,7 +98,7 @@ func ExampleQueryBuilder_With() {
 	}
 	fmt.Println(query)
 	// Output:
-	// With foo AS (SELECT * FROM users WHERE active), bar AS (SELECT * FROM foo) SELECT bar.* FROM bar
+	// WITH foo AS (SELECT * FROM users WHERE active), bar AS (SELECT * FROM foo) SELECT bar.* FROM bar
 }
 
 func ExampleQueryBuilder_Union() {
@@ -126,62 +126,34 @@ func ExampleQueryBuilder_Union() {
 	// [1 2 3 4]
 }
 
-func ExampleNoDeps() {
-	var (
-		foo = sqlb.NewTable("foo", "f")
-		bar = sqlb.NewTable("bar")
-	)
-	q := sqlb.NewQueryBuilder().
-		Select(foo.Column("bar")).
-		From(foo).
-		Where(
-			// will not report 'b' as dependency, or the builder complains: from undefined: 'bar'
-			sqlf.F(
-				"? IN (?)",
-				foo.Column("id"),
-				sqlb.NoDeps(sqlf.F(
-					"SELECT id FROM ?", bar,
-				)),
-			),
-		)
-	query, args, err := q.BuildQuery(sqlf.BindStyleDollar)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(query)
-	fmt.Println(args)
-	// Output:
-	// SELECT f.bar FROM foo AS f WHERE f.id IN (SELECT id FROM bar)
-	// []
-}
-
 func ExampleQueryBuilder_Debug() {
 	foo := sqlb.NewTable("foo", "f")
-	id := foo.Column("id")
+	fooColID := foo.Column("id")
+	bar := sqlb.NewTable("bar", "b")
+	cte := sqlb.NewTable("cte", "c")
+	cteColID := cte.Column("id")
+	cteBuilder := sqlf.F("SELECT 1")
 	q1 := sqlb.NewQueryBuilder().Debug("q1").
-		Select(id).
-		From(foo)
+		Select(cteColID).
+		From(cte).
+		InnerJoin(bar, sqlf.F("TRUE"))
 	q2 := sqlb.NewQueryBuilder().Debug("q2").
-		Select(id).
-		From(foo).
-		Where(sqlf.F("? IN (?)", id, q1))
+		With(cte, cteBuilder).
+		Select(cteColID).
+		From(cte).
+		Union(q1)
 	q3 := sqlb.NewQueryBuilder().Debug("q3").
-		Select(id).
-		From(foo).
-		Where(sqlf.F("? IN (?)", id, q2))
-	q4 := sqlb.NewQueryBuilder().Debug("q4").
+		With(cte, cteBuilder).
 		Select(foo.Column("*")).
 		From(foo).
-		Where(sqlf.F("? IN (?)", id, q3))
-	_, _, err := q4.BuildQuery(sqlf.BindStyleDollar)
+		Where(sqlf.F("? IN (?)", fooColID, q2))
+	_, _, err := q3.BuildQuery(sqlf.BindStyleDollar)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	// Output:
-	// [q1] SELECT f.id FROM foo AS f
-	// [q2] SELECT f.id FROM foo AS f WHERE f.id IN (SELECT f.id FROM foo AS f)
-	// [q3] SELECT f.id FROM foo AS f WHERE f.id IN (SELECT f.id FROM foo AS f WHERE f.id IN (SELECT f.id FROM foo AS f))
-	// [q4] SELECT f.* FROM foo AS f WHERE f.id IN (SELECT f.id FROM foo AS f WHERE f.id IN (SELECT f.id FROM foo AS f WHERE f.id IN (SELECT f.id FROM foo AS f)))
+	// [q1] SELECT c.id FROM cte AS c INNER JOIN bar AS b ON TRUE
+	// [q2] WITH cte AS (SELECT 1) SELECT c.id FROM cte AS c UNION SELECT c.id FROM cte AS c INNER JOIN bar AS b ON TRUE
+	// [q3] SELECT f.* FROM foo AS f WHERE f.id IN (WITH cte AS (SELECT 1) SELECT c.id FROM cte AS c UNION SELECT c.id FROM cte AS c INNER JOIN bar AS b ON TRUE)
 }

@@ -9,9 +9,7 @@ import (
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type QueryBuilder struct {
-	ctes     []*cte          // common table expressions in order
-	ctesDict map[string]*cte // the ctes by name, not alias
-
+	ctes       *_CTEs
 	tables     []*fromTable          // the tables in order
 	tablesDict map[string]*fromTable // the from tables by alias
 
@@ -31,13 +29,13 @@ type QueryBuilder struct {
 	debug     bool // debug mode
 	debugName string
 
-	depTablesCache map[Table]bool
+	deps *queryBuilderDependencies
 }
 
 // NewQueryBuilder returns a new QueryBuilder.
 func NewQueryBuilder() *QueryBuilder {
 	return &QueryBuilder{
-		ctesDict:   make(map[string]*cte),
+		ctes:       newCTEs(),
 		tablesDict: make(map[string]*fromTable),
 	}
 }
@@ -134,5 +132,5 @@ func (b *QueryBuilder) UnionAll(builders ...sqlf.Builder) *QueryBuilder {
 }
 
 func (b *QueryBuilder) resetDepTablesCache() {
-	b.depTablesCache = nil
+	b.deps = nil
 }

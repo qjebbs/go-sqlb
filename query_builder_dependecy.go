@@ -7,112 +7,97 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-type depTablesKey struct{}
-
-// NoDeps returns a new builder that doesn't report any dependencies.
-//
-// *QueryBuilder collects table dependencies so that they can be used
-// for JOIN elimination. But it just simply collects all appearances
-// of tables in the query, even for those in a self-contained subqueries.
-// Wrap subqueries with NoDeps to ignore their dependencies.
-//
-// For example, the table 'bar' will not count as a dependency of the main query.
-//
-//	b.Where(sqlb.NoDeps(sqlf.F(
-//	  "id IN (SELECT ? FROM ?)",
-//	  bar, bar.Column("id"),
-//	)))
-//
-// No need to wrap *QueryBuilder with NoDeps, since it never report any
-// dependencies to outer queries.
-func NoDeps(b sqlf.Builder) sqlf.Builder {
-	return sqlf.Func(func(ctx *sqlf.Context) (query string, err error) {
-		if ctx.Value(depTablesKey{}) != nil {
-			// the call is to collect dependencies,
-			// do nothing since there are no dependencies here.
-			return "", nil
-		}
-		return b.Build(ctx)
-	})
+type queryBuilderDependencies struct {
+	queryDeps  *depTables
+	cteDeps    map[Table]bool
+	unresolved map[Table]bool
 }
 
 // collectDependencies collects the dependencies of the tables.
-func (b *QueryBuilder) collectDependencies() (map[Table]bool, error) {
+func (b *QueryBuilder) collectDependencies() (*queryBuilderDependencies, error) {
+	if b.deps != nil {
+		return b.deps, nil
+	}
+	queryDeps, err := b.collectQueryDependencies()
+	if err != nil {
+		return nil, err
+	}
+	cteRequired, cteUnresolved, err := b.ctes.collectDependenciesForTables(queryDeps)
+	if err != nil {
+		return nil, err
+	}
+	r := &queryBuilderDependencies{
+		queryDeps:  queryDeps,
+		cteDeps:    cteRequired,
+		unresolved: cteUnresolved,
+	}
+	b.deps = r
+	// if b.debug && b.debugName != "" {
+	// 	fmt.Printf("[%s] unresolved: %s\n", b.debugName, util.Map(
+	// 		util.MapKeys(r.unresolved),
+	// 		func(t Table) string { return t.Name },
+	// 	))
+	// }
+	return r, nil
+}
+
+func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 	builders := util.Concat(
 		b.selects,
 		b.touches,
 		b.conditions,
+		util.Map(b.orders, func(i *orderItem) sqlf.Builder { return i.column }),
 		b.groupbys,
 		b.havings,
+		b.unions,
 	)
 	for _, order := range b.orders {
 		builders = append(builders, order.column)
 	}
 
-	tables, err := extractTables(builders...)
+	// extractTables gets all deps used in the builders,
+	// there are two types of table reporting:
+	// 1. *QueryBuilder only reports its unresolved deps (not defined in CTEs).
+	// 2. sqlf.Table in any other sqlf.Builder always reports itself.
+	deps, err := b.extractTables(builders...)
 	if err != nil {
 		return nil, fmt.Errorf("collect dependencies: %w", err)
 	}
-	deps := make(map[Table]bool)
-	// first table is the main table and always included
-	deps[b.tables[0].table] = true
-	for table := range tables {
-		err := b.collectDepsFromTable(deps, table)
+
+	depsOfTables := newDepTables()
+	for _, t := range b.tables {
+		if (b.distinct || len(b.groupbys) > 0) && t.optional && !deps.tables[t.table] {
+			continue
+		}
+		// required by FROM / JOIN
+		deps.tables[t.table] = true
+		// collect deps from FROM / JOIN ON clauses.
+		err := b.collectDepsFromTable(depsOfTables, t.table)
 		if err != nil {
 			return nil, err
 		}
 	}
-	// mark for CTEs
-	depsCTE := make(map[Table]bool)
-	for _, t := range b.tables {
-		if (b.distinct || len(b.groupbys) > 0) && t.optional && !deps[t.table] {
-			continue
-		}
-		if cte, ok := b.ctesDict[t.table.AppliedName()]; ok {
-			b.collectDepsFromCTE(depsCTE, cte)
-		}
-	}
-	for cte := range depsCTE {
-		deps[cte] = true
-	}
+	deps.Merge(depsOfTables)
 	return deps, nil
 }
 
-func (b *QueryBuilder) collectDepsFromCTE(deps map[Table]bool, cte *cte) error {
-	key := cte.table
-	if deps[key] {
-		return nil
-	}
-	deps[key] = true
-	tables, err := extractTables(cte.Builder)
-	if err != nil {
-		return fmt.Errorf("collect dependencies of CTE %q: %w", cte.table, err)
-	}
-	for dep := range tables {
-		if cte, ok := b.ctesDict[dep]; ok {
-			err := b.collectDepsFromCTE(deps, cte)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (b *QueryBuilder) collectDepsFromTable(dep map[Table]bool, t string) error {
-	from, ok := b.tablesDict[t]
+func (b *QueryBuilder) collectDepsFromTable(dep *depTables, t Table) error {
+	from, ok := b.tablesDict[t.AppliedName()]
 	if !ok {
+		if b.debugName != "" {
+			return fmt.Errorf("[%s] from undefined: '%s'", b.debugName, t)
+		}
 		return fmt.Errorf("from undefined: '%s'", t)
 	}
-	if dep[from.table] {
+	if dep.tables[t] {
 		return nil
 	}
-	dep[from.table] = true
-	tables, err := extractTables(from)
+	dep.tables[t] = true
+	tables, err := b.extractTables(from)
 	if err != nil {
 		return fmt.Errorf("collect dependencies of table %q: %w", from.table.Name, err)
 	}
-	for ft := range tables {
+	for ft := range tables.tables {
 		if ft == t {
 			continue
 		}
@@ -124,9 +109,9 @@ func (b *QueryBuilder) collectDepsFromTable(dep map[Table]bool, t string) error 
 	return nil
 }
 
-func extractTables(args ...sqlf.Builder) (map[string]bool, error) {
-	tables := make(map[string]bool)
-	ctx := sqlf.ContextWith(sqlf.NewContext(sqlf.BindStyleDollar), depTablesKey{}, tables)
+func (b *QueryBuilder) extractTables(args ...sqlf.Builder) (*depTables, error) {
+	tables := newDepTables(b.debugName)
+	ctx := contextWithDepTables(sqlf.NewContext(sqlf.BindStyleDollar), tables)
 	_, err := sqlf.Join(";", args...).Build(ctx)
 	if err != nil {
 		return nil, err

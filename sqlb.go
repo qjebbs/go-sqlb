@@ -1,6 +1,6 @@
 // Package sqlb provides a complex SQL query builder shipped with
-// WITH-CTE / JOIN Elimination capabilities, while *sqlf.Fragment
-// is the underlying foundation.
+// WITH-CTE / JOIN Elimination capabilities, while
+// 'github.com/qjebbs/go-sqlf' is the underlying foundation.
 package sqlb
 
 import "github.com/qjebbs/go-sqlf/v4"

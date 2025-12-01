@@ -43,7 +43,7 @@ func TestQueryBuilderDistinctElimination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantQuery := "With locs AS (SELECT user_id AS id, loc FROM user_locs WHERE country_code = $1), users AS (SELECT * FROM users AS u INNER JOIN locs AS l ON u.id=l.id) SELECT DISTINCT f.id, f.name FROM users AS u LEFT JOIN foo AS f ON f.user_id=u.id"
+	wantQuery := "WITH locs AS (SELECT user_id AS id, loc FROM user_locs WHERE country_code = $1), users AS (SELECT * FROM users AS u INNER JOIN locs AS l ON u.id=l.id) SELECT DISTINCT f.id, f.name FROM users AS u LEFT JOIN foo AS f ON f.user_id=u.id"
 	wantArgs := []any{"cn"}
 	if wantQuery != gotQuery {
 		t.Errorf("got:\n%s\nwant:\n%s", gotQuery, wantQuery)

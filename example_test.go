@@ -7,18 +7,27 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-func ExampleQueryBuilder_BuildQuery() {
+func Example_elimination() {
 	var (
 		foo = sqlb.NewTable("foo", "f")
 		bar = sqlb.NewTable("bar", "b")
+		baz = sqlb.NewTable("baz", "z")
 	)
 	b := sqlb.NewQueryBuilder().
-		Select(foo.Column("*")).
+		// Will be eliminated since not required.
+		With(baz, sqlf.F("SELECT 1")).
+		Distinct().Select(foo.Column("*")).
 		From(foo).
 		InnerJoin(bar, sqlf.F(
 			"?=?",
 			bar.Column("foo_id"),
 			foo.Column("id"),
+		)).
+		// Will be eliminated since SELECT DISTINCT and no columns from "baz" are used.
+		LeftJoinOptional(baz, sqlf.F(
+			"?=?",
+			baz.Column("id"),
+			foo.Column("baz_id"),
 		)).
 		Where(sqlf.F(
 			"($2=$1 OR $3=$1)",
@@ -26,14 +35,7 @@ func ExampleQueryBuilder_BuildQuery() {
 		)).
 		Where2(bar.Column("c"), "=", 2)
 
-	query, args, err := b.BuildQuery(sqlf.BindStyleDollar)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(query)
-	fmt.Println(args)
-	query, args, err = b.BuildQuery(sqlf.BindStyleQuestion)
+	query, args, err := b.BuildQuery(sqlf.BindStyleQuestion)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -41,9 +43,7 @@ func ExampleQueryBuilder_BuildQuery() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// SELECT f.* FROM foo AS f INNER JOIN bar AS b ON b.foo_id=f.id WHERE (f.a=$1 OR f.b=$1) AND b.c=$2
-	// [1 2]
-	// SELECT f.* FROM foo AS f INNER JOIN bar AS b ON b.foo_id=f.id WHERE (f.a=? OR f.b=?) AND b.c=?
+	// SELECT DISTINCT f.* FROM foo AS f INNER JOIN bar AS b ON b.foo_id=f.id WHERE (f.a=? OR f.b=?) AND b.c=?
 	// [1 1 2]
 }
 
@@ -79,13 +79,13 @@ func ExampleQueryBuilder_LeftJoinOptional() {
 func ExampleQueryBuilder_With() {
 	foo := sqlb.NewTable("foo")
 	bar := sqlb.NewTable("bar")
-	builderFoo := sqlf.F("SELECT * FROM users WHERE active")
-	builderBar := sqlf.F("SELECT * FROM ?", foo) // requires 'foo'
+	fooBuilder := sqlf.F("SELECT * FROM users WHERE active")
+	barBuilder := sqlf.F("SELECT * FROM ?", foo) // requires 'foo'
 	builder := sqlb.NewQueryBuilder().
-		With(foo, builderFoo).
-		With(bar, builderBar).
+		With(foo, fooBuilder).
+		With(bar, barBuilder).
 		Select(bar.Column("*")). // requires 'bar'
-		From(bar)                // requires 'bar'
+		From(bar)
 
 	// Tracked dependencies:
 	// - SELECT / FROM requires 'bar',
@@ -128,25 +128,25 @@ func ExampleQueryBuilder_Union() {
 
 func ExampleQueryBuilder_Debug() {
 	foo := sqlb.NewTable("foo", "f")
-	fooColID := foo.Column("id")
+	fooID := foo.Column("id")
 	bar := sqlb.NewTable("bar", "b")
 	cte := sqlb.NewTable("cte", "c")
-	cteColID := cte.Column("id")
+	cteID := cte.Column("id")
 	cteBuilder := sqlf.F("SELECT 1")
 	q1 := sqlb.NewQueryBuilder().Debug("q1").
-		Select(cteColID).
+		Select(cteID).
 		From(cte).
 		InnerJoin(bar, sqlf.F("TRUE"))
 	q2 := sqlb.NewQueryBuilder().Debug("q2").
 		With(cte, cteBuilder).
-		Select(cteColID).
+		Select(cteID).
 		From(cte).
 		Union(q1)
 	q3 := sqlb.NewQueryBuilder().Debug("q3").
 		With(cte, cteBuilder).
 		Select(foo.Column("*")).
 		From(foo).
-		Where(sqlf.F("? IN (?)", fooColID, q2))
+		Where(sqlf.F("? IN (?)", fooID, q2))
 	_, _, err := q3.BuildQuery(sqlf.BindStyleDollar)
 	if err != nil {
 		fmt.Println(err)

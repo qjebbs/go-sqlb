@@ -1,5 +1,5 @@
 // Package sqlb provides a complex SQL query builder shipped with
-// WITH-CTE / JOIN Elimination capabilities, while
+// WITH-CTE / JOIN Elimination abilities, while
 // 'github.com/qjebbs/go-sqlf' is the underlying foundation.
 package sqlb
 

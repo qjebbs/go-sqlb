@@ -1,12 +1,15 @@
 package sqlb_test
 
 import (
+	"database/sql"
+
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-func Example() {
-	q := NewUserQueryBuilder(nil).
+func Example_wrapping() {
+	var db *sql.DB
+	q := NewUserQueryBuilder(db).
 		WithIDs([]int64{1, 2, 3})
 	q.GetUsers()
 }

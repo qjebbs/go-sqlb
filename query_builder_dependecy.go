@@ -9,8 +9,8 @@ import (
 
 type queryBuilderDependencies struct {
 	queryDeps  *depTables
-	cteDeps    map[Table]bool
-	unresolved map[Table]bool
+	cteDeps    map[string]bool
+	unresolved *depTables
 }
 
 // collectDependencies collects the dependencies of the tables.
@@ -63,14 +63,13 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 	if err != nil {
 		return nil, fmt.Errorf("collect dependencies: %w", err)
 	}
-
 	depsOfTables := newDepTables()
 	for _, t := range b.tables {
-		if (b.distinct || len(b.groupbys) > 0) && t.optional && !deps.tables[t.table] {
+		if (b.distinct || len(b.groupbys) > 0) && t.optional && !deps.Tables[t.table] {
 			continue
 		}
 		// required by FROM / JOIN
-		deps.tables[t.table] = true
+		deps.Tables[t.table] = true
 		// collect deps from FROM / JOIN ON clauses.
 		err := b.collectDepsFromTable(depsOfTables, t.table)
 		if err != nil {
@@ -78,6 +77,22 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 		}
 	}
 	deps.Merge(depsOfTables)
+	// outer tables of subqueries is my tables
+	for t := range deps.OuterTables {
+		deps.Tables[t] = true
+	}
+	deps.OuterTables = map[Table]bool{}
+	for t := range deps.Tables {
+		if _, ok := b.tablesDict[t.AppliedName()]; !ok {
+			// require outer FROM / JOIN
+			delete(deps.Tables, t)
+			deps.OuterTables[t] = true
+		} else {
+			// required by FROM / JOIN
+			deps.SourceNames[t.Name] = true
+		}
+	}
+
 	return deps, nil
 }
 
@@ -89,15 +104,15 @@ func (b *QueryBuilder) collectDepsFromTable(dep *depTables, t Table) error {
 		}
 		return fmt.Errorf("from undefined: '%s'", t)
 	}
-	if dep.tables[t] {
+	if dep.Tables[t] {
 		return nil
 	}
-	dep.tables[t] = true
+	dep.Tables[t] = true
 	tables, err := b.extractTables(from)
 	if err != nil {
 		return fmt.Errorf("collect dependencies of table %q: %w", from.table.Name, err)
 	}
-	for ft := range tables.tables {
+	for ft := range tables.Tables {
 		if ft == t {
 			continue
 		}

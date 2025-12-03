@@ -67,7 +67,7 @@ func TestWithReportDeps(t *testing.T) {
 	// With only reports unresolved deps to parent's decendent deps.
 	wantDecendent := []string{"bar"}
 
-	got := util.Map(util.MapKeys(deps.tables), func(t Table) string { return t.Name })
+	got := util.MapKeys(deps.SourceNames)
 	assertDeps(t, wantDecendent, got)
 }
 

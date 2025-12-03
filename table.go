@@ -8,7 +8,7 @@ var _ (sqlf.Builder) = Table{}
 func (t Table) Build(ctx *sqlf.Context) (query string, err error) {
 	if deps := depTablesFromContext(ctx); deps != nil {
 		// collecting
-		deps.tables[t] = true
+		deps.Tables[t] = true
 	}
 	return t.AppliedName(), nil
 }

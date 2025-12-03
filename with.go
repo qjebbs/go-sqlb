@@ -32,13 +32,11 @@ type _CTEs struct {
 
 	debugName string
 
-	// All Table values HAVE NO ALIAS inside CTEs.
-
 	ctes     []*cte
-	ctesDict map[Table]*cte // the actual cte names, not aliases
+	ctesDict map[string]*cte // the actual cte names, not aliases
 
-	deps           map[Table]bool
-	unresolvedDeps map[Table]bool
+	deps           map[string]bool
+	unresolvedDeps *depTables
 }
 
 type cte struct {
@@ -49,7 +47,7 @@ type cte struct {
 // newCTEs creates a new CTEs instance.
 func newCTEs() *_CTEs {
 	return &_CTEs{
-		ctesDict: make(map[Table]*cte),
+		ctesDict: make(map[string]*cte),
 	}
 }
 
@@ -62,7 +60,7 @@ func (w *_CTEs) With(table Table, builder sqlf.Builder) *_CTEs {
 		Builder: builder,
 	}
 	w.ctes = append(w.ctes, cte)
-	w.ctesDict[t] = cte
+	w.ctesDict[t.Name] = cte
 	return w
 }
 
@@ -97,13 +95,20 @@ func (w *_CTEs) Build(ctx *sqlf.Context) (string, error) {
 		return "", err
 	}
 
-	if parentDeps := depTablesFromContext(ctx); parentDeps != nil {
-		for table := range unresolved {
+	if deps := depTablesFromContext(ctx); deps != nil {
+		for table := range unresolved.SourceNames {
 			// report undefined dependencies to parent query builder
 			// if b.debug && b.debugName != "" {
 			// 	fmt.Printf("[%s] reporting dependency table: %s\n", b.debugName, name)
 			// }
-			parentDeps.tables[table] = true
+			deps.SourceNames[table] = true
+		}
+		for table := range unresolved.OuterTables {
+			// report undefined dependencies to parent query builder
+			// if b.debug && b.debugName != "" {
+			// 	fmt.Printf("[%s] reporting dependency table: %s\n", b.debugName, name)
+			// }
+			deps.OuterTables[table] = true
 		}
 		// collecting dependencies only,
 		// no need to build anything here
@@ -112,7 +117,7 @@ func (w *_CTEs) Build(ctx *sqlf.Context) (string, error) {
 	return w.buildRequired(ctx, required)
 }
 
-func (w *_CTEs) buildRequired(ctx *sqlf.Context, required map[Table]bool) (query string, err error) {
+func (w *_CTEs) buildRequired(ctx *sqlf.Context, required map[string]bool) (query string, err error) {
 	if w.builder != nil {
 		query, err = w.builder.Build(ctx)
 	}
@@ -121,7 +126,7 @@ func (w *_CTEs) buildRequired(ctx *sqlf.Context, required map[Table]bool) (query
 	}
 	cteClauses := make([]string, 0, len(w.ctes))
 	for _, cte := range w.ctes {
-		if !required[cte.table] {
+		if !required[cte.table.Name] {
 			continue
 		}
 		sq, err := cte.Build(ctx)
@@ -145,7 +150,7 @@ func (w *_CTEs) buildRequired(ctx *sqlf.Context, required map[Table]bool) (query
 	return withClauses + " " + query, nil
 }
 
-func (w *_CTEs) collectDependencies(ctx *sqlf.Context) (required, unresolved map[Table]bool, err error) {
+func (w *_CTEs) collectDependencies(ctx *sqlf.Context) (required map[string]bool, unresolved *depTables, err error) {
 	if w.builder == nil {
 		return nil, nil, nil
 	}
@@ -168,26 +173,36 @@ func (w *_CTEs) collectDependencies(ctx *sqlf.Context) (required, unresolved map
 	return required, unresolved, nil
 }
 
-func (w *_CTEs) collectDependenciesForTables(deps *depTables) (required, unresolved map[Table]bool, err error) {
-	required = make(map[Table]bool)
-	unresolved = make(map[Table]bool)
-	for t := range deps.tables {
-		table := t.WithAlias("")
-		required[table] = true
+func (w *_CTEs) collectDependenciesForTables(deps *depTables) (required map[string]bool, unresolved *depTables, err error) {
+	required = make(map[string]bool)
+	unresolved = newDepTables()
+	for t := range deps.SourceNames {
+		required[t] = true
+	}
+	// CTE subqueries can be sqlf.Builder that do not analyze tables,
+	// so we need to collect dependencies from .Tables
+	// BUT this can cause problems which reporting source names
+	// that are not needed to.
+	for t := range deps.Tables {
+		required[t.Name] = true
+	}
+	for t := range deps.OuterTables {
+		// w has no knowledge of outer tables, report as unresolved
+		unresolved.OuterTables[t] = true
 	}
 	w.collectDepsBetweenCTEs(required)
 	for t := range required {
 		if _, ok := w.ctesDict[t]; !ok {
-			unresolved[t] = true
+			unresolved.SourceNames[t] = true
 		}
 	}
 	return required, unresolved, nil
 }
 
-func (w *_CTEs) collectDepsBetweenCTEs(required map[Table]bool) error {
-	cetDeps := make(map[Table]bool)
+func (w *_CTEs) collectDepsBetweenCTEs(required map[string]bool) error {
+	cetDeps := make(map[string]bool)
 	for _, cte := range w.ctes {
-		if !required[cte.table] {
+		if !required[cte.table.Name] {
 			continue
 		}
 		err := w.collectDepsFromCTE(cetDeps, cte)
@@ -202,8 +217,8 @@ func (w *_CTEs) collectDepsBetweenCTEs(required map[Table]bool) error {
 	return nil
 }
 
-func (w *_CTEs) collectDepsFromCTE(deps map[Table]bool, cte *cte) error {
-	key := cte.table
+func (w *_CTEs) collectDepsFromCTE(deps map[string]bool, cte *cte) error {
+	key := cte.table.Name
 	if deps[key] {
 		return nil
 	}
@@ -215,9 +230,18 @@ func (w *_CTEs) collectDepsFromCTE(deps map[Table]bool, cte *cte) error {
 	if err != nil {
 		return fmt.Errorf("collect dependencies of CTE %q: %w", cte.table, err)
 	}
-	for t := range tables.tables {
-		table := t.WithAlias("")
-		if cte, ok := w.ctesDict[table]; ok {
+	// CTE can depend on other CTEs
+	for t := range tables.Tables {
+		if cte, ok := w.ctesDict[t.Name]; ok {
+			err := w.collectDepsFromCTE(deps, cte)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	// subquery of a CTE can depend on other CTEs
+	for t := range tables.SourceNames {
+		if cte, ok := w.ctesDict[t]; ok {
 			err := w.collectDepsFromCTE(deps, cte)
 			if err != nil {
 				return err

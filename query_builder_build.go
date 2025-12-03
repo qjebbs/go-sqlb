@@ -50,8 +50,11 @@ func (b *QueryBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		return "", err
 	}
 	if deps := depTablesFromContext(ctx); deps != nil {
-		for t := range myDeps.unresolved {
-			deps.tables[t] = true
+		for t := range myDeps.unresolved.OuterTables {
+			deps.OuterTables[t] = true
+		}
+		for t := range myDeps.unresolved.SourceNames {
+			deps.SourceNames[t] = true
 		}
 		// collecting dependencies only,
 		// no need to build anything here
@@ -173,7 +176,7 @@ func (b *QueryBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 func (b *QueryBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, error) {
 	tables := make([]string, 0, len(b.tables))
 	for _, t := range b.tables {
-		if (b.distinct || len(b.groupbys) > 0) && t.optional && !dep.tables[t.table] {
+		if (b.distinct || len(b.groupbys) > 0) && t.optional && !dep.Tables[t.table] {
 			continue
 		}
 		c, err := t.Builder.Build(ctx)

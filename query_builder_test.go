@@ -6,6 +6,7 @@ import (
 
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlf/v4"
+	"github.com/qjebbs/go-sqlf/v4/util"
 )
 
 func TestQueryBuilderDistinctElimination(t *testing.T) {
@@ -89,5 +90,75 @@ func TestQueryBuilderGroupbyElimination(t *testing.T) {
 	}
 	if !reflect.DeepEqual(wantArgs, gotArgs) {
 		t.Errorf("want:\n%v\ngot:\n%v", wantArgs, gotArgs)
+	}
+}
+
+func TestQueryBuilderComplexDeps(t *testing.T) {
+	var (
+		baseTable  = sqlb.NewTable("base_table", "b")
+		baseTable2 = sqlb.NewTable("base_table2", "b2")
+		baseTable3 = sqlb.NewTable("base_table3", "b3")
+		foo        = sqlb.NewTable("foo", "f")
+		bar        = sqlb.NewTable("bar", "r")
+		baz        = sqlb.NewTable("baz", "z")
+	)
+	q := sqlb.NewQueryBuilder().
+		With(
+			foo,
+			sqlf.F(
+				"SELECT * FROM ? WHERE ? = 1",
+				baseTable2.TableAs(),
+				baseTable2.Column("id"),
+			),
+		).
+		With(
+			bar,
+			sqlf.F(
+				"SELECT * FROM ? WHERE ? = ?",
+				foo.TableAs(),
+				foo.Column("active"),
+				true,
+			),
+		).
+		With(
+			baz,
+			sqlf.F("SELECT 1"), // not referenced, should be eliminated
+		).
+		Distinct().Select(baseTable.Column("*")).
+		From(baseTable).
+		LeftJoinOptional(baseTable3, sqlf.F( // required by outer table of subquery
+			"? = ?",
+			baseTable3.Column("b_id"),
+			baseTable.Column("id"),
+		)).
+		LeftJoinOptional(baz, sqlf.F( // not referenced, should be eliminated
+			"? = ?",
+			baz.Column("b_id"),
+			baseTable.Column("id"),
+		)).
+		Where(sqlf.F(
+			"EXISTS (?)",
+			sqlb.NewQueryBuilder().
+				Select(sqlf.F("1")).
+				From(bar).
+				Where(sqlf.F(
+					"? = ? AND ? LIKE ?",
+					bar.Column("base_id"),
+					baseTable3.Column("id"), // reference outer table
+					bar.Column("name"),
+					"%something%",
+				)),
+		))
+	query, args, err := q.BuildQuery(sqlf.BindStyleDollar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query, err = util.Interpolate(query, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantQuery := "WITH foo AS (SELECT * FROM base_table2 AS b2 WHERE b2.id = 1), bar AS (SELECT * FROM foo AS f WHERE f.active = TRUE) SELECT DISTINCT b.* FROM base_table AS b LEFT JOIN base_table3 AS b3 ON b3.b_id = b.id WHERE EXISTS (SELECT 1 FROM bar AS r WHERE r.base_id = b3.id AND r.name LIKE '%something%')"
+	if query != wantQuery {
+		t.Errorf("got:\n%s\nwant:\n%s", query, wantQuery)
 	}
 }

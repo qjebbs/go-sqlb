@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -75,14 +76,29 @@ func buildQueryForStruct[T any](b *QueryBuilder, style sqlf.BindStyle) (query st
 			}
 			tag := getFieldTag(field)
 			if tag != "" {
-				seg := strings.SplitN(tag, ".", 2)
-				if len(seg) != 2 {
+				// tag formats:
+				// 1. <table>.<column>
+				// 2. <expression>;[table1, table2...]
+				// e.g. "u.id", "COALESCE(?.id,?.user_id,0);u,j"
+				if seg := strings.SplitN(tag, ";", 2); len(seg) == 2 {
+					tableNames := strings.Split(seg[1], ",")
+					tables := util.Map(tableNames, func(t string) any {
+						return NewTable("", strings.TrimSpace(t))
+					})
+					column := sqlf.F(seg[0], tables...)
+					// try build column to catch errors early for better error messages
+					ctx := sqlf.NewContext(sqlf.BindStyleDollar)
+					_, err := column.Build(ctx)
+					if err != nil {
+						return fmt.Errorf("invalid sqlb tag %q from %T.%s: %w", tag, zero, field.Name, err)
+					}
+					columns = append(columns, column)
+				} else if seg := strings.SplitN(tag, ".", 2); len(seg) == 2 {
+					table := NewTable("", seg[0])
+					columns = append(columns, sqlf.F("?.?", table, sqlf.F(seg[1])))
+				} else {
 					return fmt.Errorf("invalid sqlb tag %q from %T.%s", tag, zero, field.Name)
 				}
-				// construct a table that reports dependencies correctly,
-				// Table reports only applied table name, so the actual name is not important here.
-				table := NewTable("", seg[0])
-				columns = append(columns, table.Column(seg[1]))
 				fieldIndices = append(fieldIndices, currentPath)
 			}
 		}

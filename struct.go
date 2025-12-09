@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
@@ -45,14 +46,48 @@ func BuildQueryForStruct[T any](b *QueryBuilder, style sqlf.BindStyle) (query st
 
 func buildQueryForStruct[T any](b *QueryBuilder, style sqlf.BindStyle) (query string, args []any, fieldIndices [][]int, err error) {
 	var zero T
+	info, err := getStructInfo(zero)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	b.SelectReplace(info.columns...)
+	query, args, err = b.BuildQuery(style)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	return query, args, info.fieldIndices, nil
+}
+
+type structInfo struct {
+	columns      []sqlf.Builder
+	fieldIndices [][]int
+	err          error
+}
+
+var structCache sync.Map
+
+func getStructInfo(zero any) (*structInfo, error) {
 	typ := reflect.TypeOf(zero)
 	if typ.Kind() == reflect.Ptr {
 		typ = typ.Elem()
 	}
 	if typ.Kind() != reflect.Struct {
-		return "", nil, nil, fmt.Errorf("expected struct got %T", zero)
+		return nil, fmt.Errorf("expected struct got %T", zero)
 	}
-	columns := make([]sqlf.Builder, 0)
+
+	cached, found := structCache.Load(typ)
+	if found {
+		info := cached.(*structInfo)
+		return info, info.err
+	}
+	info := parseStructInfo(typ, zero)
+	structCache.Store(typ, info)
+	return info, info.err
+}
+
+func parseStructInfo(typ reflect.Type, zero any) *structInfo {
+	var fieldIndices [][]int
+	var columns []sqlf.Builder
 	var findFields func(t reflect.Type, basePath []int) error
 	findFields = func(t reflect.Type, basePath []int) error {
 		for i := 0; i < t.NumField(); i++ {
@@ -67,7 +102,7 @@ func buildQueryForStruct[T any](b *QueryBuilder, style sqlf.BindStyle) (query st
 					fieldType = fieldType.Elem()
 				}
 				if fieldType.Kind() == reflect.Struct {
-					err = findFields(fieldType, currentPath)
+					err := findFields(fieldType, currentPath)
 					if err != nil {
 						return err
 					}
@@ -105,20 +140,22 @@ func buildQueryForStruct[T any](b *QueryBuilder, style sqlf.BindStyle) (query st
 		return nil
 	}
 
-	err = findFields(typ, nil)
+	err := findFields(typ, nil)
 	if err != nil {
-		return "", nil, nil, err
+		return &structInfo{err: err}
 	}
 
 	if len(columns) == 0 {
-		return "", nil, nil, fmt.Errorf("no fields with 'sqlb' tag found in struct %T", zero)
+		return &structInfo{
+			err: fmt.Errorf("no fields with 'sqlb' tag found in struct %T", zero),
+		}
 	}
-	b.SelectReplace(columns...)
-	query, args, err = b.BuildQuery(style)
-	if err != nil {
-		return "", nil, nil, err
+
+	return &structInfo{
+		columns:      columns,
+		fieldIndices: fieldIndices,
+		err:          nil,
 	}
-	return query, args, fieldIndices, err
 }
 
 // getFieldTag gets the sqlb tag from a struct field.

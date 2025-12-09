@@ -14,12 +14,13 @@ func TestQueryStruct(t *testing.T) {
 
 	type User struct {
 		*Model
-		Name  string `sqlb:"u.name"`
-		Email string `sqlb:"u.email"`
+		Name     string `sqlb:"u.name"`
+		Email    string `sqlb:"u.email"`
+		Constant string `sqlb:"'str'"`
 
 		Child *User
 
-		unexported string `sqlb:"u.xxx"`
+		unexported string `sqlb:"1"` // should be ignored
 	}
 
 	userTable := sqlb.NewTable("users", "u")
@@ -28,7 +29,7 @@ func TestQueryStruct(t *testing.T) {
 		"?=?",
 		userTable.Column("id"), 1,
 	))
-	want := "SELECT u.id, u.name, u.email FROM users AS u WHERE u.id=$1"
+	want := "SELECT u.id, u.name, u.email, 'str' FROM users AS u WHERE u.id=$1"
 	got, _, err := sqlb.BuildQueryForStruct[User](b, sqlf.BindStyleDollar)
 	if err != nil {
 		t.Fatal(err)

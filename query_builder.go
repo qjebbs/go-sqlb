@@ -5,6 +5,10 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
+var _ sqlf.Builder = (*QueryBuilder)(nil)
+var _ Builder = (*QueryBuilder)(nil)
+var _ SelectBuilder = (*QueryBuilder)(nil)
+
 // QueryBuilder is the SQL query builder.
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
@@ -59,9 +63,15 @@ func (b *QueryBuilder) Indistinct() *QueryBuilder {
 //	foo := sqlb.NewTable("foo")
 //	b.Select(foo.Column("bar"))
 func (b *QueryBuilder) Select(columns ...sqlf.Builder) *QueryBuilder {
+	b.SetSelect(columns...)
+	return b
+}
+
+// SetSelect set the columns in the SELECT clause,
+// which implements the SelectBuilder interface.
+func (b *QueryBuilder) SetSelect(columns ...sqlf.Builder) {
 	b.resetDepTablesCache()
 	b.selects = columns
-	return b
 }
 
 // Limit set the limit.

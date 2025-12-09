@@ -10,8 +10,14 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
+// SelectBuilder is the interface for builders that support Select method.
+type SelectBuilder interface {
+	Builder
+	SetSelect(columns ...sqlf.Builder)
+}
+
 // QueryStruct queries the built query and scans rows into a slice of structs.
-func QueryStruct[T any](db QueryAble, query *QueryBuilder, style sqlf.BindStyle) ([]T, error) {
+func QueryStruct[T any](db QueryAble, query SelectBuilder, style sqlf.BindStyle) ([]T, error) {
 	queryStr, args, fieldIndices, err := buildQueryForStruct[T](query, style)
 	if err != nil {
 		return nil, err
@@ -39,18 +45,18 @@ func QueryStruct[T any](db QueryAble, query *QueryBuilder, style sqlf.BindStyle)
 }
 
 // BuildQueryForStruct builds the query for struct T and returns the query string and args.
-func BuildQueryForStruct[T any](b *QueryBuilder, style sqlf.BindStyle) (query string, args []any, err error) {
+func BuildQueryForStruct[T any](b SelectBuilder, style sqlf.BindStyle) (query string, args []any, err error) {
 	query, args, _, err = buildQueryForStruct[T](b, style)
 	return query, args, err
 }
 
-func buildQueryForStruct[T any](b *QueryBuilder, style sqlf.BindStyle) (query string, args []any, fieldIndices [][]int, err error) {
+func buildQueryForStruct[T any](b SelectBuilder, style sqlf.BindStyle) (query string, args []any, fieldIndices [][]int, err error) {
 	var zero T
 	info, err := getStructInfo(zero)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	b.SelectReplace(info.columns...)
+	b.SetSelect(info.columns...)
 	query, args, err = b.BuildQuery(style)
 	if err != nil {
 		return "", nil, nil, err

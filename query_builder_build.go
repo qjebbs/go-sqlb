@@ -8,9 +8,6 @@ import (
 	"github.com/qjebbs/go-sqlf/v4/util"
 )
 
-var _ Builder = (*QueryBuilder)(nil)
-var _ sqlf.Builder = (*QueryBuilder)(nil)
-
 // BuildQuery builds the query.
 func (b *QueryBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
 	ctx := sqlf.NewContext(style)

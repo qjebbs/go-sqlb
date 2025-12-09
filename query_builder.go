@@ -52,30 +52,15 @@ func (b *QueryBuilder) Indistinct() *QueryBuilder {
 	return b
 }
 
-// SelectReplace replace the columns in the SELECT clause.
-//
-// !!! Make sure the columns are built from sqlb.Table to have their dependencies tracked.
-//
-//	foo := sqlb.NewTable("foo")
-//	b.SelectReplace(foo.Column("bar"))
-func (b *QueryBuilder) SelectReplace(columns ...sqlf.Builder) *QueryBuilder {
-	b.resetDepTablesCache()
-	b.selects = columns
-	return b
-}
-
-// Select append the SELECT clause with the columns.
+// Select set the columns in the SELECT clause.
 //
 // !!! Make sure the columns are built from sqlb.Table to have their dependencies tracked.
 //
 //	foo := sqlb.NewTable("foo")
 //	b.Select(foo.Column("bar"))
 func (b *QueryBuilder) Select(columns ...sqlf.Builder) *QueryBuilder {
-	if len(columns) == 0 {
-		return b
-	}
 	b.resetDepTablesCache()
-	b.selects = append(b.selects, columns...)
+	b.selects = columns
 	return b
 }
 

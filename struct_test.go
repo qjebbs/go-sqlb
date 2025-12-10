@@ -9,11 +9,11 @@ import (
 
 func TestQueryStruct(t *testing.T) {
 	type Model struct {
-		ID int `sqlb:"u.id"`
+		ID int `sqlb:"?.id"`
 	}
 
 	type User struct {
-		*Model
+		*Model   `sqlb:"u"`
 		Name     string `sqlb:"u.name"`
 		Email    string `sqlb:"u.email"`
 		Constant string `sqlb:"'str'"`

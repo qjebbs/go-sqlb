@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -93,8 +94,8 @@ func getStructInfo(zero any) (*structInfo, error) {
 func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 	var fieldIndices [][]int
 	var columns []sqlf.Builder
-	var findFields func(t reflect.Type, basePath []int) error
-	findFields = func(t reflect.Type, basePath []int) error {
+	var findFields func(t reflect.Type, basePath []int, declaredTables []any) error
+	findFields = func(t reflect.Type, basePath []int, declaredTables []any) error {
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
@@ -102,12 +103,24 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 			if !field.IsExported() {
 				continue
 			}
+
+			curDeclaredTables := declaredTables
+			tag := field.Tag.Get("sqlb")
 			if field.Anonymous {
+				if tag != "" {
+					r, err := parseDeclareTag(tag, 0)
+					if err != nil {
+						return fmt.Errorf("tables declaration %q in %T.%s: %w", tag, zero, field.Name, err)
+					}
+					curDeclaredTables = util.Map(r, func(t string) any {
+						return NewTable("", t)
+					})
+				}
 				if fieldType.Kind() == reflect.Ptr {
 					fieldType = fieldType.Elem()
 				}
 				if fieldType.Kind() == reflect.Struct {
-					err := findFields(fieldType, currentPath)
+					err := findFields(fieldType, currentPath, curDeclaredTables)
 					if err != nil {
 						return err
 					}
@@ -115,11 +128,10 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				}
 			}
 
-			tag := field.Tag.Get("sqlb")
 			if tag != "" {
-				column, err := parseTag(tag)
+				column, err := parseTag(tag, curDeclaredTables)
 				if err != nil {
-					return err
+					return fmt.Errorf("column declaration %q in %T.%s: %w", tag, zero, field.Name, err)
 				}
 				columns = append(columns, column)
 				fieldIndices = append(fieldIndices, currentPath)
@@ -128,7 +140,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 		return nil
 	}
 
-	err := findFields(typ, nil)
+	err := findFields(typ, nil, nil)
 	if err != nil {
 		return &structInfo{err: err}
 	}

@@ -34,7 +34,8 @@ func QueryStruct[T any](db QueryAble, query SelectBuilder, style sqlf.BindStyle)
 		fields := make([]any, len(fieldIndices))
 		for i, indexPath := range fieldIndices {
 			field := destValue.FieldByIndex(indexPath)
-			if field.Kind() == reflect.Ptr && field.IsNil() {
+			if i < len(indexPath)-1 && field.Kind() == reflect.Ptr && field.IsNil() {
+				// if any ancestor field is a pointer and nil, create a new instance.
 				field.Set(reflect.New(field.Type().Elem()))
 				field = field.Elem()
 			}

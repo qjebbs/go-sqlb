@@ -44,7 +44,6 @@ func (b *QueryBuilder) collectDependencies() (*queryBuilderDependencies, error) 
 func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 	builders := util.Concat(
 		b.selects,
-		b.touches,
 		b.conditions,
 		util.Map(b.orders, func(i *orderItem) sqlf.Builder { return i.column }),
 		b.groupbys,

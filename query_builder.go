@@ -17,7 +17,6 @@ type QueryBuilder struct {
 	tablesDict map[string]*fromTable // the from tables by alias
 
 	selects    []sqlf.Builder // select columns and keep values in scanning.
-	touches    []sqlf.Builder // select columns but drop values in scanning.
 	conditions []sqlf.Builder // where conditions, joined with AND.
 	orders     []*orderItem   // order by columns, joined with comma.
 	groupbys   []sqlf.Builder // group by columns, joined with comma.

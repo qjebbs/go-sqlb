@@ -52,7 +52,7 @@ func scan[T any](db QueryAble, query string, args []any, fn func() (T, []any)) (
 	var results []T
 	for rows.Next() {
 		dest, fields := fn()
-		err = scanRow(rows, fields...)
+		err = rows.Scan(fields...)
 		if err != nil {
 			return nil, err
 		}
@@ -61,21 +61,21 @@ func scan[T any](db QueryAble, query string, args []any, fn func() (T, []any)) (
 	return results, nil
 }
 
-// ScanRow scans a single row to dest, unlike rows.Scan(), it drops the extra columns.
-// It's useful when *sqlb.QueryBuilder.OrderBy() add extra column to the query.
-func scanRow(rows *sql.Rows, dest ...any) error {
-	cols, err := rows.Columns()
-	if err != nil {
-		return err
-	}
-	nBlacholes := len(cols) - len(dest)
-	bh := &blackhole{}
-	for i := 0; i < nBlacholes; i++ {
-		dest = append(dest, &bh)
-	}
-	return rows.Scan(dest...)
-}
+// // ScanRow scans a single row to dest, unlike rows.Scan(), it drops the extra columns.
+// // It's useful when *sqlb.QueryBuilder.OrderBy() add extra column to the query.
+// func scanRow(rows *sql.Rows, dest ...any) error {
+// 	cols, err := rows.Columns()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	nBlacholes := len(cols) - len(dest)
+// 	bh := &blackhole{}
+// 	for i := 0; i < nBlacholes; i++ {
+// 		dest = append(dest, &bh)
+// 	}
+// 	return rows.Scan(dest...)
+// }
 
-type blackhole struct{}
+// type blackhole struct{}
 
-func (b *blackhole) Scan(_ any) error { return nil }
+// func (b *blackhole) Scan(_ any) error { return nil }

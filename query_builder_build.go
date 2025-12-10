@@ -65,8 +65,11 @@ func (b *QueryBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		clauses = append(clauses, with)
 	}
 	// reserve a position for select
-	selectAt := len(clauses)
-	clauses = append(clauses, "")
+	sel, err := b.buildSelects(ctx)
+	if err != nil {
+		return "", err
+	}
+	clauses = append(clauses, sel)
 	from, err := b.buildFrom(ctx, myDeps.queryDeps)
 	if err != nil {
 		return "", err
@@ -117,12 +120,6 @@ func (b *QueryBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if b.offset > 0 {
 		clauses = append(clauses, fmt.Sprintf(`OFFSET %d`, b.offset))
 	}
-	// select must build order, because buildOrders may add columns to touches
-	sel, err := b.buildSelects(ctx)
-	if err != nil {
-		return "", err
-	}
-	clauses[selectAt] = sel
 	query := strings.TrimSpace(strings.Join(clauses, " "))
 	if len(b.unions) > 0 {
 		union, err := sqlf.Join(" ", b.unions...).Build(ctx)
@@ -157,17 +154,10 @@ func (b *QueryBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	touches, err := sqlf.Join(", ", b.touches...).Build(ctx)
-	if err != nil {
-		return "", err
-	}
 	if sel == "" {
 		return "", fmt.Errorf("no columns selected")
 	}
-	if touches == "" {
-		return sel, nil
-	}
-	return sel + ", " + touches, nil
+	return sel, nil
 }
 
 func (b *QueryBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, error) {

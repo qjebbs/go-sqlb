@@ -1,9 +1,8 @@
-package sqlb_test
+package sqlb
 
 import (
 	"testing"
 
-	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -23,14 +22,14 @@ func TestQueryStruct(t *testing.T) {
 		unexported string `sqlb:"1"` // should be ignored
 	}
 
-	userTable := sqlb.NewTable("users", "u")
-	b := sqlb.NewQueryBuilder().
+	userTable := NewTable("users", "u")
+	b := NewQueryBuilder().
 		From(userTable).Where(sqlf.F(
 		"?=?",
 		userTable.Column("id"), 1,
 	))
 	want := "SELECT u.id, u.name, u.email, 'str' FROM users AS u WHERE u.id=$1"
-	got, _, err := sqlb.BuildQueryForStruct[User](b, sqlf.BindStyleDollar)
+	got, _, err := _BuildQueryForStruct[User](b, sqlf.BindStyleDollar)
 	if err != nil {
 		t.Fatal(err)
 	}

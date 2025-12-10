@@ -16,6 +16,37 @@ type SelectBuilder interface {
 }
 
 // QueryStruct queries the built query and scans rows into a slice of structs.
+//
+// The struct type T must have fields tagged with `sqlb` tags to map the selected columns.
+// The `sqlb` tag syntax supports two formats:
+//  1. <table>.<column>
+//  2. <expression>;[table1, table2...]
+//
+// Tables declared part in format 2 is optional, since,
+//  1. The expression could use no table.
+//  2. The expression could use tables from those declared in anonymous parent fields. (As `Model` in the example below)
+//
+// Example:
+//
+//	type Model struct {
+//	    ID   int    `sqlb:"?.id"`
+//	}
+//
+//	type User struct {
+//	    Model `sqlb:"u"`  // Anonymous field allows declaring tables for its fields
+//	    Name  string `sqlb:"u.name"` // Simple syntax
+//	    Age   int    `sqlb:"COALESCE(?.age,0);u"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
+//	}
+//
+//	var Users = sqlb.NewTable("users", "u")
+//	query := sqlb.NewSelectBuilder().
+//	    From(Users).
+//	    Where(Users.Column("active")))
+//
+//	users, err := sqlb.QueryStruct[*Users](db, query, sqlf.BindStyleDollar)
+//	if err != nil {
+//	    // handle error
+//	}
 func QueryStruct[T any](db QueryAble, query SelectBuilder, style sqlf.BindStyle) ([]T, error) {
 	queryStr, args, fieldIndices, err := buildQueryForStruct[T](query, style)
 	if err != nil {
@@ -44,8 +75,8 @@ func QueryStruct[T any](db QueryAble, query SelectBuilder, style sqlf.BindStyle)
 	})
 }
 
-// BuildQueryForStruct builds the query for struct T and returns the query string and args.
-func BuildQueryForStruct[T any](b SelectBuilder, style sqlf.BindStyle) (query string, args []any, err error) {
+// _BuildQueryForStruct builds the query for struct T and returns the query string and args.
+func _BuildQueryForStruct[T any](b SelectBuilder, style sqlf.BindStyle) (query string, args []any, err error) {
 	query, args, _, err = buildQueryForStruct[T](b, style)
 	return query, args, err
 }

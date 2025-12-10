@@ -64,7 +64,7 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 	}
 	depsOfTables := newDepTables()
 	for _, t := range b.tables {
-		if (b.distinct || len(b.groupbys) > 0) && t.optional && !deps.Tables[t.table] {
+		if b.shouldEliminateTable(t, deps) {
 			continue
 		}
 		// required by FROM / JOIN

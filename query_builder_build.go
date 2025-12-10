@@ -163,7 +163,7 @@ func (b *QueryBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 func (b *QueryBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, error) {
 	tables := make([]string, 0, len(b.tables))
 	for _, t := range b.tables {
-		if (b.distinct || len(b.groupbys) > 0) && t.optional && !dep.Tables[t.table] {
+		if b.shouldEliminateTable(t, dep) {
 			continue
 		}
 		c, err := t.Builder.Build(ctx)
@@ -173,4 +173,15 @@ func (b *QueryBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, err
 		tables = append(tables, c)
 	}
 	return "FROM " + strings.Join(tables, " "), nil
+}
+
+func (b *QueryBuilder) shouldEliminateTable(t *fromTable, dep *depTables) bool {
+	if !t.optional || dep.Tables[t.table] {
+		return false
+	}
+	// automatic elimination for LEFT JOIN tables
+	if b.distinct || len(b.groupbys) > 0 {
+		return true
+	}
+	return t.forceEliminate
 }

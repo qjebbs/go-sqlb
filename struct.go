@@ -3,10 +3,8 @@ package sqlb
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"sync"
 
-	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -116,34 +114,14 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					continue
 				}
 			}
-			tag := getFieldTag(field)
+
+			tag := field.Tag.Get("sqlb")
 			if tag != "" {
-				// tag formats:
-				// 1. <table>.<column>
-				// 2. <expression>;[table1, table2...]
-				// e.g. "u.id", "COALESCE(?.id,?.user_id,0);u,j"
-				if tableName, columnName, ok := parseSimpleTag(tag); ok {
-					table := NewTable("", tableName)
-					column := table.Column(columnName)
-					columns = append(columns, column)
-				} else {
-					seg := strings.SplitN(tag, ";", 2)
-					var tables []any
-					if len(seg) == 2 {
-						tableNames := strings.Split(seg[1], ",")
-						tables = util.Map(tableNames, func(t string) any {
-							return NewTable("", strings.TrimSpace(t))
-						})
-					}
-					column := sqlf.F(seg[0], tables...)
-					// try build column to catch errors early for better error messages
-					ctx := sqlf.NewContext(sqlf.BindStyleDollar)
-					_, err := column.Build(ctx)
-					if err != nil {
-						return fmt.Errorf("invalid sqlb tag %q from %T.%s: %w", tag, zero, field.Name, err)
-					}
-					columns = append(columns, column)
+				column, err := parseTag(tag)
+				if err != nil {
+					return err
 				}
+				columns = append(columns, column)
 				fieldIndices = append(fieldIndices, currentPath)
 			}
 		}
@@ -166,45 +144,4 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 		fieldIndices: fieldIndices,
 		err:          nil,
 	}
-}
-
-// parseSimpleTag parses a simple sqlb tag in the format of "<table>.<column>".
-func parseSimpleTag(tag string) (tableName, columnName string, ok bool) {
-	if strings.Contains(tag, ";") {
-		return "", "", false
-	}
-	seg := strings.SplitN(tag, ".", 2)
-	if len(seg) != 2 {
-		return "", "", false
-	}
-	tableName = seg[0]
-	columnName = seg[1]
-	if tableName == "" || columnName == "" {
-		return "", "", false
-	}
-	if !isAllowedName(tableName) || !isAllowedName(columnName) {
-		return "", "", false
-	}
-	return tableName, columnName, true
-}
-
-// isAllowedName checks if characters of name are [a-zA-Z0-9_@#$] and not starting with a digit.
-func isAllowedName(name string) bool {
-	for i, ch := range name {
-		if !(ch >= 'a' && ch <= 'z' ||
-			ch >= 'A' && ch <= 'Z' ||
-			ch >= '0' && ch <= '9' ||
-			ch == '_' || ch == '@' || ch == '#') {
-			return false
-		}
-		if i == 0 && ch >= '0' && ch <= '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// getFieldTag gets the sqlb tag from a struct field.
-func getFieldTag(field reflect.StructField) string {
-	return field.Tag.Get("sqlb")
 }

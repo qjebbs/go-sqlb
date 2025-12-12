@@ -75,14 +75,11 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 	var columns []fieldInfo
 	var findFields func(t reflect.Type, basePath []int, declaredTables []string) error
 	findFields = func(t reflect.Type, basePath []int, declaredTables []string) error {
-		curDeclaredTables := declaredTables
+		curDefaultTables := declaredTables
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
 			fieldType := field.Type
-			if !field.IsExported() {
-				continue
-			}
 
 			tag := field.Tag.Get("sqlb")
 			if field.Anonymous {
@@ -91,16 +88,18 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					if err != nil {
 						return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tag, err)
 					}
-					if info.Column != "" || len(info.On) > 0 {
-						return fmt.Errorf("sqlb tag: cannot declare column or on filters on anonymous field: %T.%s", zero, field.Name)
+					if info.Column != "" || len(info.Tables) > 0 || len(info.On) > 0 {
+						return fmt.Errorf("sqlb tag: %T.%s: anonymous field supports only the 'default_tables' key", zero, field.Name)
 					}
-					curDeclaredTables = info.Tables
+					if len(info.DefaultTables) > 0 {
+						curDefaultTables = info.DefaultTables
+					}
 				}
 				if fieldType.Kind() == reflect.Ptr {
 					fieldType = fieldType.Elem()
 				}
 				if fieldType.Kind() == reflect.Struct {
-					err := findFields(fieldType, currentPath, curDeclaredTables)
+					err := findFields(fieldType, currentPath, curDefaultTables)
 					if err != nil {
 						return err
 					}
@@ -113,11 +112,17 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				if err != nil {
 					return fmt.Errorf("sqlb tag: column definition on %T.%s: %q : %w", zero, field.Name, tag, err)
 				}
+				if len(info.DefaultTables) > 0 {
+					curDefaultTables = info.DefaultTables
+				}
+				if !field.IsExported() {
+					continue
+				}
 				tables := info.Tables
 				tablesInherit := false
 				if len(tables) == 0 {
 					tablesInherit = true
-					tables = curDeclaredTables
+					tables = curDefaultTables
 				}
 				var tags map[string]struct{}
 				if len(info.On) > 0 {

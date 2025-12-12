@@ -6,9 +6,10 @@ import (
 
 // Info represents parsed tag information.
 type Info struct {
-	Column string   // Column is parsed from "col" key.
-	Tables []string // Tables is parsed from "tables" key.
-	On     []string // On is parsed from "on" key.
+	Column        string   // Column is parsed from "col" key.
+	Tables        []string // Tables is parsed from "tables" key.
+	DefaultTables []string // DefaultTables is parsed from "default_tables" key.
+	On            []string // On is parsed from "on" key.
 }
 
 // Parse parses the input and returns the list of expressions.
@@ -98,7 +99,7 @@ func (p *parser) parseKeyValue() error {
 			}
 			p.c.Tables = []string{table}
 		}
-	case "tables":
+	case "tables", "default_tables":
 		names, err := parseNames(p.token.lit)
 		if err != nil {
 			return err
@@ -106,7 +107,11 @@ func (p *parser) parseKeyValue() error {
 		if len(p.c.Tables) > 0 {
 			return p.syntaxError(fmt.Sprintf("redundant tables declaration, at %d: %q", p.token.start, p.token.lit))
 		}
-		p.c.Tables = names
+		if key == "tables" {
+			p.c.Tables = names
+		} else {
+			p.c.DefaultTables = names
+		}
 	case "on":
 		names, err := parseNames(p.token.lit)
 		if err != nil {

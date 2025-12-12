@@ -41,12 +41,9 @@ func (l *lexerHelper) StartToken(tokens ...any) {
 
 // Next moves to the next rune
 func (l *lexerHelper) Next() rune {
-	if l.current.offset >= len(l.input) {
-		l.width = 0
-		l.rune = EOF
-		return l.rune
+	if l.current.offset < len(l.input) {
+		l.current.offset += l.width
 	}
-	l.current.offset += l.width
 	if l.current.offset >= len(l.input) {
 		l.width = 0
 		l.rune = EOF

@@ -13,14 +13,14 @@ func TestQueryStruct(t *testing.T) {
 	}
 
 	type User struct {
-		*Model   `sqlb:"tables:u"`
+		*Model   `sqlb:"default_tables:u"`
 		Name     string `sqlb:"u.name"`
 		Email    string `sqlb:"u.email"`
 		Constant string `sqlb:"col:'str'"`
 
 		Child *User
 
-		unexported string `sqlb:"1"` // should be ignored
+		unexported string `sqlb:"col:1"` // should be ignored
 	}
 
 	userTable := sqlb.NewTable("users", "u")

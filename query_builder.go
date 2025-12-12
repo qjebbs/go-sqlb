@@ -7,7 +7,6 @@ import (
 
 var _ sqlf.Builder = (*QueryBuilder)(nil)
 var _ Builder = (*QueryBuilder)(nil)
-var _ SelectBuilder = (*QueryBuilder)(nil)
 
 // QueryBuilder is the SQL query builder.
 // It's recommended to wrap it with your struct to provide a

@@ -1,8 +1,9 @@
-package sqlb
+package scanner
 
 import (
 	"database/sql"
 
+	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -14,15 +15,9 @@ type QueryAble interface {
 	QueryRow(query string, args ...any) *sql.Row
 }
 
-// Query queries the built query and scans rows into a slice.
-//
-// The main difference in behavior from *sql.Rows.Scan() is that
-// it will discard extra columns if there are not enough scan destinations.
-//
-// This is useful when work with *QueryBuilder who may add extra select
-// columns (on SELECT DISTINCT + ORDER BY), and Query will ignore those
-// columns instead of reporting short-scan-destination errors.
-func Query[T any](db QueryAble, b Builder, style sqlf.BindStyle, fn func() (T, []any)) ([]T, error) {
+// SelectManual executes a query and scans the results using a provider function.
+// The provider fn is called for each row to get the destination value and scan fields.
+func SelectManual[T any](db QueryAble, b sqlb.Builder, style sqlf.BindStyle, fn func() (T, []any)) ([]T, error) {
 	query, args, err := b.BuildQuery(style)
 	if err != nil {
 		return nil, err

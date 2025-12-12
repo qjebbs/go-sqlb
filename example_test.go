@@ -2,7 +2,6 @@ package sqlb_test
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlf/v4"
@@ -157,31 +156,4 @@ func ExampleQueryBuilder_Debug() {
 	// [q1] SELECT c.id FROM cte AS c INNER JOIN bar AS b ON TRUE
 	// [q2] WITH cte AS (SELECT 1) SELECT c.id FROM cte AS c UNION SELECT c.id FROM cte AS c INNER JOIN bar AS b ON TRUE
 	// [q3] SELECT f.* FROM foo AS f WHERE f.id IN (WITH cte AS (SELECT 1) SELECT c.id FROM cte AS c UNION SELECT c.id FROM cte AS c INNER JOIN bar AS b ON TRUE)
-}
-
-func ExampleQueryStruct() {
-	type Model struct {
-		ID      int        `sqlb:"?.id"`
-		Created *time.Time `sqlb:"?.created_at"`
-		Updated *time.Time `sqlb:"?.updated_at"`
-		Deleted *time.Time `sqlb:"?.deleted_at"`
-	}
-
-	type User struct {
-		*Model `sqlb:"u"` // Anonymous field allows declaring tables for its fields
-		Name   string     `sqlb:"u.name"`              // Simple syntax
-		Age    int        `sqlb:"COALESCE(?.age,0);u"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
-	}
-
-	Users := sqlb.NewTable("users", "u")
-	b := sqlb.NewQueryBuilder().From(Users).Limit(10)
-	b.Debug() // enable debug to see the built query
-	defer func() {
-		if err := recover(); err != nil {
-			// ignore error since db is nil
-		}
-	}()
-	sqlb.QueryStruct[*User](nil, b, sqlf.BindStyleDollar)
-	// Output:
-	// [sqlb] SELECT u.id, u.created_at, u.updated_at, u.deleted_at, u.name, COALESCE(u.age,0) FROM users AS u LIMIT 10
 }

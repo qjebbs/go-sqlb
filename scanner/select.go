@@ -51,7 +51,7 @@ func buildQueryForStruct[T any](b SelectBuilder, style sqlf.BindStyle, tags []st
 	if err != nil {
 		return "", nil, nil, err
 	}
-	columns, fieldIndices := info.filterByTag(tags)
+	columns, fieldIndices := info.build(tags)
 	b.SetSelect(columns...)
 	query, args, err = b.BuildQuery(style)
 	if err != nil {

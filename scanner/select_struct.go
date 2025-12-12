@@ -17,25 +17,35 @@ type structInfo struct {
 }
 
 type fieldInfo struct {
-	column sqlf.Builder
-	index  []int
-	tags   map[string]struct{}
+	column        string              // column definition
+	tables        []string            // tables to use for this column
+	tablesInherit bool                // whether to skip usage check for tables inherited from anonymous fields
+	index         []int               // field index in the struct
+	tags          map[string]struct{} // tags for including this field
 }
 
-func (f structInfo) filterByTag(tags []string) (columns []sqlf.Builder, fieldIndices [][]int) {
+func (f structInfo) build(tags []string) (columns []sqlf.Builder, fieldIndices [][]int) {
 	for _, col := range f.columns {
-		if col.tags == nil {
-			columns = append(columns, col.column)
-			fieldIndices = append(fieldIndices, col.index)
-			continue
-		}
-		for _, tag := range tags {
-			if _, ok := col.tags[tag]; ok {
-				columns = append(columns, col.column)
-				fieldIndices = append(fieldIndices, col.index)
-				break
+		included := col.tags == nil
+		if !included && len(tags) > 0 {
+			for _, tag := range tags {
+				if _, ok := col.tags[tag]; ok {
+					included = true
+					break
+				}
 			}
 		}
+		if !included {
+			continue
+		}
+		column := sqlf.F(col.column, util.Map(col.tables, func(t string) any {
+			return sqlb.NewTable("", t)
+		})...)
+		if col.tablesInherit {
+			column.NoUsageCheck()
+		}
+		columns = append(columns, column)
+		fieldIndices = append(fieldIndices, col.index)
 	}
 	return
 }
@@ -103,17 +113,11 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				if err != nil {
 					return fmt.Errorf("sqlb tag: column definition on %T.%s: %q : %w", zero, field.Name, tag, err)
 				}
-				useDeclaredTables := false
-				if len(info.Tables) == 0 {
-					useDeclaredTables = true
-					info.Tables = declaredTables
-				}
-				tables := util.Map(info.Tables, func(t string) any {
-					return sqlb.NewTable("", t)
-				})
-				column := sqlf.F(info.Column, tables...)
-				if useDeclaredTables {
-					column.NoUsageCheck()
+				tables := info.Tables
+				tablesInherit := false
+				if len(tables) == 0 {
+					tablesInherit = true
+					tables = curDeclaredTables
 				}
 				var tags map[string]struct{}
 				if len(info.On) > 0 {
@@ -123,9 +127,11 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					}
 				}
 				columns = append(columns, fieldInfo{
-					column: column,
-					index:  currentPath,
-					tags:   tags,
+					column:        info.Column,
+					tables:        tables,
+					tablesInherit: tablesInherit,
+					index:         currentPath,
+					tags:          tags,
 				})
 			}
 		}

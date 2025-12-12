@@ -17,10 +17,13 @@ func ExampleSelect() {
 	}
 
 	type User struct {
-		*Model `sqlb:"tables:u;"` // Anonymous field allows declaring tables for its fields
-		Name   string             `sqlb:"u.name"`                         // Simple syntax
-		Age    int                `sqlb:"col:COALESCE(?.age,0);tables:u"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
-		Notes  string             `sqlb:"col:?.notes;tables:u;on:full"`
+		// Anonymous field can declare default tables for its
+		// children and below siblings who don't declare
+		// tables explicitly.
+		*Model `sqlb:"tables:u;"`
+		Name   string `sqlb:"col:?.name"`            // Inherits table "u" from Model above
+		Age    int    `sqlb:"col:COALESCE(?.age,0)"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
+		Notes  string `sqlb:"col:?.notes;on:full"`   // Included only when "full" tag is specified
 	}
 
 	Users := sqlb.NewTable("users", "u")

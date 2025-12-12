@@ -75,6 +75,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 	var columns []fieldInfo
 	var findFields func(t reflect.Type, basePath []int, declaredTables []string) error
 	findFields = func(t reflect.Type, basePath []int, declaredTables []string) error {
+		curDeclaredTables := declaredTables
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
@@ -83,7 +84,6 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				continue
 			}
 
-			curDeclaredTables := declaredTables
 			tag := field.Tag.Get("sqlb")
 			if field.Anonymous {
 				if tag != "" {

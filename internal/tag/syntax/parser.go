@@ -14,12 +14,6 @@ type Info struct {
 
 // Parse parses the input and returns the list of expressions.
 func Parse(input string) (*Info, error) {
-	if t, col, ok := parseSimpleColumn(input); ok {
-		return &Info{
-			Column: "?." + col,
-			Tables: []string{t},
-		}, nil
-	}
 	p := &parser{
 		scanner: newScanner(input),
 	}

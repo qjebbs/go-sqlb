@@ -10,6 +10,7 @@ type Info struct {
 	Tables        []string // Tables is parsed from "tables" key.
 	DefaultTables []string // DefaultTables is parsed from "default_tables" key.
 	On            []string // On is parsed from "on" key.
+	Dive          bool     // Dive indicates whether "dive" key is present.
 }
 
 // Parse parses the input and returns the list of expressions.
@@ -72,8 +73,16 @@ L:
 
 func (p *parser) parseKeyValue() error {
 	key := p.token.lit
-	if err := p.want(_Colon); err != nil {
-		return err
+	p.NextToken()
+	if p.token.typ == _Semicolon || p.token.typ == _EOF {
+		switch key {
+		case "dive":
+			p.c.Dive = true
+			return nil
+		}
+	}
+	if p.token.typ != _Colon {
+		return p.syntaxError(fmt.Sprintf("expected %s, see %s", _Colon, p.token.typ))
 	}
 	p.NextToken()
 	if p.token.typ == _Semicolon || p.token.typ == _EOF {

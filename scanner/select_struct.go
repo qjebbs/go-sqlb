@@ -118,6 +118,26 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				if !field.IsExported() {
 					continue
 				}
+				if info.Column != "" && info.Dive {
+					return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' cannot be used with 'col'", zero, field.Name)
+				}
+				if info.Dive {
+					if fieldType.Kind() == reflect.Ptr {
+						fieldType = fieldType.Elem()
+					}
+					if fieldType.Kind() != reflect.Struct {
+						return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' can be used only with struct fields", zero, field.Name)
+					}
+					err := findFields(fieldType, currentPath, curDefaultTables)
+					if err != nil {
+						return err
+					}
+					continue
+				}
+				if info.Column == "" {
+					continue
+				}
+
 				tables := info.Tables
 				tablesInherit := false
 				if len(tables) == 0 {

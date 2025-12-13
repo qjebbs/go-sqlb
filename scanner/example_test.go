@@ -6,6 +6,7 @@ import (
 
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/scanner"
+	"github.com/qjebbs/go-sqlf/v4"
 )
 
 func ExampleSelect() {
@@ -16,33 +17,42 @@ func ExampleSelect() {
 		Deleted *time.Time `sqlb:"col:?.deleted_at"`
 	}
 
-	type User struct {
+	type Bill struct {
 		// Anonymous field supports only 'default_tables' key.
 		// The 'default_tables' declare default tables for its subfields and
 		// subsequent sibling fields who don't declare tables explicitly.
-		*Model `sqlb:"default_tables:u"`
-		// If you don't use anonymous field, a dummy field can be used to
-		// define the default table for subsequent sibling fields.
-		_ struct{} `sqlb:"default_tables:u"`
+		Model  `sqlb:"default_tables:b"`
+		Amount float64 `sqlb:"col:?.amount"`
+		// Included only when "full" tag is specified
+		Notes string `sqlb:"col:?.notes;on:full"`
+	}
 
-		Name  string `sqlb:"col:?.name"`            // Inherits table "u" from above
-		Age   int    `sqlb:"col:COALESCE(?.age,0)"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
-		Notes string `sqlb:"col:?.notes;on:full"`   // Included only when "full" tag is specified
+	type UserBill struct {
+		// It's also possible to use a dummy field to
+		// define the default table for subsequent sibling fields.
+		_     struct{} `sqlb:"default_tables:u"`
+		ID    int      `sqlb:"col:?.id"`
+		Owner string   `sqlb:"col:?.name"`
+
+		// Dive into the Bill struct
+		Bill *Bill `sqlb:"dive;default_tables:b"`
 	}
 
 	Users := sqlb.NewTable("users", "u")
-	b := sqlb.NewQueryBuilder().From(Users).Limit(10)
+	Bills := sqlb.NewTable("bills", "b")
+	b := sqlb.NewQueryBuilder().From(Users).LeftJoin(
+		Bills, sqlf.F("?.id = ?.user_id", Users, Bills),
+	).Limit(10)
 	b.Debug() // enable debug to see the built query
 	defer func() {
 		if err := recover(); err != nil {
 			// ignore error since db is nil
 		}
 	}()
-	// u.notes is included because of the "full" tag
-	_, err := scanner.Select[*User](nil, b, scanner.WithTags("full"))
+	_, err := scanner.Select[*UserBill](nil, b, scanner.WithTags("full"))
 	if err != nil {
 		fmt.Println(err)
 	}
 	// Output:
-	// [sqlb] SELECT u.id, u.created_at, u.updated_at, u.deleted_at, u.name, COALESCE(u.age,0), u.notes FROM users AS u LIMIT 10
+	// [sqlb] SELECT u.id, u.name, b.id, b.created_at, b.updated_at, b.deleted_at, b.amount, b.notes FROM users AS u LEFT JOIN bills AS b ON u.id = b.user_id LIMIT 10
 }

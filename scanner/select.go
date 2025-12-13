@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"database/sql"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -8,6 +9,7 @@ import (
 )
 
 var _ SelectBuilder = (*sqlb.QueryBuilder)(nil)
+var _ SelectLimitBuilder = (*sqlb.QueryBuilder)(nil)
 
 // SelectBuilder is the interface for builders that support Select method.
 type SelectBuilder interface {
@@ -15,10 +17,31 @@ type SelectBuilder interface {
 	SetSelect(columns ...sqlf.Builder)
 }
 
+// SelectLimitBuilder is the interface for builders that support Limit method.
+type SelectLimitBuilder interface {
+	SelectBuilder
+	SetLimit(n int64)
+}
+
+// SelectOne executes the query and scans the result into a struct T.
+func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T, error) {
+	b.SetLimit(1)
+	r, err := Select[T](db, b, options...)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	if len(r) == 0 {
+		var zero T
+		return zero, sql.ErrNoRows
+	}
+	return r[0], nil
+}
+
 // Select executes the query and scans the results into a slice of struct T.
-func Select[T any](db QueryAble, query SelectBuilder, options ...Option) ([]T, error) {
+func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	opt := mergeOptions(options...)
-	queryStr, args, fieldIndices, err := buildQueryForStruct[T](query, opt.style, opt.tags)
+	queryStr, args, fieldIndices, err := buildQueryForStruct[T](b, opt.style, opt.tags)
 	if err != nil {
 		return nil, err
 	}

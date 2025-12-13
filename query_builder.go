@@ -75,10 +75,15 @@ func (b *QueryBuilder) SetSelect(columns ...sqlf.Builder) {
 
 // Limit set the limit.
 func (b *QueryBuilder) Limit(limit int64) *QueryBuilder {
+	b.SetLimit(limit)
+	return b
+}
+
+// SetLimit implements the SelectLimitBuilder interface.
+func (b *QueryBuilder) SetLimit(limit int64) {
 	if limit > 0 {
 		b.limit = limit
 	}
-	return b
 }
 
 // Offset set the offset.

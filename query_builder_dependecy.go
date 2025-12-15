@@ -62,6 +62,11 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 	if err != nil {
 		return nil, fmt.Errorf("collect dependencies: %w", err)
 	}
+	// outer tables of subqueries is my tables
+	for t := range deps.OuterTables {
+		deps.Tables[t] = true
+	}
+	deps.OuterTables = map[Table]bool{}
 	depsOfTables := newDepTables()
 	for _, t := range b.tables {
 		if b.shouldEliminateTable(t, deps) {
@@ -76,11 +81,6 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 		}
 	}
 	deps.Merge(depsOfTables)
-	// outer tables of subqueries is my tables
-	for t := range deps.OuterTables {
-		deps.Tables[t] = true
-	}
-	deps.OuterTables = map[Table]bool{}
 	for t := range deps.Tables {
 		if _, ok := b.tablesDict[t.AppliedName()]; !ok {
 			// require outer FROM / JOIN

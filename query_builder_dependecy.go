@@ -81,14 +81,22 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 		}
 	}
 	deps.Merge(depsOfTables)
-	for t := range deps.Tables {
-		if _, ok := b.tablesDict[t.AppliedName()]; !ok {
-			// require outer FROM / JOIN
-			delete(deps.Tables, t)
-			deps.OuterTables[t] = true
-		} else {
+	for name := range deps.Tables {
+		// only respect the applied name of 'name', since it's
+		// unique and always valid in QueryBuilder
+		if t, ok := b.tablesDict[name.AppliedName()]; ok {
 			// required by FROM / JOIN
-			deps.SourceNames[t.Name] = true
+			deps.SourceNames[t.table.Name] = true
+			if t.table != name {
+				// t.Name may be empty (from sqlb tag),
+				// or even wrong across builder scopes.
+				delete(deps.Tables, name)
+				deps.Tables[t.table] = true
+			}
+		} else {
+			// require outer FROM / JOIN
+			delete(deps.Tables, name)
+			deps.OuterTables[name] = true
 		}
 	}
 

@@ -86,31 +86,41 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 	var columns []fieldInfo
 	var findFields func(t reflect.Type, basePath []int, declaredTables []string) error
 	findFields = func(t reflect.Type, basePath []int, declaredTables []string) error {
-		curDefaultTables := declaredTables
+		curTables := declaredTables
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
 			fieldType := field.Type
 
-			tag := field.Tag.Get("sqlb")
+			var info *syntax.Info
+			var checkUsage = true
+			var tables []string
+			if tag := field.Tag.Get("sqlb"); tag != "" {
+				parsed, err := syntax.Parse(tag)
+				if err != nil {
+					return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tag, err)
+				}
+				if len(parsed.Tables) > 0 {
+					checkUsage = true
+					tables = parsed.Tables
+					curTables = parsed.Tables
+				} else {
+					checkUsage = false
+					tables = curTables
+				}
+				info = parsed
+			}
 			if field.Anonymous {
-				if tag != "" {
-					info, err := syntax.Parse(tag)
-					if err != nil {
-						return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tag, err)
-					}
-					if info.Column != "" || len(info.Tables) > 0 || len(info.On) > 0 {
-						return fmt.Errorf("sqlb tag: %T.%s: anonymous field supports only the 'default_tables' key", zero, field.Name)
-					}
-					if len(info.DefaultTables) > 0 {
-						curDefaultTables = info.DefaultTables
+				if info != nil {
+					if info.Column != "" || len(info.On) > 0 {
+						return fmt.Errorf("sqlb tag: %T.%s: anonymous field supports only the 'tables' key", zero, field.Name)
 					}
 				}
 				if fieldType.Kind() == reflect.Ptr {
 					fieldType = fieldType.Elem()
 				}
 				if fieldType.Kind() == reflect.Struct {
-					err := findFields(fieldType, currentPath, curDefaultTables)
+					err := findFields(fieldType, currentPath, curTables)
 					if err != nil {
 						return err
 					}
@@ -118,17 +128,11 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				}
 			}
 
-			if tag != "" {
-				info, err := syntax.Parse(tag)
-				if err != nil {
-					return fmt.Errorf("sqlb tag: column definition on %T.%s: %q : %w", zero, field.Name, tag, err)
-				}
-				if len(info.DefaultTables) > 0 {
-					curDefaultTables = info.DefaultTables
-				}
-				if !field.IsExported() {
-					continue
-				}
+			if !field.IsExported() {
+				continue
+			}
+
+			if info != nil {
 				if info.Column != "" && info.Dive {
 					return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' cannot be used with 'col'", zero, field.Name)
 				}
@@ -139,7 +143,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					if fieldType.Kind() != reflect.Struct {
 						return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' can be used only with struct fields", zero, field.Name)
 					}
-					err := findFields(fieldType, currentPath, curDefaultTables)
+					err := findFields(fieldType, currentPath, curTables)
 					if err != nil {
 						return err
 					}
@@ -149,12 +153,6 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					continue
 				}
 
-				checkUsage := true
-				tables := info.Tables
-				if len(tables) == 0 {
-					checkUsage = false
-					tables = curDefaultTables
-				}
 				var tags map[string]struct{}
 				if len(info.On) > 0 {
 					tags = make(map[string]struct{})

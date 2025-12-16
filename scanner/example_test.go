@@ -18,12 +18,12 @@ func ExampleSelect() {
 	}
 
 	type User struct {
-		// Anonymous field supports only 'default_tables' key.
-		// The 'default_tables' declare default tables for its subfields and
-		// subsequent sibling fields who don't declare tables explicitly.
-		Model `sqlb:"default_tables:u"`
+		// Anonymous field supports only the 'tables' key.
+		// The value defined by 'tables' can be inherited by nested fields
+		// and by subsequent sibling fields of the current struct.
+		Model `sqlb:"tables:u"`
 		Name  string `sqlb:"col:name"`
-		// Included only when "full" tag is specified
+		// Included only when the "full" tag is specified
 		Notes string `sqlb:"col:notes;on:full"`
 	}
 

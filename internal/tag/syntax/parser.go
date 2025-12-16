@@ -8,12 +8,11 @@ import (
 
 // Info represents parsed tag information.
 type Info struct {
-	Select        string   // Select is parsed from "sel" key.
-	Column        string   // Column is parsed from "col" key.
-	Tables        []string // Tables is parsed from "tables" key.
-	DefaultTables []string // DefaultTables is parsed from "default_tables" key.
-	On            []string // On is parsed from "on" key.
-	Dive          bool     // Dive indicates whether "dive" key is present.
+	Select string   // Select is parsed from "sel" key.
+	Column string   // Column is parsed from "col" key.
+	Tables []string // Tables is parsed from "tables" key.
+	On     []string // On is parsed from "on" key.
+	Dive   bool     // Dive indicates whether "dive" key is present.
 }
 
 // Parse parses the input and returns the list of expressions.
@@ -119,7 +118,7 @@ func (p *parser) parseKeyValue() error {
 			return p.syntaxError(fmt.Sprintf("redundant select declaration, at %d: %q", p.token.start, p.token.lit))
 		}
 		p.c.Select = p.token.lit
-	case "tables", "default_tables":
+	case "tables":
 		names, err := parseNames(p.token.lit)
 		if err != nil {
 			return err
@@ -127,11 +126,7 @@ func (p *parser) parseKeyValue() error {
 		if len(p.c.Tables) > 0 {
 			return p.syntaxError(fmt.Sprintf("redundant tables declaration, at %d: %q", p.token.start, p.token.lit))
 		}
-		if key == "tables" {
-			p.c.Tables = names
-		} else {
-			p.c.DefaultTables = names
-		}
+		p.c.Tables = names
 	case "on":
 		names, err := parseNames(p.token.lit)
 		if err != nil {

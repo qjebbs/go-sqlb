@@ -13,7 +13,7 @@ func TestQueryStruct(t *testing.T) {
 	}
 
 	type User struct {
-		*Model   `sqlb:"default_tables:u"`
+		*Model   `sqlb:"tables:u"`
 		Name     string `sqlb:"col:name"`
 		Email    string `sqlb:"col:email"`
 		Constant string `sqlb:"sel:'str'"`

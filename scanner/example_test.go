@@ -11,48 +11,49 @@ import (
 
 func ExampleSelect() {
 	type Model struct {
-		ID      int        `sqlb:"col:?.id"`
-		Created *time.Time `sqlb:"col:?.created_at"`
-		Updated *time.Time `sqlb:"col:?.updated_at"`
-		Deleted *time.Time `sqlb:"col:?.deleted_at"`
+		ID      int        `sqlb:"col:id"`
+		Created *time.Time `sqlb:"col:created_at"`
+		Updated *time.Time `sqlb:"col:updated_at"`
+		Deleted *time.Time `sqlb:"col:deleted_at"`
 	}
 
-	type Bill struct {
+	type User struct {
 		// Anonymous field supports only 'default_tables' key.
 		// The 'default_tables' declare default tables for its subfields and
 		// subsequent sibling fields who don't declare tables explicitly.
-		Model  `sqlb:"default_tables:b"`
-		Amount float64 `sqlb:"col:?.amount"`
+		Model `sqlb:"default_tables:u"`
+		Name  string `sqlb:"col:name"`
 		// Included only when "full" tag is specified
-		Notes string `sqlb:"col:?.notes;on:full"`
+		Notes string `sqlb:"col:notes;on:full"`
 	}
 
-	type UserBill struct {
-		// It's also possible to use a dummy field to
-		// define the default table for subsequent sibling fields.
-		_     struct{} `sqlb:"default_tables:u"`
-		ID    int      `sqlb:"col:?.id"`
-		Owner string   `sqlb:"col:?.name"`
-
-		// Dive into the Bill struct
-		Bill *Bill `sqlb:"dive;default_tables:b"`
+	type UserOrg struct {
+		// Dive into structs
+		User *User `sqlb:"dive"`
+		// Unlike col tags, a sel tag semantically suggest that
+		// it's a SELECT expression rather than a column.
+		OrgName float64 `sqlb:"sel:COALESCE(?.name,'');tables:o"`
 	}
 
 	Users := sqlb.NewTable("users", "u")
-	Bills := sqlb.NewTable("bills", "b")
-	b := sqlb.NewQueryBuilder().From(Users).LeftJoin(
-		Bills, sqlf.F("?.id = ?.user_id", Users, Bills),
-	).Limit(10)
+	Orgs := sqlb.NewTable("orgs", "o")
+	b := sqlb.NewQueryBuilder().
+		From(Users).
+		LeftJoin(Orgs, sqlf.F(
+			"?.org_id = ?.id",
+			Users, Orgs,
+		)).
+		WhereEquals(Users.Column("id"), 1)
 	b.Debug() // enable debug to see the built query
 	defer func() {
 		if err := recover(); err != nil {
 			// ignore error since db is nil
 		}
 	}()
-	_, err := scanner.Select[*UserBill](nil, b, scanner.WithTags("full"))
+	_, err := scanner.Select[*UserOrg](nil, b)
 	if err != nil {
 		fmt.Println(err)
 	}
 	// Output:
-	// [sqlb] SELECT u.id, u.name, b.id, b.created_at, b.updated_at, b.deleted_at, b.amount, b.notes FROM users AS u LEFT JOIN bills AS b ON u.id = b.user_id LIMIT 10
+	// [sqlb] SELECT u.id, u.created_at, u.updated_at, u.deleted_at, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE u.id = 1
 }

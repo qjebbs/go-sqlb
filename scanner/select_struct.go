@@ -17,11 +17,11 @@ type structInfo struct {
 }
 
 type fieldInfo struct {
-	column        string              // column definition
-	tables        []string            // tables to use for this column
-	tablesInherit bool                // whether to skip usage check for tables inherited from anonymous fields
-	index         []int               // field index in the struct
-	tags          map[string]struct{} // tags for including this field
+	column     string              // column definition
+	tables     []string            // tables to use for this column
+	checkUsage bool                // whether to do usage check for tables inherited from anonymous fields
+	index      []int               // field index in the struct
+	tags       map[string]struct{} // tags for including this field
 }
 
 func (f structInfo) build(tags []string) (columns []sqlf.Builder, fieldIndices [][]int) {
@@ -41,7 +41,7 @@ func (f structInfo) build(tags []string) (columns []sqlf.Builder, fieldIndices [
 		column := sqlf.F(col.column, util.Map(col.tables, func(t string) any {
 			return sqlb.NewTable("", t)
 		})...)
-		if col.tablesInherit {
+		if !col.checkUsage {
 			column.NoUsageCheck()
 		}
 		columns = append(columns, column)
@@ -134,15 +134,21 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					}
 					continue
 				}
-				if info.Column == "" {
-					continue
-				}
 
+				checkUsage := true
 				tables := info.Tables
-				tablesInherit := false
 				if len(tables) == 0 {
-					tablesInherit = true
+					checkUsage = false
 					tables = curDefaultTables
+				}
+				// sel tag takes precedence over col tag
+				column := info.Select
+				if column == "" && info.Column != "" && len(tables) > 0 {
+					checkUsage = false
+					column = "?." + info.Column
+				}
+				if column == "" {
+					continue
 				}
 				var tags map[string]struct{}
 				if len(info.On) > 0 {
@@ -152,11 +158,11 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					}
 				}
 				columns = append(columns, fieldInfo{
-					column:        info.Column,
-					tables:        tables,
-					tablesInherit: tablesInherit,
-					index:         currentPath,
-					tags:          tags,
+					column:     column,
+					tables:     tables,
+					checkUsage: checkUsage,
+					index:      currentPath,
+					tags:       tags,
 				})
 			}
 		}

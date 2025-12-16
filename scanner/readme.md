@@ -23,14 +23,14 @@ Example:
 
 ```go
 type Model struct {
-    ID   int    `sqlb:"col:?.id"`
+    ID   int    `sqlb:"sel:?.id"`
 }
 
 type User struct {
     Model    `sqlb:"tables:u"`  Declare tables for its fields
     Name     string `sqlb:"u.name"` // Simple syntax
-    Age      int    `sqlb:"col:COALESCE(?.age,0);tables:u"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
-    Settings string `sqlb:"col:u.name;on:full"` // Scanned only when "full" tag specified
+    Age      int    `sqlb:"sel:COALESCE(?.age,0);tables:u"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
+    Settings string `sqlb:"sel:u.name;on:full"` // Scanned only when "full" tag specified
 }
 
 var Users = sqlb.NewTable("users", "u")

@@ -2,10 +2,12 @@ package syntax
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Info represents parsed tag information.
 type Info struct {
+	Select        string   // Select is parsed from "sel" key.
 	Column        string   // Column is parsed from "col" key.
 	Tables        []string // Tables is parsed from "tables" key.
 	DefaultTables []string // DefaultTables is parsed from "default_tables" key.
@@ -94,14 +96,26 @@ func (p *parser) parseKeyValue() error {
 		if p.c.Column != "" {
 			return p.syntaxError(fmt.Sprintf("redundant column declaration, at %d: %q", p.token.start, p.token.lit))
 		}
-		expr, table := parseColumn(p.token.lit)
-		p.c.Column = expr
-		if table != "" {
-			if len(p.c.Tables) > 0 {
-				return p.syntaxError(fmt.Sprintf("redundant table declaration, at %d: %q", p.token.start, p.token.lit))
+		value := strings.TrimSpace(p.token.lit)
+		if !strings.HasSuffix(value, `"`) || !strings.HasPrefix(value, `"`) {
+			// check name validity only for unquoted names
+			if !isAllowedName(value) {
+				return p.syntaxError(fmt.Sprintf("invalid column name, at %d: %q", p.token.start, value))
 			}
-			p.c.Tables = []string{table}
 		}
+		p.c.Column = value
+	case "sel":
+		// Semantically: "col" emphasizes a column for write operations (e.g. INSERT/UPDATE),
+		// while "sel" emphasizes an expression for SELECT queries. They are equivalent
+		// for parsing and SELECT usage.
+		//
+		// If INSERT/UPDATE support is added later, both "col" and "sel" could be used in SELECT,
+		// but only "col" would be valid for INSERT/UPDATE. Therefore, if a "col" tag is defined
+		// it can substitute a "sel" tag for SELECT semantics.
+		if p.c.Select != "" {
+			return p.syntaxError(fmt.Sprintf("redundant select declaration, at %d: %q", p.token.start, p.token.lit))
+		}
+		p.c.Select = p.token.lit
 	case "tables", "default_tables":
 		names, err := parseNames(p.token.lit)
 		if err != nil {

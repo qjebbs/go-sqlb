@@ -9,18 +9,18 @@ import (
 
 func TestQueryStruct(t *testing.T) {
 	type Model struct {
-		ID int `sqlb:"col:?.id"`
+		ID int `sqlb:"sel:?.id"`
 	}
 
 	type User struct {
 		*Model   `sqlb:"default_tables:u"`
-		Name     string `sqlb:"col:?.name"`
-		Email    string `sqlb:"col:?.email"`
-		Constant string `sqlb:"col:'str'"`
+		Name     string `sqlb:"col:name"`
+		Email    string `sqlb:"col:email"`
+		Constant string `sqlb:"sel:'str'"`
 
 		Child *User
 
-		unexported string `sqlb:"col:1"` // should be ignored
+		unexported string `sqlb:"sel:1"` // should be ignored
 	}
 
 	userTable := sqlb.NewTable("users", "u")

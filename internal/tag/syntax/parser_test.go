@@ -17,20 +17,26 @@ func TestParser(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			raw: "col:u.id;",
+			raw: "col:id;",
 			want: &Info{
-				Column: "?.id",
+				Column: "id",
+			},
+		},
+		{
+			raw: "sel:?.id;tables:u;",
+			want: &Info{
+				Select: "?.id",
 				Tables: []string{"u"},
 			},
 		},
 		{
-			raw:  "col:;",
+			raw:  "sel:;",
 			want: &Info{},
 		},
 		{
-			raw: "col:COALESCE(?.age,0);tables:u;",
+			raw: "sel:COALESCE(?.age,0);tables:u;",
 			want: &Info{
-				Column: "COALESCE(?.age,0)",
+				Select: "COALESCE(?.age,0)",
 				Tables: []string{"u"},
 			},
 		},

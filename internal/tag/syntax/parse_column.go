@@ -1,5 +1,6 @@
 package syntax
 
+// NOT USED ANYMORE
 func parseColumn(value string) (expr, table string) {
 	table, column, ok := parseSimpleColumn(value)
 	if ok {
@@ -34,6 +35,18 @@ func parseSimpleColumn(value string) (tableName, columnName string, ok bool) {
 	}
 	columnName = value[indexDot+1:]
 	return tableName, columnName, true
+}
+
+func isAllowedName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, ch := range name {
+		if !isAllowedNameChar(ch) {
+			return false
+		}
+	}
+	return true
 }
 
 func isAllowedNameChar(ch rune) bool {

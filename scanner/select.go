@@ -41,7 +41,7 @@ func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T,
 // Select executes the query and scans the results into a slice of struct T.
 func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	opt := mergeOptions(options...)
-	queryStr, args, fieldIndices, err := buildQueryForStruct[T](b, opt.style, opt.tags)
+	queryStr, args, fieldIndices, err := buildQueryForStruct[T](b, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -68,15 +68,18 @@ func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error
 	})
 }
 
-func buildQueryForStruct[T any](b SelectBuilder, style sqlf.BindStyle, tags []string) (query string, args []any, fieldIndices [][]int, err error) {
+func buildQueryForStruct[T any](b SelectBuilder, opt *Options) (query string, args []any, fieldIndices [][]int, err error) {
+	if opt == nil {
+		opt = newDefaultOptions()
+	}
 	var zero T
 	info, err := getStructInfo(zero)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	columns, fieldIndices := info.build(tags)
+	columns, fieldIndices := info.build(opt.dialect, opt.tags)
 	b.SetSelect(columns...)
-	query, args, err = b.BuildQuery(style)
+	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, nil, err
 	}

@@ -3,6 +3,7 @@ package syntax
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 // Info represents parsed tag information.
@@ -97,7 +98,9 @@ func (p *parser) parseKeyValue() error {
 			return p.syntaxError(fmt.Sprintf("redundant column declaration, at %d: %q", p.token.start, p.token.lit))
 		}
 		value := strings.TrimSpace(p.token.lit)
-		if !strings.HasSuffix(value, `"`) || !strings.HasPrefix(value, `"`) {
+		firstRune, _ := utf8.DecodeRuneInString(p.token.lit)
+		// lastRune, _ := utf8.DecodeLastRuneInString(p.token.lit)
+		if firstRune != '"' && firstRune != '`' && firstRune != '\'' && firstRune != '[' {
 			// check name validity only for unquoted names
 			if !isAllowedName(value) {
 				return p.syntaxError(fmt.Sprintf("invalid column name, at %d: %q", p.token.start, value))

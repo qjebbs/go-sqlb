@@ -7,9 +7,10 @@ import (
 
 // Where add a condition.  e.g.:
 //
-//	b.Where(
-//		sqlf.F("? = ?", a.Column("id"), 1),
-//	)
+//	b.Where(sqlf.F(
+//		"? = ?",
+//		foo.Column("id"), 1,
+//	))
 func (b *QueryBuilder) Where(s sqlf.Builder) *QueryBuilder {
 	if s == nil {
 		return b
@@ -19,22 +20,74 @@ func (b *QueryBuilder) Where(s sqlf.Builder) *QueryBuilder {
 	return b
 }
 
-// Where2 is a helper func similar to Where(), which adds a simple where condition. e.g.:
-//
-//	b.Where2(column, "=", 1)
-//
-// it's equivalent to:
-//
-//	b.Where(
-//		sqlf.F("? = ?", column, 1),
-//	)
-func (b *QueryBuilder) Where2(column sqlf.Builder, op string, arg any) *QueryBuilder {
-	b.resetDepTablesCache()
-	b.conditions = append(
-		b.conditions,
-		sqlf.F("?"+op+"?", column, arg),
+// WhereEquals is a helper func similar to Where(), which adds a simple equality condition. e.g.:
+func (b *QueryBuilder) WhereEquals(column sqlf.Builder, value any) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? = ?", column, value),
 	)
-	return b
+}
+
+// WhereNotEquals is a helper func similar to Where(), which adds a simple not-equal condition. e.g.:
+func (b *QueryBuilder) WhereNotEquals(column sqlf.Builder, value any) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? <> ?", column, value),
+	)
+}
+
+// WhereGreaterThan adds a greater-than condition like `t.id > 1`
+func (b *QueryBuilder) WhereGreaterThan(column sqlf.Builder, value any) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? > ?", column, value),
+	)
+}
+
+// WhereLessThan adds a less-than condition like `t.id < 1`
+func (b *QueryBuilder) WhereLessThan(column sqlf.Builder, value any) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? < ?", column, value),
+	)
+}
+
+// WhereGreaterThanOrEqual adds a greater-than-or-equal condition like `t.id >= 1`
+func (b *QueryBuilder) WhereGreaterThanOrEqual(column sqlf.Builder, value any) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? >= ?", column, value),
+	)
+}
+
+// WhereLessThanOrEqual adds a less-than-or-equal condition like `t.id <= 1`
+func (b *QueryBuilder) WhereLessThanOrEqual(column sqlf.Builder, value any) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? <= ?", column, value),
+	)
+}
+
+// WhereIsNull adds a IS NULL condition like `t.deleted_at IS NULL`
+func (b *QueryBuilder) WhereIsNull(column sqlf.Builder) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? IS NULL", column),
+	)
+}
+
+// WhereIsNotNull adds a IS NOT NULL condition like `t.deleted_at IS NOT NULL`
+func (b *QueryBuilder) WhereIsNotNull(column sqlf.Builder) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? IS NOT NULL", column),
+	)
+}
+
+// WhereBetween adds a BETWEEN condition like `t.created_at BETWEEN ? AND ?`
+func (b *QueryBuilder) WhereBetween(column sqlf.Builder, start, end any) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? BETWEEN ? AND ?", column, start, end),
+	)
+}
+
+// WhereNotBetween adds a NOT BETWEEN condition like `t.created_at NOT BETWEEN ? AND ?`
+func (b *QueryBuilder) WhereNotBetween(column sqlf.Builder, start, end any) *QueryBuilder {
+	return b.Where(
+		sqlf.F("? NOT BETWEEN ? AND ?", column, start, end),
+	)
 }
 
 // WhereIn adds a where IN condition like `t.id IN (1,2,3)`

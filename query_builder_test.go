@@ -77,13 +77,13 @@ func TestQueryBuilderGroupbyElimination(t *testing.T) {
 			bar.Column("baz_id"),
 			baz.Column("id"),
 		)).
-		Where2(foo.Column("id"), "=", 1).
+		WhereEquals(foo.Column("id"), 1).
 		GroupBy(foo.Column("id"))
 	gotQuery, gotArgs, err := q.BuildQuery(sqlf.BindStyleDollar)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantQuery := "SELECT f.id, f.bar FROM foo AS f WHERE f.id=$1 GROUP BY f.id"
+	wantQuery := "SELECT f.id, f.bar FROM foo AS f WHERE f.id = $1 GROUP BY f.id"
 	wantArgs := []any{1}
 	if wantQuery != gotQuery {
 		t.Errorf("got:\n%s\nwant:\n%s", gotQuery, wantQuery)

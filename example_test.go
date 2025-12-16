@@ -25,15 +25,15 @@ func Example_elimination() {
 		)).
 		// Will be eliminated since SELECT DISTINCT and no columns from "baz" are used.
 		LeftJoinOptional(baz, sqlf.F(
-			"?=?",
+			"? = ?",
 			baz.Column("id"),
 			foo.Column("baz_id"),
 		)).
 		Where(sqlf.F(
-			"($2=$1 OR $3=$1)",
+			"($2 = $1 OR $3 = $1)",
 			1, foo.Column("a"), foo.Column("b"),
 		)).
-		Where2(bar.Column("c"), "=", 2)
+		WhereEquals(bar.Column("c"), 2)
 
 	query, args, err := b.BuildQuery(sqlf.BindStyleQuestion)
 	if err != nil {
@@ -43,7 +43,7 @@ func Example_elimination() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// SELECT DISTINCT f.* FROM foo AS f INNER JOIN bar AS b ON b.foo_id=f.id WHERE (f.a=? OR f.b=?) AND b.c=?
+	// SELECT DISTINCT f.* FROM foo AS f INNER JOIN bar AS b ON b.foo_id=f.id WHERE (f.a = ? OR f.b = ?) AND b.c = ?
 	// [1 1 2]
 }
 
@@ -58,12 +58,12 @@ func ExampleQueryBuilder_LeftJoinOptional() {
 		From(foo).
 		// declare an optional LEFT JOIN
 		LeftJoinOptional(bar, sqlf.F(
-			"?=?",
+			"? = ?",
 			bar.Column("foo_id"),
 			foo.Column("id"),
 		)).
 		// don't touch any columns of "bar", so that it can be eliminated
-		Where2(foo.Column("id"), ">", 1).
+		WhereGreaterThan(foo.Column("id"), 1).
 		BuildQuery(sqlf.BindStyleDollar)
 	if err != nil {
 		fmt.Println(err)
@@ -72,7 +72,7 @@ func ExampleQueryBuilder_LeftJoinOptional() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// SELECT DISTINCT f.* FROM foo AS f WHERE f.id>$1
+	// SELECT DISTINCT f.* FROM foo AS f WHERE f.id > $1
 	// [1]
 }
 
@@ -107,7 +107,7 @@ func ExampleQueryBuilder_Union() {
 	query, args, err := sqlb.NewQueryBuilder().
 		Select(column).
 		From(foo).
-		Where2(foo.Column("id"), " = ", 1).
+		WhereEquals(foo.Column("id"), 1).
 		Union(
 			sqlb.NewQueryBuilder().
 				From(foo).

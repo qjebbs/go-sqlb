@@ -133,9 +133,6 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 			}
 
 			if info != nil {
-				if info.Column != "" && info.Dive {
-					return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' cannot be used with 'col'", zero, field.Name)
-				}
 				if info.Dive {
 					if fieldType.Kind() == reflect.Ptr {
 						fieldType = fieldType.Elem()

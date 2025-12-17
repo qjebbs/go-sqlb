@@ -37,7 +37,7 @@ func ExampleSelect() {
 
 	Users := sqlb.NewTable("users", "u")
 	Orgs := sqlb.NewTable("orgs", "o")
-	b := sqlb.NewQueryBuilder().
+	b := sqlb.NewSelectBuilder().
 		From(Users).
 		LeftJoin(Orgs, sqlf.F(
 			"?.org_id = ?.id",

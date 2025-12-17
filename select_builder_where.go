@@ -11,7 +11,7 @@ import (
 //		"? = ?",
 //		foo.Column("id"), 1,
 //	))
-func (b *QueryBuilder) Where(s sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) Where(s sqlf.Builder) *SelectBuilder {
 	if s == nil {
 		return b
 	}
@@ -21,77 +21,77 @@ func (b *QueryBuilder) Where(s sqlf.Builder) *QueryBuilder {
 }
 
 // WhereEquals is a helper func similar to Where(), which adds a simple equality condition. e.g.:
-func (b *QueryBuilder) WhereEquals(column sqlf.Builder, value any) *QueryBuilder {
+func (b *SelectBuilder) WhereEquals(column sqlf.Builder, value any) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? = ?", column, value),
 	)
 }
 
 // WhereNotEquals is a helper func similar to Where(), which adds a simple not-equal condition. e.g.:
-func (b *QueryBuilder) WhereNotEquals(column sqlf.Builder, value any) *QueryBuilder {
+func (b *SelectBuilder) WhereNotEquals(column sqlf.Builder, value any) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? <> ?", column, value),
 	)
 }
 
 // WhereGreaterThan adds a greater-than condition like `t.id > 1`
-func (b *QueryBuilder) WhereGreaterThan(column sqlf.Builder, value any) *QueryBuilder {
+func (b *SelectBuilder) WhereGreaterThan(column sqlf.Builder, value any) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? > ?", column, value),
 	)
 }
 
 // WhereLessThan adds a less-than condition like `t.id < 1`
-func (b *QueryBuilder) WhereLessThan(column sqlf.Builder, value any) *QueryBuilder {
+func (b *SelectBuilder) WhereLessThan(column sqlf.Builder, value any) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? < ?", column, value),
 	)
 }
 
 // WhereGreaterThanOrEqual adds a greater-than-or-equal condition like `t.id >= 1`
-func (b *QueryBuilder) WhereGreaterThanOrEqual(column sqlf.Builder, value any) *QueryBuilder {
+func (b *SelectBuilder) WhereGreaterThanOrEqual(column sqlf.Builder, value any) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? >= ?", column, value),
 	)
 }
 
 // WhereLessThanOrEqual adds a less-than-or-equal condition like `t.id <= 1`
-func (b *QueryBuilder) WhereLessThanOrEqual(column sqlf.Builder, value any) *QueryBuilder {
+func (b *SelectBuilder) WhereLessThanOrEqual(column sqlf.Builder, value any) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? <= ?", column, value),
 	)
 }
 
 // WhereIsNull adds a IS NULL condition like `t.deleted_at IS NULL`
-func (b *QueryBuilder) WhereIsNull(column sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) WhereIsNull(column sqlf.Builder) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? IS NULL", column),
 	)
 }
 
 // WhereIsNotNull adds a IS NOT NULL condition like `t.deleted_at IS NOT NULL`
-func (b *QueryBuilder) WhereIsNotNull(column sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) WhereIsNotNull(column sqlf.Builder) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? IS NOT NULL", column),
 	)
 }
 
 // WhereBetween adds a BETWEEN condition like `t.created_at BETWEEN ? AND ?`
-func (b *QueryBuilder) WhereBetween(column sqlf.Builder, start, end any) *QueryBuilder {
+func (b *SelectBuilder) WhereBetween(column sqlf.Builder, start, end any) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? BETWEEN ? AND ?", column, start, end),
 	)
 }
 
 // WhereNotBetween adds a NOT BETWEEN condition like `t.created_at NOT BETWEEN ? AND ?`
-func (b *QueryBuilder) WhereNotBetween(column sqlf.Builder, start, end any) *QueryBuilder {
+func (b *SelectBuilder) WhereNotBetween(column sqlf.Builder, start, end any) *SelectBuilder {
 	return b.Where(
 		sqlf.F("? NOT BETWEEN ? AND ?", column, start, end),
 	)
 }
 
 // WhereIn adds a where IN condition like `t.id IN (1,2,3)`
-func (b *QueryBuilder) WhereIn(column sqlf.Builder, list any) *QueryBuilder {
+func (b *SelectBuilder) WhereIn(column sqlf.Builder, list any) *SelectBuilder {
 	return b.Where(
 		sqlf.F(
 			"? IN (?)",
@@ -102,7 +102,7 @@ func (b *QueryBuilder) WhereIn(column sqlf.Builder, list any) *QueryBuilder {
 }
 
 // WhereNotIn adds a where NOT IN condition like `t.id NOT IN (1,2,3)`
-func (b *QueryBuilder) WhereNotIn(column sqlf.Builder, list any) *QueryBuilder {
+func (b *SelectBuilder) WhereNotIn(column sqlf.Builder, list any) *SelectBuilder {
 	return b.Where(
 		sqlf.F(
 			"? NOT IN (?)",

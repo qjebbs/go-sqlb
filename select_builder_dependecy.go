@@ -7,14 +7,14 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-type queryBuilderDependencies struct {
+type selectBuilderDependencies struct {
 	queryDeps  *depTables
 	cteDeps    map[string]bool
 	unresolved *depTables
 }
 
 // collectDependencies collects the dependencies of the tables.
-func (b *QueryBuilder) collectDependencies() (*queryBuilderDependencies, error) {
+func (b *SelectBuilder) collectDependencies() (*selectBuilderDependencies, error) {
 	if b.deps != nil {
 		return b.deps, nil
 	}
@@ -26,7 +26,7 @@ func (b *QueryBuilder) collectDependencies() (*queryBuilderDependencies, error) 
 	if err != nil {
 		return nil, err
 	}
-	r := &queryBuilderDependencies{
+	r := &selectBuilderDependencies{
 		queryDeps:  queryDeps,
 		cteDeps:    cteRequired,
 		unresolved: cteUnresolved,
@@ -41,7 +41,7 @@ func (b *QueryBuilder) collectDependencies() (*queryBuilderDependencies, error) 
 	return r, nil
 }
 
-func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
+func (b *SelectBuilder) collectQueryDependencies() (*depTables, error) {
 	builders := util.Concat(
 		b.selects,
 		b.conditions,
@@ -56,7 +56,7 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 
 	// extractTables gets all deps used in the builders,
 	// there are two types of table reporting:
-	// 1. *QueryBuilder only reports its unresolved deps (not defined in CTEs).
+	// 1. *SelectBuilder only reports its unresolved deps (not defined in CTEs).
 	// 2. sqlf.Table in any other sqlf.Builder always reports itself.
 	deps, err := b.extractTables(builders...)
 	if err != nil {
@@ -83,7 +83,7 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 	deps.Merge(depsOfTables)
 	for name := range deps.Tables {
 		// only respect the applied name of 'name', since it's
-		// unique and always valid in QueryBuilder
+		// unique and always valid in SelectBuilder
 		if t, ok := b.tablesDict[name.AppliedName()]; ok {
 			// required by FROM / JOIN
 			deps.SourceNames[t.table.Name] = true
@@ -103,7 +103,7 @@ func (b *QueryBuilder) collectQueryDependencies() (*depTables, error) {
 	return deps, nil
 }
 
-func (b *QueryBuilder) collectDepsFromTable(dep *depTables, t Table) error {
+func (b *SelectBuilder) collectDepsFromTable(dep *depTables, t Table) error {
 	from, ok := b.tablesDict[t.AppliedName()]
 	if !ok {
 		if b.debugName != "" {
@@ -131,7 +131,7 @@ func (b *QueryBuilder) collectDepsFromTable(dep *depTables, t Table) error {
 	return nil
 }
 
-func (b *QueryBuilder) extractTables(args ...sqlf.Builder) (*depTables, error) {
+func (b *SelectBuilder) extractTables(args ...sqlf.Builder) (*depTables, error) {
 	tables := newDepTables(b.debugName)
 	ctx := contextWithDepTables(sqlf.NewContext(sqlf.BindStyleDollar), tables)
 	_, err := sqlf.Join(";", args...).Build(ctx)

@@ -9,14 +9,14 @@ import (
 	"github.com/qjebbs/go-sqlf/v4/util"
 )
 
-func TestQueryBuilderDistinctElimination(t *testing.T) {
+func TestSelectBuilderDistinctElimination(t *testing.T) {
 	var (
 		users = sqlb.NewTable("users", "u")
 		locs  = sqlb.NewTable("locs", "l")
 		foo   = sqlb.NewTable("foo", "f")
 		bar   = sqlb.NewTable("bar", "b")
 	)
-	q := sqlb.NewQueryBuilder().
+	q := sqlb.NewSelectBuilder().
 		Distinct().
 		With(sqlb.NewTable("xxx", ""), sqlf.F("SELECT 1 AS whatever")). // should be ignored
 		With(locs, sqlf.F("SELECT user_id AS id, loc FROM user_locs WHERE country_code = ?", "cn")).
@@ -54,13 +54,13 @@ func TestQueryBuilderDistinctElimination(t *testing.T) {
 	}
 }
 
-func TestQueryBuilderGroupbyElimination(t *testing.T) {
+func TestSelectBuilderGroupbyElimination(t *testing.T) {
 	var (
 		foo = sqlb.NewTable("foo", "f")
 		bar = sqlb.NewTable("bar", "b")
 		baz = sqlb.NewTable("baz", "z")
 	)
-	q := sqlb.NewQueryBuilder().
+	q := sqlb.NewSelectBuilder().
 		With(
 			baz,
 			sqlf.F("SELECT * FROM baz WHERE type=$1", "user"),
@@ -93,7 +93,7 @@ func TestQueryBuilderGroupbyElimination(t *testing.T) {
 	}
 }
 
-func TestQueryBuilderComplexDeps(t *testing.T) {
+func TestSelectBuilderComplexDeps(t *testing.T) {
 	var (
 		baseTable  = sqlb.NewTable("base_table", "b")
 		baseTable2 = sqlb.NewTable("base_table2", "b2")
@@ -102,7 +102,7 @@ func TestQueryBuilderComplexDeps(t *testing.T) {
 		bar        = sqlb.NewTable("bar", "r")
 		baz        = sqlb.NewTable("baz", "z")
 	)
-	q := sqlb.NewQueryBuilder().
+	q := sqlb.NewSelectBuilder().
 		With(
 			foo,
 			sqlf.F(
@@ -138,7 +138,7 @@ func TestQueryBuilderComplexDeps(t *testing.T) {
 		)).
 		Where(sqlf.F(
 			"EXISTS (?)",
-			sqlb.NewQueryBuilder().
+			sqlb.NewSelectBuilder().
 				Select(sqlf.F("1")).
 				From(bar).
 				Where(sqlf.F(

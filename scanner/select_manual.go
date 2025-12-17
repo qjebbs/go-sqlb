@@ -62,7 +62,7 @@ func scan[T any](db QueryAble, query string, args []any, fn func() (T, []any)) (
 }
 
 // // ScanRow scans a single row to dest, unlike rows.Scan(), it drops the extra columns.
-// // It's useful when *sqlb.QueryBuilder.OrderBy() add extra column to the query.
+// // It's useful when *sqlb.SelectBuilder.OrderBy() add extra column to the query.
 // func scanRow(rows *sql.Rows, dest ...any) error {
 // 	cols, err := rows.Columns()
 // 	if err != nil {

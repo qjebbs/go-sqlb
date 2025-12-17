@@ -5,13 +5,13 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-var _ sqlf.Builder = (*QueryBuilder)(nil)
-var _ Builder = (*QueryBuilder)(nil)
+var _ sqlf.Builder = (*SelectBuilder)(nil)
+var _ Builder = (*SelectBuilder)(nil)
 
-// QueryBuilder is the SQL query builder.
+// SelectBuilder is the SQL query builder.
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
-type QueryBuilder struct {
+type SelectBuilder struct {
 	ctes       *_CTEs
 	tables     []*fromTable          // the tables in order
 	tablesDict map[string]*fromTable // the from tables by alias
@@ -31,25 +31,25 @@ type QueryBuilder struct {
 	debug     bool // debug mode
 	debugName string
 
-	deps *queryBuilderDependencies
+	deps *selectBuilderDependencies
 }
 
-// NewQueryBuilder returns a new QueryBuilder.
-func NewQueryBuilder() *QueryBuilder {
-	return &QueryBuilder{
+// NewSelectBuilder returns a new SelectBuilder.
+func NewSelectBuilder() *SelectBuilder {
+	return &SelectBuilder{
 		ctes:       newCTEs(),
 		tablesDict: make(map[string]*fromTable),
 	}
 }
 
 // Distinct set the flag for SELECT DISTINCT.
-func (b *QueryBuilder) Distinct() *QueryBuilder {
+func (b *SelectBuilder) Distinct() *SelectBuilder {
 	b.distinct = true
 	return b
 }
 
 // Indistinct unset the flag for SELECT DISTINCT.
-func (b *QueryBuilder) Indistinct() *QueryBuilder {
+func (b *SelectBuilder) Indistinct() *SelectBuilder {
 	b.distinct = false
 	return b
 }
@@ -60,33 +60,33 @@ func (b *QueryBuilder) Indistinct() *QueryBuilder {
 //
 //	foo := sqlb.NewTable("foo")
 //	b.Select(foo.Column("bar"))
-func (b *QueryBuilder) Select(columns ...sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) Select(columns ...sqlf.Builder) *SelectBuilder {
 	b.SetSelect(columns...)
 	return b
 }
 
 // SetSelect set the columns in the SELECT clause,
 // which implements the SelectBuilder interface.
-func (b *QueryBuilder) SetSelect(columns ...sqlf.Builder) {
+func (b *SelectBuilder) SetSelect(columns ...sqlf.Builder) {
 	b.resetDepTablesCache()
 	b.selects = columns
 }
 
 // Limit set the limit.
-func (b *QueryBuilder) Limit(limit int64) *QueryBuilder {
+func (b *SelectBuilder) Limit(limit int64) *SelectBuilder {
 	b.SetLimit(limit)
 	return b
 }
 
 // SetLimit implements the SelectLimitBuilder interface.
-func (b *QueryBuilder) SetLimit(limit int64) {
+func (b *SelectBuilder) SetLimit(limit int64) {
 	if limit > 0 {
 		b.limit = limit
 	}
 }
 
 // Offset set the offset.
-func (b *QueryBuilder) Offset(offset int64) *QueryBuilder {
+func (b *SelectBuilder) Offset(offset int64) *SelectBuilder {
 	if offset > 0 {
 		b.offset = offset
 	}
@@ -99,7 +99,7 @@ func (b *QueryBuilder) Offset(offset int64) *QueryBuilder {
 //
 //	foo := sqlb.NewTable("foo")
 //	b.GroupBy(foo.Column("bar"))
-func (b *QueryBuilder) GroupBy(columns ...sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) GroupBy(columns ...sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
 	b.groupbys = append(b.groupbys, columns...)
 	return b
@@ -109,7 +109,7 @@ func (b *QueryBuilder) GroupBy(columns ...sqlf.Builder) *QueryBuilder {
 //
 // !!! Make sure the all table references within the builders are built from sqlb.Table
 // to have their dependencies tracked.
-func (b *QueryBuilder) Union(builders ...sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) Union(builders ...sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
 	b.unions = append(b.unions, util.Map(builders, func(b sqlf.Builder) sqlf.Builder {
 		return sqlf.Prefix("UNION", b)
@@ -121,7 +121,7 @@ func (b *QueryBuilder) Union(builders ...sqlf.Builder) *QueryBuilder {
 //
 // !!! Make sure the all table references within the builders are built from sqlb.Table
 // to have their dependencies tracked.
-func (b *QueryBuilder) UnionAll(builders ...sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) UnionAll(builders ...sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
 	b.unions = append(b.unions, util.Map(builders, func(b sqlf.Builder) sqlf.Builder {
 		return sqlf.Prefix("UNION ALL", b)
@@ -129,6 +129,6 @@ func (b *QueryBuilder) UnionAll(builders ...sqlf.Builder) *QueryBuilder {
 	return b
 }
 
-func (b *QueryBuilder) resetDepTablesCache() {
+func (b *SelectBuilder) resetDepTablesCache() {
 	b.deps = nil
 }

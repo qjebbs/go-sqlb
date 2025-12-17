@@ -8,8 +8,8 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-var _ SelectBuilder = (*sqlb.QueryBuilder)(nil)
-var _ SelectLimitBuilder = (*sqlb.QueryBuilder)(nil)
+var _ SelectBuilder = (*sqlb.SelectBuilder)(nil)
+var _ SelectLimitBuilder = (*sqlb.SelectBuilder)(nil)
 
 // SelectBuilder is the interface for builders that support Select method.
 type SelectBuilder interface {

@@ -5,7 +5,7 @@ import "github.com/qjebbs/go-sqlf/v4"
 // With adds a fragment as common table expression,
 // the built query of s should be a subquery.
 //
-// !!! QueryBuilder tracks dependencies of CTEs with the help of sqlb.Table.
+// !!! SelectBuilder tracks dependencies of CTEs with the help of sqlb.Table.
 //
 // If the CTE builder depends on other CTEs,
 // make sure all the table references are built from sqlb.Table,
@@ -16,10 +16,10 @@ import "github.com/qjebbs/go-sqlf/v4"
 //	builderFoo := sqlf.F("SELECT * FROM users WHERE active")
 //	// the dependency is tracked only if the foo (of sqlb.Table) is used
 //	builderBar := sqlf.F("SELECT * FROM ?", foo)
-//	builder := sqlb.NewQueryBuilder().
+//	builder := sqlb.NewSelectBuilder().
 //		With(foo, builderFoo).With(bar, builderBar).
 //		Select(bar.Column("*")).From(bar)
-func (b *QueryBuilder) With(name Table, builder sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) With(name Table, builder sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
 	b.ctes.With(name, builder)
 	return b

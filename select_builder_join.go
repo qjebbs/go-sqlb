@@ -7,7 +7,7 @@ import (
 )
 
 // From set the from table.
-func (b *QueryBuilder) From(t Table) *QueryBuilder {
+func (b *SelectBuilder) From(t Table) *SelectBuilder {
 	b.resetDepTablesCache()
 	if t.Name == "" {
 		b.pushError(fmt.Errorf("from table is empty"))
@@ -29,7 +29,7 @@ func (b *QueryBuilder) From(t Table) *QueryBuilder {
 }
 
 // InnerJoin append a inner join table.
-func (b *QueryBuilder) InnerJoin(t Table, on *sqlf.Fragment) *QueryBuilder {
+func (b *SelectBuilder) InnerJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
 	return b.join("INNER JOIN", t, on, false, false)
 }
 
@@ -46,7 +46,7 @@ func (b *QueryBuilder) InnerJoin(t Table, on *sqlf.Fragment) *QueryBuilder {
 //
 //	// BAD: The dependency of foo will NOT be collected.
 //	b.SELECT(sqlf.F("foo.id"))
-func (b *QueryBuilder) LeftJoin(t Table, on *sqlf.Fragment) *QueryBuilder {
+func (b *SelectBuilder) LeftJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
 	return b.join("LEFT JOIN", t, on, true, false)
 }
 
@@ -67,27 +67,27 @@ func (b *QueryBuilder) LeftJoin(t Table, on *sqlf.Fragment) *QueryBuilder {
 //
 //	// BAD: The dependency of foo will NOT be collected.
 //	b.SELECT(sqlf.F("foo.id"))
-func (b *QueryBuilder) LeftJoinOptional(t Table, on *sqlf.Fragment) *QueryBuilder {
+func (b *SelectBuilder) LeftJoinOptional(t Table, on *sqlf.Fragment) *SelectBuilder {
 	return b.join("LEFT JOIN", t, on, true, true)
 }
 
 // RightJoin append / replace a right join table.
-func (b *QueryBuilder) RightJoin(t Table, on *sqlf.Fragment) *QueryBuilder {
+func (b *SelectBuilder) RightJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
 	return b.join("RIGHT JOIN", t, on, false, false)
 }
 
 // FullJoin append / replace a full join table.
-func (b *QueryBuilder) FullJoin(t Table, on *sqlf.Fragment) *QueryBuilder {
+func (b *SelectBuilder) FullJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
 	return b.join("FULL JOIN", t, on, false, false)
 }
 
 // CrossJoin append / replace a cross join table.
-func (b *QueryBuilder) CrossJoin(t Table) *QueryBuilder {
+func (b *SelectBuilder) CrossJoin(t Table) *SelectBuilder {
 	return b.join("CROSS JOIN", t, nil, false, false)
 }
 
 // join append or replace a join table.
-func (b *QueryBuilder) join(joinStr string, t Table, on *sqlf.Fragment, optional, forceEliminate bool) *QueryBuilder {
+func (b *SelectBuilder) join(joinStr string, t Table, on *sqlf.Fragment, optional, forceEliminate bool) *SelectBuilder {
 	b.resetDepTablesCache()
 	if t.Name == "" {
 		b.pushError(fmt.Errorf("join table name is empty"))

@@ -24,7 +24,7 @@ func TestQueryStruct(t *testing.T) {
 	}
 
 	userTable := sqlb.NewTable("users", "u")
-	b := sqlb.NewQueryBuilder().
+	b := sqlb.NewSelectBuilder().
 		From(userTable).Where(sqlf.F(
 		"?=?",
 		userTable.Column("id"), 1,

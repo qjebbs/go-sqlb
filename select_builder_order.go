@@ -39,13 +39,13 @@ type orderItem struct {
 //
 //	foo := sqlb.NewTable("foo")
 //	b.OrderBy(foo.Column("bar"), sqlb.OrderAsc)
-func (b *QueryBuilder) OrderBy(column sqlf.Builder, order Order) *QueryBuilder {
+func (b *SelectBuilder) OrderBy(column sqlf.Builder, order Order) *SelectBuilder {
 	b.resetDepTablesCache()
 	b.orders = append(b.orders, &orderItem{column: column, order: order})
 	return b
 }
 
-func (b *QueryBuilder) buildOrders(ctx *sqlf.Context) (string, error) {
+func (b *SelectBuilder) buildOrders(ctx *sqlf.Context) (string, error) {
 	builders := make([]sqlf.Builder, 0, len(b.orders))
 	for _, item := range b.orders {
 		if item.order > OrderDescNullsLast {

@@ -9,7 +9,7 @@ import (
 )
 
 // BuildQuery builds the query.
-func (b *QueryBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
+func (b *SelectBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
 	ctx := sqlf.NewContext(style)
 	query, err = b.buildInternal(ctx)
 	if err != nil {
@@ -20,19 +20,19 @@ func (b *QueryBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []an
 }
 
 // Build implements sqlf.Builder
-func (b *QueryBuilder) Build(ctx *sqlf.Context) (query string, err error) {
+func (b *SelectBuilder) Build(ctx *sqlf.Context) (query string, err error) {
 	return b.buildInternal(ctx)
 }
 
 // Debug enables debug mode which prints the interpolated query to stdout.
-func (b *QueryBuilder) Debug(name ...string) *QueryBuilder {
+func (b *SelectBuilder) Debug(name ...string) *SelectBuilder {
 	b.debug = true
 	b.debugName = strings.Replace(strings.Join(name, "_"), " ", "_", -1)
 	return b
 }
 
 // buildInternal builds the query with the selects.
-func (b *QueryBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
+func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}
@@ -142,7 +142,7 @@ func (b *QueryBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	return query, nil
 }
 
-func (b *QueryBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
+func (b *SelectBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 	prefix := "SELECT"
 	if b.distinct {
 		prefix = "SELECT DISTINCT"
@@ -160,7 +160,7 @@ func (b *QueryBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 	return sel, nil
 }
 
-func (b *QueryBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, error) {
+func (b *SelectBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, error) {
 	tables := make([]string, 0, len(b.tables))
 	for _, t := range b.tables {
 		if b.shouldEliminateTable(t, dep) {
@@ -175,7 +175,7 @@ func (b *QueryBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, err
 	return "FROM " + strings.Join(tables, " "), nil
 }
 
-func (b *QueryBuilder) shouldEliminateTable(t *fromTable, dep *depTables) bool {
+func (b *SelectBuilder) shouldEliminateTable(t *fromTable, dep *depTables) bool {
 	if !t.optional || dep.Tables[t.table] {
 		return false
 	}

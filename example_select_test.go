@@ -13,7 +13,7 @@ func Example_elimination() {
 		bar = sqlb.NewTable("bar", "b")
 		baz = sqlb.NewTable("baz", "z")
 	)
-	b := sqlb.NewQueryBuilder().
+	b := sqlb.NewSelectBuilder().
 		// Will be eliminated since not required.
 		With(baz, sqlf.F("SELECT 1")).
 		Distinct().Select(foo.Column("*")).
@@ -47,13 +47,13 @@ func Example_elimination() {
 	// [1 1 2]
 }
 
-func ExampleQueryBuilder_LeftJoinOptional() {
+func ExampleSelectBuilder_LeftJoinOptional() {
 	var (
 		foo = sqlb.NewTable("foo", "f")
 		bar = sqlb.NewTable("bar", "b")
 	)
-	query, args, err := sqlb.NewQueryBuilder().
-		Distinct(). // *QueryBuilder eliminates optional joins when SELECT DISTINCT is used.
+	query, args, err := sqlb.NewSelectBuilder().
+		Distinct(). // *SelectBuilder eliminates optional joins when SELECT DISTINCT is used.
 		Select(foo.Column("*")).
 		From(foo).
 		// declare an optional LEFT JOIN
@@ -76,12 +76,12 @@ func ExampleQueryBuilder_LeftJoinOptional() {
 	// [1]
 }
 
-func ExampleQueryBuilder_With() {
+func ExampleSelectBuilder_With() {
 	foo := sqlb.NewTable("foo")
 	bar := sqlb.NewTable("bar")
 	fooBuilder := sqlf.F("SELECT * FROM users WHERE active")
 	barBuilder := sqlf.F("SELECT * FROM ?", foo) // requires 'foo'
-	builder := sqlb.NewQueryBuilder().
+	builder := sqlb.NewSelectBuilder().
 		With(foo, fooBuilder).
 		With(bar, barBuilder).
 		Select(bar.Column("*")). // requires 'bar'
@@ -101,15 +101,15 @@ func ExampleQueryBuilder_With() {
 	// WITH foo AS (SELECT * FROM users WHERE active), bar AS (SELECT * FROM foo) SELECT bar.* FROM bar
 }
 
-func ExampleQueryBuilder_Union() {
+func ExampleSelectBuilder_Union() {
 	var foo = sqlb.NewTable("foo", "f")
 	column := foo.Column("*")
-	query, args, err := sqlb.NewQueryBuilder().
+	query, args, err := sqlb.NewSelectBuilder().
 		Select(column).
 		From(foo).
 		WhereEquals(foo.Column("id"), 1).
 		Union(
-			sqlb.NewQueryBuilder().
+			sqlb.NewSelectBuilder().
 				From(foo).
 				WhereIn(foo.Column("id"), []any{2, 3, 4}).
 				Select(column),
@@ -126,23 +126,23 @@ func ExampleQueryBuilder_Union() {
 	// [1 2 3 4]
 }
 
-func ExampleQueryBuilder_Debug() {
+func ExampleSelectBuilder_Debug() {
 	foo := sqlb.NewTable("foo", "f")
 	fooID := foo.Column("id")
 	bar := sqlb.NewTable("bar", "b")
 	cte := sqlb.NewTable("cte", "c")
 	cteID := cte.Column("id")
 	cteBuilder := sqlf.F("SELECT 1")
-	q1 := sqlb.NewQueryBuilder().Debug("q1").
+	q1 := sqlb.NewSelectBuilder().Debug("q1").
 		Select(cteID).
 		From(cte).
 		InnerJoin(bar, sqlf.F("TRUE"))
-	q2 := sqlb.NewQueryBuilder().Debug("q2").
+	q2 := sqlb.NewSelectBuilder().Debug("q2").
 		With(cte, cteBuilder).
 		Select(cteID).
 		From(cte).
 		Union(q1)
-	q3 := sqlb.NewQueryBuilder().Debug("q3").
+	q3 := sqlb.NewSelectBuilder().Debug("q3").
 		With(cte, cteBuilder).
 		Select(foo.Column("*")).
 		From(foo).

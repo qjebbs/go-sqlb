@@ -5,11 +5,11 @@ import (
 	"strings"
 )
 
-func (b *QueryBuilder) pushError(err error) {
+func (b *SelectBuilder) pushError(err error) {
 	b.errors = append(b.errors, err)
 }
 
-func (b *QueryBuilder) anyError() error {
+func (b *SelectBuilder) anyError() error {
 	if len(b.errors) == 0 {
 		return nil
 	}

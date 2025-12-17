@@ -13,7 +13,7 @@ import (
 //	b.Having(sqlf.F(
 //		"? = ?", foo.Column("id"), 1,
 //	))
-func (b *QueryBuilder) Having(s sqlf.Builder) *QueryBuilder {
+func (b *SelectBuilder) Having(s sqlf.Builder) *SelectBuilder {
 	if s == nil {
 		return b
 	}
@@ -34,7 +34,7 @@ func (b *QueryBuilder) Having(s sqlf.Builder) *QueryBuilder {
 //	b.Having(sqlf.F(
 //		"? = ?", foo.Column("id"), 1,
 //	))
-func (b *QueryBuilder) Having2(column sqlf.Builder, op string, arg any) *QueryBuilder {
+func (b *SelectBuilder) Having2(column sqlf.Builder, op string, arg any) *SelectBuilder {
 	b.resetDepTablesCache()
 	b.havings = append(
 		b.havings,
@@ -46,7 +46,7 @@ func (b *QueryBuilder) Having2(column sqlf.Builder, op string, arg any) *QueryBu
 // HavingIn adds a where IN condition like `t.id IN (1,2,3)`
 //
 // !!! Make sure the columns are built from sqlb.Table to have their dependencies tracked.
-func (b *QueryBuilder) HavingIn(column sqlf.Builder, list any) *QueryBuilder {
+func (b *SelectBuilder) HavingIn(column sqlf.Builder, list any) *SelectBuilder {
 	return b.Having(
 		sqlf.F(
 			"? IN (?)",
@@ -59,7 +59,7 @@ func (b *QueryBuilder) HavingIn(column sqlf.Builder, list any) *QueryBuilder {
 // HavingNotIn adds a where NOT IN condition like `t.id NOT IN (1,2,3)`
 //
 // !!! Make sure the columns are built from sqlb.Table to have their dependencies tracked.
-func (b *QueryBuilder) HavingNotIn(column sqlf.Builder, list any) *QueryBuilder {
+func (b *SelectBuilder) HavingNotIn(column sqlf.Builder, list any) *SelectBuilder {
 	return b.Having(
 		sqlf.F(
 			"? NOT IN (?)",

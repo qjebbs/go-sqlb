@@ -1,4 +1,4 @@
-## Go SQL QueryBuilder
+## Go SQL SelectBuilder
 
 Package sqlb provides a complex SQL query builder shipped with WITH-CTE / JOIN 
 Elimination abilities, while [go-sqlf](https://github.com/qjebbs/go-sqlf) is the underlying foundation.
@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"github.com/qjebbs/go-sqlb"
 )
-func ExampleQueryBuilder_BuildQuery() {
+func ExampleSelectBuilder_BuildQuery() {
 	var (
 		foo = sqlb.NewTable("foo", "f")
 		bar = sqlb.NewTable("bar", "b")
 		baz = sqlb.NewTable("baz", "z")
 	)
-	b := sqlb.NewQueryBuilder().
+	b := sqlb.NewSelectBuilder().
 		// Will be eliminated since not required.
 		With(baz, sqlf.F("SELECT 1")).
 		Distinct().Select(foo.Column("*")).
@@ -91,7 +91,7 @@ func ExampleSelect() {
 
 	Users := sqlb.NewTable("users", "u")
 	Orgs := sqlb.NewTable("orgs", "o")
-	b := sqlb.NewQueryBuilder().
+	b := sqlb.NewSelectBuilder().
 		From(Users).
 		LeftJoin(Orgs, sqlf.F(
 			"?.org_id = ?.id",

@@ -12,14 +12,6 @@ var reservedWordsData embed.FS
 
 var reservedWords map[Dialect]map[string]bool
 
-func isReservedWord(dialect Dialect, word string) bool {
-	m, ok := reservedWords[dialect]
-	if !ok {
-		return false
-	}
-	return m[strings.ToLower(word)]
-}
-
 func init() {
 	reservedWords = make(map[Dialect]map[string]bool)
 	reservedWords[DialectPostgreSQL] = loadReservedWords("postgresql.txt")

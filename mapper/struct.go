@@ -5,10 +5,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/internal/tag/syntax"
-	"github.com/qjebbs/go-sqlb/internal/util"
-	"github.com/qjebbs/go-sqlf/v4"
 )
 
 type structInfo struct {
@@ -17,48 +14,10 @@ type structInfo struct {
 }
 
 type fieldInfo struct {
-	selected   string              // select expression
-	column     string              // column definition
-	tables     []string            // tables to use for this column
-	checkUsage bool                // whether to do usage check for tables inherited from anonymous fields
-	index      []int               // field index in the struct
-	tags       map[string]struct{} // tags for including this field
-}
+	*syntax.Info
 
-func (f structInfo) build(dialect Dialect, tags []string) (columns []sqlf.Builder, fieldIndices [][]int) {
-	for _, col := range f.columns {
-		included := col.tags == nil
-		if !included && len(tags) > 0 {
-			for _, tag := range tags {
-				if _, ok := col.tags[tag]; ok {
-					included = true
-					break
-				}
-			}
-		}
-		if !included {
-			continue
-		}
-		// sel tag takes precedence over col tag
-		checkUsage := col.checkUsage
-		expr := col.selected
-		if expr == "" && col.column != "" && len(col.tables) > 0 {
-			checkUsage = false
-			if isReservedWord(dialect, col.column) {
-				col.column = `"` + col.column + `"`
-			}
-			expr = "?." + col.column
-		}
-		column := sqlf.F(expr, util.Map(col.tables, func(t string) any {
-			return sqlb.NewTable("", t)
-		})...)
-		if !checkUsage {
-			column.NoUsageCheck()
-		}
-		columns = append(columns, column)
-		fieldIndices = append(fieldIndices, col.index)
-	}
-	return
+	CheckUsage bool  // whether to do usage check for tables inherited from anonymous fields
+	Index      []int // field index in the struct
 }
 
 var structCache sync.Map
@@ -94,7 +53,6 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 
 			var info *syntax.Info
 			var checkUsage = true
-			var tables []string
 			if tag := field.Tag.Get("sqlb"); tag != "" {
 				parsed, err := syntax.Parse(tag)
 				if err != nil {
@@ -102,11 +60,10 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				}
 				if len(parsed.Tables) > 0 {
 					checkUsage = true
-					tables = parsed.Tables
 					curTables = parsed.Tables
 				} else {
 					checkUsage = false
-					tables = curTables
+					parsed.Tables = curTables
 				}
 				info = parsed
 			}
@@ -149,21 +106,10 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				if info.Column == "" && info.Select == "" {
 					continue
 				}
-
-				var tags map[string]struct{}
-				if len(info.On) > 0 {
-					tags = make(map[string]struct{})
-					for _, tag := range info.On {
-						tags[tag] = struct{}{}
-					}
-				}
 				columns = append(columns, fieldInfo{
-					selected:   info.Select,
-					column:     info.Column,
-					tables:     tables,
-					checkUsage: checkUsage,
-					index:      currentPath,
-					tags:       tags,
+					Info:       info,
+					CheckUsage: checkUsage,
+					Index:      currentPath,
 				})
 			}
 		}

@@ -30,7 +30,7 @@ func TestQueryStruct(t *testing.T) {
 		userTable.Column("id"), 1,
 	))
 	want := "SELECT u.id, u.name, u.email, 'str' FROM users AS u WHERE u.id=$1"
-	got, _, _, err := buildQueryForStruct[User](b, nil)
+	got, _, _, err := buildSelectQueryForStruct[User](b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

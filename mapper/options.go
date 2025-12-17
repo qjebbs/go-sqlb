@@ -9,19 +9,6 @@ type Options struct {
 	dialect Dialect
 }
 
-// Dialect represents SQL dialects.
-type Dialect int
-
-// Dialect constants.
-const (
-	DialectUnknown Dialect = iota
-	DialectOracle
-	DialectPostgreSQL
-	DialectMySQL
-	DialectSQLite
-	DialectSQLServer
-)
-
 // Option defines a function type for setting Options.
 type Option func(*Options)
 

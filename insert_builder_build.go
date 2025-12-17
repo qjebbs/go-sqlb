@@ -6,7 +6,6 @@ import (
 
 	myutil "github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
-	"github.com/qjebbs/go-sqlf/v4/util"
 )
 
 // BuildQuery builds the query.
@@ -125,15 +124,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	query := strings.TrimSpace(strings.Join(clauses, " "))
 	if b.debug {
-		prefix := b.debugName
-		if prefix == "" {
-			prefix = "sqlb"
-		}
-		interpolated, err := util.Interpolate(query, ctx.Args())
-		if err != nil {
-			fmt.Printf("[%s] interpolating: %s\n", prefix, err)
-		}
-		fmt.Printf("[%s] %s\n", prefix, interpolated)
+		printDebugQuery(b.debugName, query, ctx.Args())
 	}
 	return query, nil
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/qjebbs/go-sqlb/internal/util"
 )
 
 // Info represents parsed tag information.
@@ -13,13 +15,16 @@ type Info struct {
 	Tables []string // Tables is parsed from "tables" key.
 	On     []string // On is parsed from "on" key.
 	Dive   bool     // Dive indicates whether "dive" key is present.
+
+	PK          bool    // PK indicates whether "pk" key is present.
+	Returning   bool    // Returning indicates whether "returning" key is present.
+	ConflictOn  bool    // ConflictOn indicates whether "conflict_on" key is present.
+	ConflictSet *string // ConflictSet is parsed from "conflict_set" key.
 }
 
 // Parse parses the input and returns the list of expressions.
 func Parse(input string) (*Info, error) {
-	p := &parser{
-		scanner: newScanner(input),
-	}
+	p := newParser(input)
 	if err := p.Parse(); err != nil {
 		return nil, err
 	}
@@ -29,21 +34,37 @@ func Parse(input string) (*Info, error) {
 type parser struct {
 	*scanner
 	c *Info
+
+	state         parseFn
+	presentedKeys map[string]bool
 }
 
-func (p *parser) want(t TokenType) error {
-	if !p.got(t) {
+func newParser(input string) *parser {
+	return &parser{
+		scanner:       newScanner(input),
+		c:             &Info{},
+		state:         parse,
+		presentedKeys: make(map[string]bool),
+	}
+}
+
+type parseFn func(*parser) (parseFn, error)
+
+func (p *parser) want(t ...TokenType) error {
+	if !p.got(t...) {
 		return p.syntaxError(
-			fmt.Sprintf("unexpected %s, want %s", p.token.typ, t),
+			fmt.Sprintf("unexpected %s, want %s", p.token.typ, strings.Join(util.Map(t, func(v TokenType) string { return string(v) }), ",")),
 		)
 	}
 	return nil
 }
 
-func (p *parser) got(tok TokenType) bool {
+func (p *parser) got(tok ...TokenType) bool {
 	p.NextToken()
-	if p.token.typ == tok {
-		return true
+	for _, t := range tok {
+		if p.token.typ == t {
+			return true
+		}
 	}
 	return false
 }
@@ -53,59 +74,54 @@ func (p *parser) syntaxError(msg string) error {
 }
 
 func (p *parser) Parse() error {
-	p.c = &Info{}
-L:
-	for p.NextToken() {
-		switch p.token.typ {
-		case _EOF:
-			break L
-		case _Error:
-			return p.syntaxError("invalid syntax")
-		case _Key:
-			err := p.parseKeyValue()
-			if err != nil {
-				return err
-			}
-		default:
-			return p.syntaxError("unexpected token " + string(p.token.typ))
+	for p.state != nil {
+		s, err := p.state(p)
+		if err != nil {
+			return err
 		}
+		p.state = s
 	}
 	return nil
 }
 
-func (p *parser) parseKeyValue() error {
+func parse(p *parser) (parseFn, error) {
+	p.NextToken()
+	switch p.token.typ {
+	case _EOF:
+		return nil, nil
+	case _Error:
+		return nil, p.syntaxError("invalid syntax")
+	case _Key:
+		return parseKeyValue, nil
+	default:
+		return nil, p.syntaxError("unexpected token " + string(p.token.typ))
+	}
+}
+
+func parseKeyValue(p *parser) (parseFn, error) {
 	key := p.token.lit
-	p.NextToken()
-	if p.token.typ == _Semicolon || p.token.typ == _EOF {
-		switch key {
-		case "dive":
-			p.c.Dive = true
-			return nil
-		}
-	}
-	if p.token.typ != _Colon {
-		return p.syntaxError(fmt.Sprintf("expected %s, see %s", _Colon, p.token.typ))
-	}
-	p.NextToken()
-	if p.token.typ == _Semicolon || p.token.typ == _EOF {
-		// Empty value
-		return nil
+	if p.presentedKeys[key] {
+		return nil, p.syntaxError(fmt.Sprintf("duplicated key %q at %d: %q", key, p.token.start, p.token.lit))
 	}
 	switch key {
+	case "dive":
+		return parseBoolAndSet(p, func(v bool) {
+			p.c.Dive = v
+		})
 	case "col":
-		if p.c.Column != "" {
-			return p.syntaxError(fmt.Sprintf("redundant column declaration, at %d: %q", p.token.start, p.token.lit))
-		}
-		value := strings.TrimSpace(p.token.lit)
-		firstRune, _ := utf8.DecodeRuneInString(p.token.lit)
-		// lastRune, _ := utf8.DecodeLastRuneInString(p.token.lit)
-		if firstRune != '"' && firstRune != '`' && firstRune != '\'' && firstRune != '[' {
-			// check name validity only for unquoted names
-			if !isAllowedName(value) {
-				return p.syntaxError(fmt.Sprintf("invalid column name, at %d: %q", p.token.start, value))
+		return parseStringAndSet(p, func(v string) error {
+			firstRune, _ := utf8.DecodeRuneInString(p.token.lit)
+			// lastRune, _ := utf8.DecodeLastRuneInString(p.token.lit)
+			if firstRune != '"' && firstRune != '`' && firstRune != '\'' && firstRune != '[' {
+				// check name validity only for unquoted names
+				if !isAllowedName(v) {
+					return p.syntaxError(fmt.Sprintf("invalid column name, at %d: %q", p.token.start, v))
+				}
 			}
-		}
-		p.c.Column = value
+			p.c.Column = v
+			return nil
+		})
+
 	case "sel":
 		// Semantically: "col" emphasizes a column for write operations (e.g. INSERT/UPDATE),
 		// while "sel" emphasizes an expression for SELECT queries. They are equivalent
@@ -114,31 +130,106 @@ func (p *parser) parseKeyValue() error {
 		// If INSERT/UPDATE support is added later, both "col" and "sel" could be used in SELECT,
 		// but only "col" would be valid for INSERT/UPDATE. Therefore, if a "col" tag is defined
 		// it can substitute a "sel" tag for SELECT semantics.
-		if p.c.Select != "" {
-			return p.syntaxError(fmt.Sprintf("redundant select declaration, at %d: %q", p.token.start, p.token.lit))
-		}
-		p.c.Select = p.token.lit
+		return parseStringAndSet(p, func(v string) error {
+			p.c.Select = p.token.lit
+			return nil
+		})
 	case "tables":
-		names, err := parseNames(p.token.lit)
-		if err != nil {
-			return err
-		}
-		if len(p.c.Tables) > 0 {
-			return p.syntaxError(fmt.Sprintf("redundant tables declaration, at %d: %q", p.token.start, p.token.lit))
-		}
-		p.c.Tables = names
+		return parseStringAndSet(p, func(v string) error {
+			names, err := parseNames(v)
+			if err != nil {
+				return err
+			}
+			p.c.Tables = names
+			return nil
+		})
 	case "on":
-		names, err := parseNames(p.token.lit)
-		if err != nil {
-			return err
-		}
-		p.c.On = names
+		return parseStringAndSet(p, func(v string) error {
+			names, err := parseNames(v)
+			if err != nil {
+				return err
+			}
+			p.c.On = names
+			return nil
+		})
+	case "pk":
+		return parseBoolAndSet(p, func(v bool) {
+			p.c.PK = v
+		})
+	case "returning":
+		return parseBoolAndSet(p, func(v bool) {
+			p.c.Returning = v
+		})
+	case "conflict_on":
+		return parseBoolAndSet(p, func(v bool) {
+			p.c.ConflictOn = v
+		})
+	case "conflict_set":
+		return parseStringPtrAndSet(p, func(v *string) error {
+			p.c.ConflictSet = v
+			return nil
+		})
 	default:
-		return p.syntaxError("unknown key: " + key)
+		return nil, p.syntaxError("unknown key: " + key)
 	}
-	p.NextToken()
-	if p.token.typ != _EOF && p.token.typ != _Semicolon {
-		return p.syntaxError(fmt.Sprintf("expected %s, see %s", _Semicolon, p.token.typ))
+}
+
+// parseBoolAndSet parses a boolean value and sets it using the provided setter function.
+// Accepted syntax:
+//   - key; (indicates true)
+func parseBoolAndSet(p *parser, set func(v bool)) (parseFn, error) {
+	// bool key does not have value, its presence indicates true
+	if err := p.want(_Semicolon, _EOF); err != nil {
+		return nil, err
 	}
-	return nil
+	set(true)
+	return parse, nil
+}
+
+// parseStringAndSet parses a string value and sets it using the provided setter function.
+// Accepted syntax:
+//   - key:value;
+func parseStringAndSet(p *parser, set func(v string) error) (parseFn, error) {
+	if err := p.want(_Colon); err != nil {
+		return nil, err
+	}
+	if err := p.want(_Value); err != nil {
+		return nil, err
+	}
+	if err := set(p.token.lit); err != nil {
+		return nil, err
+	}
+	if err := p.want(_Semicolon, _EOF); err != nil {
+		return nil, err
+	}
+	return parse, nil
+}
+
+// parseStringPtrAndSet parses a string value or nil and sets it using the provided setter function.
+// Accepted syntax:
+//   - key:value;
+//   - key; (sets nil)
+func parseStringPtrAndSet(p *parser, set func(v *string) error) (parseFn, error) {
+	if err := p.want(_Colon, _Semicolon, _EOF); err != nil {
+		return nil, err
+	}
+	if p.token.typ != _Colon {
+		// presence, set empty
+		empty := ""
+		if err := set(&empty); err != nil {
+			return nil, err
+		}
+		return parse, nil
+	}
+	if err := p.want(_Value); err != nil {
+		return nil, err
+	}
+	value := p.token.lit
+	if err := set(&value); err != nil {
+		return nil, err
+	}
+	if err := p.want(_Semicolon, _EOF); err != nil {
+		return nil, err
+	}
+	return parse, nil
 }

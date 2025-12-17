@@ -41,13 +41,13 @@ func (b *InsertBuilder) InsertInto(t Table) *InsertBuilder {
 
 // Columns sets the columns for insertion.
 func (b *InsertBuilder) Columns(cols ...string) *InsertBuilder {
-	b.SetColumns(cols...)
+	b.SetColumns(cols)
 	return b
 }
 
 // SetColumns sets the columns for insertion,
 // which implements the InsertBuilder interface.
-func (b *InsertBuilder) SetColumns(cols ...string) {
+func (b *InsertBuilder) SetColumns(cols []string) {
 	b.columns = cols
 }
 
@@ -76,7 +76,7 @@ func (b *InsertBuilder) Returning(columns ...string) *InsertBuilder {
 }
 
 // SetReturning sets returning columns
-func (b *InsertBuilder) SetReturning(columns ...string) {
+func (b *InsertBuilder) SetReturning(columns []string) {
 	b.returning = columns
 }
 
@@ -94,6 +94,12 @@ func (b *InsertBuilder) OnConflict(columns ...string) *InsertBuilder {
 
 // DoUpdateSet sets the conflict action for the insert statement.
 func (b *InsertBuilder) DoUpdateSet(actions ...sqlf.Builder) *InsertBuilder {
-	b.conflictDo = actions
+	b.conflictDo = append(b.conflictDo, actions...)
 	return b
+}
+
+// SetConflictDo sets the conflict action for the insert statement.
+func (b *InsertBuilder) SetConflictDo(columns []string, actions []sqlf.Builder) {
+	b.conflictOn = columns
+	b.conflictDo = actions
 }

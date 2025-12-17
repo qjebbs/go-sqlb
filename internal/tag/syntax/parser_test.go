@@ -7,6 +7,8 @@ import (
 )
 
 func TestParser(t *testing.T) {
+	emptyStr := ""
+	exprStr := "expr"
 	testCases := []struct {
 		raw     string
 		want    *Info
@@ -16,6 +18,24 @@ func TestParser(t *testing.T) {
 			raw:     ":a",
 			wantErr: true,
 		},
+		{
+			raw:     "sel:;",
+			wantErr: true,
+		},
+		// string pointer values
+		{
+			raw: "conflict_set;",
+			want: &Info{
+				ConflictSet: &emptyStr,
+			},
+		},
+		{
+			raw: "conflict_set:expr;",
+			want: &Info{
+				ConflictSet: &exprStr,
+			},
+		},
+		// string values
 		{
 			raw: "col:id;",
 			want: &Info{
@@ -28,10 +48,6 @@ func TestParser(t *testing.T) {
 				Select: "?.id",
 				Tables: []string{"u"},
 			},
-		},
-		{
-			raw:  "sel:;",
-			want: &Info{},
 		},
 		{
 			raw: "sel:COALESCE(?.age,0);tables:u;",

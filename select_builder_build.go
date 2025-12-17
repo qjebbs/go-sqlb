@@ -129,17 +129,21 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		query = strings.TrimSpace(query + " " + union)
 	}
 	if b.debug {
-		prefix := b.debugName
-		if prefix == "" {
-			prefix = "sqlb"
-		}
-		interpolated, err := util.Interpolate(query, ctx.Args())
-		if err != nil {
-			fmt.Printf("[%s] interpolating: %s\n", prefix, err)
-		}
-		fmt.Printf("[%s] %s\n", prefix, interpolated)
+		printDebugQuery(b.debugName, query, ctx.Args())
 	}
 	return query, nil
+}
+
+func printDebugQuery(name, query string, args []any) {
+	prefix := name
+	if prefix == "" {
+		prefix = "sqlb"
+	}
+	interpolated, err := util.Interpolate(query, args)
+	if err != nil {
+		fmt.Printf("[%s] interpolating: %s\n", prefix, err)
+	}
+	fmt.Printf("[%s] %s\n", prefix, interpolated)
 }
 
 func (b *SelectBuilder) buildSelects(ctx *sqlf.Context) (string, error) {

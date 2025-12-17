@@ -1,5 +1,16 @@
 package util
 
+// Index returns the index of the first occurrence of v in s,
+// or -1 if not present.
+func Index[T comparable](s []T, v T) int {
+	for i := range s {
+		if v == s[i] {
+			return i
+		}
+	}
+	return -1
+}
+
 // Concat concatenates multiple slices into one slice.
 func Concat[T any](slices ...[]T) []T {
 	totalLen := 0

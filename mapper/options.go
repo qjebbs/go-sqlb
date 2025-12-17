@@ -1,4 +1,4 @@
-package scanner
+package mapper
 
 import "github.com/qjebbs/go-sqlf/v4"
 

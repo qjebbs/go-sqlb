@@ -4,7 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/scanner"
+	"github.com/qjebbs/go-sqlb/mapper"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -17,13 +17,13 @@ func Example_wrapping() {
 
 // Wrap with your own build to provide more friendly APIs.
 type UserSelectBuilder struct {
-	scanner.QueryAble
+	mapper.QueryAble
 	*sqlb.SelectBuilder
 }
 
 var Users = sqlb.NewTable("users", "u")
 
-func NewUserSelectBuilder(db scanner.QueryAble) *UserSelectBuilder {
+func NewUserSelectBuilder(db mapper.QueryAble) *UserSelectBuilder {
 	b := sqlb.NewSelectBuilder().
 		Distinct().
 		From(Users)
@@ -40,7 +40,7 @@ func (b *UserSelectBuilder) WithIDs(ids []int64) *UserSelectBuilder {
 
 func (b *UserSelectBuilder) GetUsers() ([]*User, error) {
 	b.Select(Users.Columns("id", "name", "email")...)
-	return scanner.SelectManual(b.QueryAble, b.SelectBuilder, sqlf.BindStyleDollar, func() (*User, []any) {
+	return mapper.SelectManual(b.QueryAble, b.SelectBuilder, sqlf.BindStyleDollar, func() (*User, []any) {
 		r := &User{}
 		return r, []interface{}{
 			&r.ID, &r.Name, &r.Email,

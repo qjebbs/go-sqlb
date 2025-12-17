@@ -1,11 +1,11 @@
-package scanner_test
+package mapper_test
 
 import (
 	"fmt"
 	"time"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/scanner"
+	"github.com/qjebbs/go-sqlb/mapper"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -50,7 +50,7 @@ func ExampleSelect() {
 			// ignore error since db is nil
 		}
 	}()
-	_, err := scanner.Select[*UserOrg](nil, b)
+	_, err := mapper.Select[*UserOrg](nil, b)
 	if err != nil {
 		fmt.Println(err)
 	}

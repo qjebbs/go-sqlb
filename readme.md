@@ -59,7 +59,7 @@ import (
 	"time"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/scanner"
+	"github.com/qjebbs/go-sqlb/mapper"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 

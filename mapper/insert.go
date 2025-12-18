@@ -60,12 +60,19 @@ func buildInsertQueryForStruct[T any](b InsertBuilder, values []T, opt *Options)
 		return "", nil, nil, err
 	}
 	insertInfo := buildInsertInfo(opt.dialect, info)
-	b.SetInsertTable(insertInfo.table)
+	if insertInfo.table != "" {
+		// don't override with empty table in case the table is set manually
+		b.SetInsertTable(insertInfo.table)
+	}
 	b.SetColumns(insertInfo.insertColumns)
-	b.SetOnConflict(insertInfo.conflict, insertInfo.actions)
 	b.SetValues(util.Map(values, func(v T) []any {
 		return collectInsertValues(v, insertInfo)
 	}))
+	if len(insertInfo.conflict) > 0 {
+		// allow manual setting of on conflict only if no config in tags
+		b.SetOnConflict(insertInfo.conflict, insertInfo.actions)
+	}
+	// no allow manual setting of returning columns, since we cannot map them back
 	b.SetReturning(insertInfo.returningColumns)
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {

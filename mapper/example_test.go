@@ -21,7 +21,7 @@ func ExampleSelect() {
 		// Anonymous field supports only the 'tables' key.
 		// The value defined by 'tables' can be inherited by nested fields
 		// and by subsequent sibling fields of the current struct.
-		Model `sqlb:"tables:u"`
+		Model `sqlb:"table:users;tables:u"`
 		Name  string `sqlb:"col:name"`
 		// Included only when the "full" tag is specified
 		Notes string `sqlb:"col:notes;on:full"`

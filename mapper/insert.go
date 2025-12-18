@@ -33,24 +33,33 @@ func Insert[T any](db QueryAble, b InsertBuilder, values []T, options ...Option)
 		return nil
 	}
 	opt := mergeOptions(options...)
-	queryStr, args, returningFieldIndices, err := buildInsertQueryForStruct[T](b, values, opt)
+	queryStr, args, returningFields, err := buildInsertQueryForStruct[T](b, values, opt)
 	if err != nil {
 		return err
 	}
-	if len(returningFieldIndices) == 0 {
+	if len(returningFields) == 0 {
 		_, err = db.Exec(queryStr, args...)
 		return err
 	}
 	index := 0
+	agents := make([]*nullZeroAgent, 0)
 	_, err = scan(db, queryStr, args, func() (T, []any) {
 		dest := values[index]
 		index++
-		return prepareScanDestinations(dest, returningFieldIndices)
+		dest, fields, ag := prepareScanDestinations(dest, returningFields, opt)
+		agents = append(agents, ag...)
+		return dest, fields
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	for _, agent := range agents {
+		agent.Apply()
+	}
+	return nil
 }
 
-func buildInsertQueryForStruct[T any](b InsertBuilder, values []T, opt *Options) (query string, args []any, fieldIndices [][]int, err error) {
+func buildInsertQueryForStruct[T any](b InsertBuilder, values []T, opt *Options) (query string, args []any, returningFields []fieldInfo, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
@@ -78,7 +87,7 @@ func buildInsertQueryForStruct[T any](b InsertBuilder, values []T, opt *Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	return query, args, insertInfo.returningIndices, nil
+	return query, args, insertInfo.returningFields, nil
 }
 
 func collectInsertValues[T any](values T, insertInfo insertInfo) []any {
@@ -103,7 +112,7 @@ type insertInfo struct {
 	actions       []sqlf.Builder
 
 	returningColumns []string
-	returningIndices [][]int
+	returningFields  []fieldInfo
 }
 
 func buildInsertInfo(dialect Dialect, f *structInfo) insertInfo {
@@ -119,7 +128,7 @@ func buildInsertInfo(dialect Dialect, f *structInfo) insertInfo {
 		colIndent := dialect.QuoteIdentifier(col.Column)
 		if col.Returning {
 			r.returningColumns = append(r.returningColumns, colIndent)
-			r.returningIndices = append(r.returningIndices, col.Index)
+			r.returningFields = append(r.returningFields, col)
 		}
 		if col.PK {
 			continue

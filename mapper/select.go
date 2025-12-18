@@ -42,21 +42,31 @@ func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T,
 // Select executes the query and scans the results into a slice of struct T.
 func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	opt := mergeOptions(options...)
-	queryStr, args, fieldIndices, err := buildSelectQueryForStruct[T](b, opt)
+	queryStr, args, dests, err := buildSelectQueryForStruct[T](b, opt)
 	if err != nil {
 		return nil, err
 	}
-	return scan(db, queryStr, args, func() (T, []any) {
+	agents := make([]*nullZeroAgent, 0)
+	r, err := scan(db, queryStr, args, func() (T, []any) {
 		var dest T
-		return prepareScanDestinations(dest, fieldIndices)
+		dest, fields, ag := prepareScanDestinations(dest, dests, opt)
+		agents = append(agents, ag...)
+		return dest, fields
 	})
+	if err != nil {
+		return nil, err
+	}
+	for _, agent := range agents {
+		agent.Apply()
+	}
+	return r, nil
 }
 
 // prepareScanDestinations prepares the destinations for scanning the query results into the struct fields.
 // !!! MUST return dest since the param 'dest' and the caller 'dest' is different variable.
 // prepareScanDestinations will create new instances for nil pointer fields as needed which
 // affects only the param 'dest'.
-func prepareScanDestinations[T any](dest T, fieldIndices [][]int) (T, []any) {
+func prepareScanDestinations[T any](dest T, dests []fieldInfo, opt *Options) (T, []any, []*nullZeroAgent) {
 	destValue := reflect.ValueOf(&dest).Elem()
 	if destValue.Kind() == reflect.Ptr {
 		if destValue.IsNil() {
@@ -64,11 +74,12 @@ func prepareScanDestinations[T any](dest T, fieldIndices [][]int) (T, []any) {
 		}
 		destValue = destValue.Elem()
 	}
-	fields := make([]any, len(fieldIndices))
-	for i, dest := range fieldIndices {
+	fields := make([]any, len(dests))
+	agents := make([]*nullZeroAgent, 0, len(dests))
+	for i, dest := range dests {
 		current := destValue
 		// Traverse the field path and initialize nil pointers.
-		for _, fieldIndex := range dest[:len(dest)-1] {
+		for _, fieldIndex := range dest.Index[:len(dest.Index)-1] {
 			current = current.Field(fieldIndex)
 			if current.Kind() == reflect.Ptr {
 				if current.IsNil() {
@@ -77,13 +88,20 @@ func prepareScanDestinations[T any](dest T, fieldIndices [][]int) (T, []any) {
 				current = current.Elem()
 			}
 		}
-		field := current.Field(dest[len(dest)-1])
-		fields[i] = field.Addr().Interface()
+		field := current.Field(dest.Index[len(dest.Index)-1])
+		target := field.Addr().Interface()
+		if field.Kind() == reflect.Ptr || !opt.enableNullZero(dest.Table) {
+			fields[i] = target
+			continue
+		}
+		agent := newNullZeroAgent(field)
+		fields[i] = agent.Agent()
+		agents = append(agents, agent)
 	}
-	return dest, fields
+	return dest, fields, agents
 }
 
-func buildSelectQueryForStruct[T any](b SelectBuilder, opt *Options) (query string, args []any, fieldIndices [][]int, err error) {
+func buildSelectQueryForStruct[T any](b SelectBuilder, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
@@ -92,35 +110,27 @@ func buildSelectQueryForStruct[T any](b SelectBuilder, opt *Options) (query stri
 	if err != nil {
 		return "", nil, nil, err
 	}
-	columns, fieldIndices := buildSelectInfo(opt.dialect, opt.tags, info)
+	columns, dests := buildSelectInfo(opt, info)
 	b.SetSelect(columns...)
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	return query, args, fieldIndices, nil
+	return query, args, dests, nil
 }
 
-func buildSelectInfo(dialect Dialect, tags []string, f *structInfo) (columns []sqlf.Builder, fieldIndices [][]int) {
+func buildSelectInfo(opt *Options, f *structInfo) (columns []sqlf.Builder, dests []fieldInfo) {
 	for _, col := range f.columns {
-		included := len(col.On) == 0
-		if !included && len(tags) > 0 {
-			for _, tag := range tags {
-				if util.Index(col.On, tag) >= 0 {
-					included = true
-					break
-				}
-			}
-		}
+		included := opt.matchTag(col.On)
 		if !included {
 			continue
 		}
 		// sel tag takes precedence over col tag
 		checkUsage := col.CheckUsage
 		expr := col.Select
-		if expr == "" && col.Column != "" && len(col.Tables) > 0 {
+		if expr == "" && col.Column != "" {
 			checkUsage = false
-			expr = "?." + dialect.QuoteIdentifier(col.Column)
+			expr = "?." + opt.dialect.QuoteIdentifier(col.Column)
 		}
 		column := sqlf.F(expr, util.Map(col.Tables, func(t string) any {
 			return sqlb.NewTable("", t)
@@ -129,7 +139,7 @@ func buildSelectInfo(dialect Dialect, tags []string, f *structInfo) (columns []s
 			column.NoUsageCheck()
 		}
 		columns = append(columns, column)
-		fieldIndices = append(fieldIndices, col.Index)
+		dests = append(dests, col)
 	}
 	return
 }

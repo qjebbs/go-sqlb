@@ -75,7 +75,7 @@ func ExampleSelect() {
 		// Anonymous field supports only the 'tables' key.
 		// The value defined by 'tables' can be inherited by nested fields
 		// and by subsequent sibling fields of the current struct.
-		Model `sqlb:"tables:u"`
+		Model `sqlb:"table:users;from:u"`
 		Name  string `sqlb:"col:name"`
 		// Included only when the "full" tag is specified
 		Notes string `sqlb:"col:notes;on:full"`
@@ -86,7 +86,7 @@ func ExampleSelect() {
 		User *User `sqlb:"dive"`
 		// Unlike col tags, a sel tag semantically suggest that
 		// it's a SELECT expression rather than a column.
-		OrgName float64 `sqlb:"sel:COALESCE(?.name,'');tables:o"`
+		OrgName float64 `sqlb:"sel:COALESCE(?.name,'');from:o"`
 	}
 
 	Users := sqlb.NewTable("users", "u")

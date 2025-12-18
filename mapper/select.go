@@ -132,7 +132,7 @@ func buildSelectInfo(opt *Options, f *structInfo) (columns []sqlf.Builder, dests
 			checkUsage = false
 			expr = "?." + opt.dialect.QuoteIdentifier(col.Column)
 		}
-		column := sqlf.F(expr, util.Map(col.Tables, func(t string) any {
+		column := sqlf.F(expr, util.Map(col.From, func(t string) any {
 			return sqlb.NewTable("", t)
 		})...)
 		if !checkUsage {

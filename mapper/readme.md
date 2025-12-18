@@ -27,9 +27,9 @@ type Model struct {
 }
 
 type User struct {
-    Model    `sqlb:"tables:u"`  Declare tables for its fields
+    Model    `sqlb:"from:u"`  Declare tables for its fields
     Name     string `sqlb:"u.name"` // Simple syntax
-    Age      int    `sqlb:"sel:COALESCE(?.age,0);tables:u"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
+    Age      int    `sqlb:"sel:COALESCE(?.age,0);from:u"` // Equals to sqlf.F("COALESCE(?.age,0)", u)
     Settings string `sqlb:"sel:u.name;on:full"` // Scanned only when "full" tag specified
 }
 

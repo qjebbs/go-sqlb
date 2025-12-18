@@ -65,12 +65,12 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				if err != nil {
 					return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tag, err)
 				}
-				if len(parsed.Tables) > 0 {
+				if len(parsed.From) > 0 {
 					checkUsage = true
-					curTables = parsed.Tables
+					curTables = parsed.From
 				} else {
 					checkUsage = false
-					parsed.Tables = curTables
+					parsed.From = curTables
 				}
 				if parsed.Table != "" {
 					curTable = parsed.Table

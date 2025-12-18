@@ -61,7 +61,7 @@ func WithTags(tags ...string) Option {
 // Example:
 //
 //	type Foo struct {
-//		ID  int64  `sqlb:"col:id;table:foo;tables:f"`
+//		ID  int64  `sqlb:"col:id;table:foo;from:f"`
 //		Bar string `sqlb:"col:bar"`
 //	}
 //	// All fields of *Foo will use null-zero agents.

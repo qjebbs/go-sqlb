@@ -13,7 +13,7 @@ type Info struct {
 	Select string   // Select is parsed from "sel" key.
 	Column string   // Column is parsed from "col" key.
 	Table  string   // Table is parsed from "table" key.
-	Tables []string // Tables is parsed from "tables" key.
+	From   []string // From is parsed from "from" key.
 	On     []string // On is parsed from "on" key.
 	Dive   bool     // Dive indicates whether "dive" key is present.
 
@@ -140,13 +140,13 @@ func parseKeyValue(p *parser) (parseFn, error) {
 			p.c.Table = v
 			return nil
 		})
-	case "tables":
+	case "from":
 		return parseStringAndSet(p, func(v string) error {
 			names, err := parseNames(v)
 			if err != nil {
 				return err
 			}
-			p.c.Tables = names
+			p.c.From = names
 			return nil
 		})
 	case "on":

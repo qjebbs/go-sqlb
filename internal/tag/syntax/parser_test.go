@@ -43,17 +43,17 @@ func TestParser(t *testing.T) {
 			},
 		},
 		{
-			raw: "sel:?.id;tables:u;",
+			raw: "sel:?.id;from:u;",
 			want: &Info{
 				Select: "?.id",
-				Tables: []string{"u"},
+				From:   []string{"u"},
 			},
 		},
 		{
-			raw: "sel:COALESCE(?.age,0);tables:u;",
+			raw: "sel:COALESCE(?.age,0);from:u;",
 			want: &Info{
 				Select: "COALESCE(?.age,0)",
-				Tables: []string{"u"},
+				From:   []string{"u"},
 			},
 		},
 	}
@@ -67,8 +67,8 @@ func TestParser(t *testing.T) {
 				if got.Column != tc.want.Column {
 					t.Errorf("got Column %q, want %#q", got.Column, tc.want.Column)
 				}
-				if !reflect.DeepEqual(got.Tables, tc.want.Tables) {
-					t.Errorf("got Tables %q, want %q", strings.Join(got.Tables, ","), strings.Join(tc.want.Tables, ","))
+				if !reflect.DeepEqual(got.From, tc.want.From) {
+					t.Errorf("got Tables %q, want %q", strings.Join(got.From, ","), strings.Join(tc.want.From, ","))
 				}
 				if !reflect.DeepEqual(got.On, tc.want.On) {
 					t.Errorf("got On %q, want %q", strings.Join(got.On, ","), strings.Join(tc.want.On, ","))

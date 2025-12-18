@@ -12,6 +12,7 @@ import (
 type Info struct {
 	Select string   // Select is parsed from "sel" key.
 	Column string   // Column is parsed from "col" key.
+	Table  string   // Table is parsed from "table" key.
 	Tables []string // Tables is parsed from "tables" key.
 	On     []string // On is parsed from "on" key.
 	Dive   bool     // Dive indicates whether "dive" key is present.
@@ -132,6 +133,11 @@ func parseKeyValue(p *parser) (parseFn, error) {
 		// it can substitute a "sel" tag for SELECT semantics.
 		return parseStringAndSet(p, func(v string) error {
 			p.c.Select = p.token.lit
+			return nil
+		})
+	case "table":
+		return parseStringAndSet(p, func(v string) error {
+			p.c.Table = v
 			return nil
 		})
 	case "tables":

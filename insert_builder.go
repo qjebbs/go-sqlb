@@ -39,6 +39,12 @@ func (b *InsertBuilder) InsertInto(t Table) *InsertBuilder {
 	return b
 }
 
+// SetInsertTable sets the target table for insertion,
+// which implements the InsertBuilder interface.
+func (b *InsertBuilder) SetInsertTable(table string) {
+	b.target = NewTable(table)
+}
+
 // Columns sets the columns for insertion.
 func (b *InsertBuilder) Columns(cols ...string) *InsertBuilder {
 	b.SetColumns(cols)

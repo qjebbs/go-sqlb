@@ -68,7 +68,7 @@ func ExampleInsert() {
 	}
 
 	type User struct {
-		Model
+		Model `sqlb:"table:users"`
 		// conflict_on indicates the column(s) to check for conflict
 		Email string `sqlb:"col:email;conflict_on"`
 		// conflict_set without value means to use excluded column value
@@ -77,18 +77,15 @@ func ExampleInsert() {
 		Notes string `sqlb:"col:notes;conflict_set:CASE WHEN users.notes = '' THEN excluded.notes ELSE users.notes END"`
 	}
 
-	Users := sqlb.NewTable("users", "u")
-	data := []*User{
-		{Email: "example@example.com"},
-	}
-	b := sqlb.NewInsertBuilder().InsertInto(Users)
+	data := &User{Email: "example@example.com"}
+	b := sqlb.NewInsertBuilder()
 	b.Debug() // enable debug to see the built query
 	defer func() {
 		if err := recover(); err != nil {
 			// ignore error since db is nil
 		}
 	}()
-	err := mapper.Insert(nil, b, data)
+	err := mapper.InsertOne(nil, b, data)
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -16,6 +16,7 @@ type structInfo struct {
 type fieldInfo struct {
 	*syntax.Info
 
+	Diving     bool  // whether this field is from a 'dive' operation
 	CheckUsage bool  // whether to do usage check for tables inherited from anonymous fields
 	Index      []int // field index in the struct
 }
@@ -43,9 +44,15 @@ func getStructInfo(zero any) (*structInfo, error) {
 
 func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 	var columns []fieldInfo
-	var findFields func(t reflect.Type, basePath []int, declaredTables []string) error
-	findFields = func(t reflect.Type, basePath []int, declaredTables []string) error {
-		curTables := declaredTables
+	type context struct {
+		table  string
+		tables []string
+		diving bool
+	}
+	var findFields func(t reflect.Type, basePath []int, ctx context) error
+	findFields = func(t reflect.Type, basePath []int, ctx context) error {
+		curTable := ctx.table
+		curTables := ctx.tables
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
@@ -65,6 +72,11 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					checkUsage = false
 					parsed.Tables = curTables
 				}
+				if parsed.Table != "" {
+					curTable = parsed.Table
+				} else {
+					parsed.Table = curTable
+				}
 				info = parsed
 			}
 			if field.Anonymous {
@@ -77,7 +89,10 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					fieldType = fieldType.Elem()
 				}
 				if fieldType.Kind() == reflect.Struct {
-					err := findFields(fieldType, currentPath, curTables)
+					ctx.table = curTable
+					ctx.tables = curTables
+					ctx.diving = ctx.diving || false
+					err := findFields(fieldType, currentPath, ctx)
 					if err != nil {
 						return err
 					}
@@ -97,7 +112,10 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					if fieldType.Kind() != reflect.Struct {
 						return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' can be used only with struct fields", zero, field.Name)
 					}
-					err := findFields(fieldType, currentPath, curTables)
+					ctx.table = curTable
+					ctx.tables = curTables
+					ctx.diving = ctx.diving || info.Dive
+					err := findFields(fieldType, currentPath, ctx)
 					if err != nil {
 						return err
 					}
@@ -116,7 +134,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 		return nil
 	}
 
-	err := findFields(typ, nil, nil)
+	err := findFields(typ, nil, context{})
 	if err != nil {
 		return &structInfo{err: err}
 	}

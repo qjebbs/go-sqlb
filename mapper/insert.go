@@ -13,6 +13,7 @@ var _ InsertBuilder = (*sqlb.InsertBuilder)(nil)
 // InsertBuilder is the interface for builders that support Insert method.
 type InsertBuilder interface {
 	sqlb.Builder
+	SetInsertTable(table string)
 	SetColumns(columns []string)
 	SetValues(rows [][]any)
 	SetConflictDo(columns []string, actions []sqlf.Builder)
@@ -59,6 +60,7 @@ func buildInsertQueryForStruct[T any](b InsertBuilder, values []T, opt *Options)
 		return "", nil, nil, err
 	}
 	insertInfo := buildInsertInfo(opt.dialect, info)
+	b.SetInsertTable(insertInfo.table)
 	b.SetColumns(insertInfo.insertColumns)
 	b.SetConflictDo(insertInfo.conflict, insertInfo.actions)
 	b.SetValues(util.Map(values, func(v T) []any {
@@ -86,6 +88,8 @@ func collectInsertValues[T any](values T, insertInfo insertInfo) []any {
 }
 
 type insertInfo struct {
+	table string
+
 	insertColumns []string
 	insertIndices [][]int
 	conflict      []string
@@ -98,6 +102,10 @@ type insertInfo struct {
 func buildInsertInfo(dialect Dialect, f *structInfo) insertInfo {
 	var r insertInfo
 	for _, col := range f.columns {
+		if r.table == "" && !col.Diving && col.Table != "" {
+			// respect first non-diving column with table specified
+			r.table = col.Table
+		}
 		if col.Column == "" {
 			continue
 		}

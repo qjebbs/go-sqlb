@@ -41,8 +41,7 @@ func ExampleInsertBuilder_complex() {
 				Select(bar.Column("*")).
 				From(bar),
 		).
-		OnConflict("a").
-		DoUpdateSet(sqlf.F("b = excluded.b")).
+		OnConflict([]string{"a"}, sqlf.F("b = excluded.b")).
 		Returning("id")
 	query, args, err := b.BuildQuery(sqlf.BindStyleQuestion)
 	if err != nil {

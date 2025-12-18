@@ -16,7 +16,7 @@ type InsertBuilder interface {
 	SetInsertTable(table string)
 	SetColumns(columns []string)
 	SetValues(rows [][]any)
-	SetConflictDo(columns []string, actions []sqlf.Builder)
+	SetOnConflict(columns []string, actions []sqlf.Builder)
 	SetReturning(columns []string)
 }
 
@@ -62,7 +62,7 @@ func buildInsertQueryForStruct[T any](b InsertBuilder, values []T, opt *Options)
 	insertInfo := buildInsertInfo(opt.dialect, info)
 	b.SetInsertTable(insertInfo.table)
 	b.SetColumns(insertInfo.insertColumns)
-	b.SetConflictDo(insertInfo.conflict, insertInfo.actions)
+	b.SetOnConflict(insertInfo.conflict, insertInfo.actions)
 	b.SetValues(util.Map(values, func(v T) []any {
 		return collectInsertValues(v, insertInfo)
 	}))

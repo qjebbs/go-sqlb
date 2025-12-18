@@ -93,19 +93,21 @@ func (b *InsertBuilder) With(name Table, builder sqlf.Builder) *InsertBuilder {
 }
 
 // OnConflict sets the conflict target for the insert statement.
-func (b *InsertBuilder) OnConflict(columns ...string) *InsertBuilder {
+// The parameter actions are the actions to be taken on conflict,
+// which is built after "DO UPDATE SET", e.g., sqlf.F("col = EXCLUDED.col").
+// If no actions are provided, it means "DO NOTHING".
+//
+//	columns := []string{"a", "b"}
+//	b.OnConflict(columns, sqlf.F("c = EXCLUDED.c")) // ON CONFLICT (a, b) DO UPDATE SET c = EXCLUDED.c
+//	b.OnConflict(columns)                           // ON CONFLICT (a, b) DO NOTHING
+func (b *InsertBuilder) OnConflict(columns []string, actions ...sqlf.Builder) *InsertBuilder {
 	b.conflictOn = columns
+	b.conflictDo = actions
 	return b
 }
 
-// DoUpdateSet sets the conflict action for the insert statement.
-func (b *InsertBuilder) DoUpdateSet(actions ...sqlf.Builder) *InsertBuilder {
-	b.conflictDo = append(b.conflictDo, actions...)
-	return b
-}
-
-// SetConflictDo sets the conflict action for the insert statement.
-func (b *InsertBuilder) SetConflictDo(columns []string, actions []sqlf.Builder) {
+// SetOnConflict sets the conflict action for the insert statement.
+func (b *InsertBuilder) SetOnConflict(columns []string, actions []sqlf.Builder) {
 	b.conflictOn = columns
 	b.conflictDo = actions
 }

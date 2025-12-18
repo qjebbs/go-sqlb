@@ -70,6 +70,11 @@ func (b *InsertBuilder) SetValues(rows [][]any) {
 }
 
 // From sets the SELECT builder for insertion.
+//
+// Example:
+//
+//	q := sqlb.NewSelectBuilder().Select(foo.Columns("bar", "baz")).From(foo)
+//	b.From(q)
 func (b *InsertBuilder) From(s sqlf.Builder) *InsertBuilder {
 	b.selects = s
 	return b
@@ -87,6 +92,11 @@ func (b *InsertBuilder) SetReturning(columns []string) {
 }
 
 // With adds a CTE to the insert statement.
+//
+// Example:
+//
+//	q := sqlb.NewSelectBuilder().Select(foo.Column("*")).From(foo)
+//	b.With(table, q)
 func (b *InsertBuilder) With(name Table, builder sqlf.Builder) *InsertBuilder {
 	b.ctes.With(name, builder)
 	return b
@@ -96,6 +106,8 @@ func (b *InsertBuilder) With(name Table, builder sqlf.Builder) *InsertBuilder {
 // The parameter actions are the actions to be taken on conflict,
 // which is built after "DO UPDATE SET", e.g., sqlf.F("col = EXCLUDED.col").
 // If no actions are provided, it means "DO NOTHING".
+//
+// Example:
 //
 //	columns := []string{"a", "b"}
 //	b.OnConflict(columns, sqlf.F("c = EXCLUDED.c")) // ON CONFLICT (a, b) DO UPDATE SET c = EXCLUDED.c

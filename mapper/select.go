@@ -65,13 +65,19 @@ func prepareScanDestinations[T any](dest T, fieldIndices [][]int) (T, []any) {
 		destValue = destValue.Elem()
 	}
 	fields := make([]any, len(fieldIndices))
-	for i, indexPath := range fieldIndices {
-		field := destValue.FieldByIndex(indexPath)
-		if i < len(indexPath)-1 && field.Kind() == reflect.Ptr && field.IsNil() {
-			// if any ancestor field is a pointer and nil, create a new instance.
-			field.Set(reflect.New(field.Type().Elem()))
-			field = field.Elem()
+	for i, dest := range fieldIndices {
+		current := destValue
+		// Traverse the field path and initialize nil pointers.
+		for _, fieldIndex := range dest[:len(dest)-1] {
+			current = current.Field(fieldIndex)
+			if current.Kind() == reflect.Ptr {
+				if current.IsNil() {
+					current.Set(reflect.New(current.Type().Elem()))
+				}
+				current = current.Elem()
+			}
 		}
+		field := current.Field(dest[len(dest)-1])
 		fields[i] = field.Addr().Interface()
 	}
 	return dest, fields

@@ -1,4 +1,4 @@
-package sqlb
+package clauses
 
 import (
 	"fmt"
@@ -7,27 +7,10 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-var _ Builder = (*_CTEs)(nil)
-var _ sqlf.Builder = (*_CTEs)(nil)
+var _ sqlf.Builder = (*With)(nil)
 
-// _With creates a new CTEs instance with a builder as common table expression.
-//
-// !!! *CTEs tracks dependencies the help of sqlb.Table,
-// make sure all the table references are built from sqlb.Table,
-//
-// For example:
-//
-//	foo := sqlb.NewTable("foo")
-//	sqlb._With(foo, sqlf.F("SELECT 1")).
-//		For(sqlf.F(
-//			"SELECT * FROM ?", foo,
-//		))
-func _With(table Table, builder sqlf.Builder) *_CTEs {
-	return newCTEs().With(table, builder)
-}
-
-// _CTEs represents a SQL WITH clause.
-type _CTEs struct {
+// With represents a SQL WITH clause.
+type With struct {
 	builder sqlf.Builder
 
 	debugName string
@@ -36,7 +19,7 @@ type _CTEs struct {
 	ctesDict map[string]*cte // the actual cte names, not aliases
 
 	deps           map[string]bool
-	unresolvedDeps *depTables
+	unresolvedDeps *Dependencies
 }
 
 type cte struct {
@@ -44,15 +27,15 @@ type cte struct {
 	table Table
 }
 
-// newCTEs creates a new CTEs instance.
-func newCTEs() *_CTEs {
-	return &_CTEs{
+// NewWith creates a new With instance.
+func NewWith() *With {
+	return &With{
 		ctesDict: make(map[string]*cte),
 	}
 }
 
 // With adds a fragment as common table expression,
-func (w *_CTEs) With(table Table, builder sqlf.Builder) *_CTEs {
+func (w *With) With(table Table, builder sqlf.Builder) *With {
 	w.resetDepTablesCache()
 	t := table.WithAlias("")
 	cte := &cte{
@@ -65,14 +48,14 @@ func (w *_CTEs) With(table Table, builder sqlf.Builder) *_CTEs {
 }
 
 // For sets the main query builder the CTEs is for.
-func (w *_CTEs) For(builder sqlf.Builder) *_CTEs {
+func (w *With) For(builder sqlf.Builder) *With {
 	w.resetDepTablesCache()
 	w.builder = builder
 	return w
 }
 
 // BuildQuery implements Builder
-func (w *_CTEs) BuildQuery(style sqlf.BindStyle) (string, []any, error) {
+func (w *With) BuildQuery(style sqlf.BindStyle) (string, []any, error) {
 	if w == nil {
 		return "", nil, nil
 	}
@@ -86,7 +69,7 @@ func (w *_CTEs) BuildQuery(style sqlf.BindStyle) (string, []any, error) {
 }
 
 // Build implements sqlf.Builder
-func (w *_CTEs) Build(ctx *sqlf.Context) (string, error) {
+func (w *With) Build(ctx *sqlf.Context) (string, error) {
 	if w == nil {
 		return "", nil
 	}
@@ -95,7 +78,7 @@ func (w *_CTEs) Build(ctx *sqlf.Context) (string, error) {
 		return "", err
 	}
 
-	if deps := depTablesFromContext(ctx); deps != nil {
+	if deps := DependenciesFromContext(ctx); deps != nil {
 		for table := range unresolved.SourceNames {
 			// report undefined dependencies to parent query builder
 			// if b.debug && b.debugName != "" {
@@ -114,10 +97,11 @@ func (w *_CTEs) Build(ctx *sqlf.Context) (string, error) {
 		// no need to build anything here
 		return "", nil
 	}
-	return w.buildRequired(ctx, required)
+	return w.BuildRequired(ctx, required)
 }
 
-func (w *_CTEs) buildRequired(ctx *sqlf.Context, required map[string]bool) (query string, err error) {
+// BuildRequired builds the WITH clause including only the required CTEs.
+func (w *With) BuildRequired(ctx *sqlf.Context, required map[string]bool) (query string, err error) {
 	if w.builder != nil {
 		query, err = w.builder.Build(ctx)
 	}
@@ -150,21 +134,21 @@ func (w *_CTEs) buildRequired(ctx *sqlf.Context, required map[string]bool) (quer
 	return withClauses + " " + query, nil
 }
 
-func (w *_CTEs) collectDependencies(ctx *sqlf.Context) (required map[string]bool, unresolved *depTables, err error) {
+func (w *With) collectDependencies(ctx *sqlf.Context) (required map[string]bool, unresolved *Dependencies, err error) {
 	if w.builder == nil {
 		return nil, nil, nil
 	}
 	if w.deps != nil {
 		return w.deps, w.unresolvedDeps, nil
 	}
-	deps := newDepTables(w.debugName)
-	ctx = contextWithDepTables(ctx, deps)
+	deps := NewDependencies(w.debugName)
+	ctx = ContextWithDependencies(ctx, deps)
 	// collect dependencies from query builder
 	_, err = w.builder.Build(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	required, unresolved, err = w.collectDependenciesForTables(deps)
+	required, unresolved, err = w.CollectDependenciesForDeps(deps)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -173,9 +157,10 @@ func (w *_CTEs) collectDependencies(ctx *sqlf.Context) (required map[string]bool
 	return required, unresolved, nil
 }
 
-func (w *_CTEs) collectDependenciesForTables(deps *depTables) (required map[string]bool, unresolved *depTables, err error) {
+// CollectDependenciesForDeps collects the table dependencies for specific deps
+func (w *With) CollectDependenciesForDeps(deps *Dependencies) (required map[string]bool, unresolved *Dependencies, err error) {
 	required = make(map[string]bool)
-	unresolved = newDepTables()
+	unresolved = NewDependencies()
 	for t := range deps.SourceNames {
 		required[t] = true
 	}
@@ -199,7 +184,7 @@ func (w *_CTEs) collectDependenciesForTables(deps *depTables) (required map[stri
 	return required, unresolved, nil
 }
 
-func (w *_CTEs) collectDepsBetweenCTEs(required map[string]bool) error {
+func (w *With) collectDepsBetweenCTEs(required map[string]bool) error {
 	cetDeps := make(map[string]bool)
 	for _, cte := range w.ctes {
 		if !required[cte.table.Name] {
@@ -217,15 +202,15 @@ func (w *_CTEs) collectDepsBetweenCTEs(required map[string]bool) error {
 	return nil
 }
 
-func (w *_CTEs) collectDepsFromCTE(deps map[string]bool, cte *cte) error {
+func (w *With) collectDepsFromCTE(deps map[string]bool, cte *cte) error {
 	key := cte.table.Name
 	if deps[key] {
 		return nil
 	}
 	deps[key] = true
 
-	tables := newDepTables(w.debugName)
-	ctx := contextWithDepTables(sqlf.NewContext(sqlf.BindStyleDollar), tables)
+	tables := NewDependencies(w.debugName)
+	ctx := ContextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), tables)
 	_, err := cte.Builder.Build(ctx)
 	if err != nil {
 		return fmt.Errorf("collect dependencies of CTE %q: %w", cte.table, err)
@@ -251,13 +236,18 @@ func (w *_CTEs) collectDepsFromCTE(deps map[string]bool, cte *cte) error {
 	return nil
 }
 
-func (w *_CTEs) resetDepTablesCache() {
+func (w *With) resetDepTablesCache() {
 	w.deps = nil
 	w.unresolvedDeps = nil
 }
 
 // Debug enables debug mode which prints the interpolated query to stdout.
-func (w *_CTEs) Debug(name ...string) *_CTEs {
+func (w *With) Debug(name ...string) *With {
 	w.debugName = strings.Replace(strings.Join(name, "_"), " ", "_", -1)
 	return w
+}
+
+// HasCTE returns true if there is at least one CTE defined.
+func (w *With) HasCTE() bool {
+	return len(w.ctes) > 0
 }

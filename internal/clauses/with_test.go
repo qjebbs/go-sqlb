@@ -1,4 +1,4 @@
-package sqlb
+package clauses
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 func TestWithElimination(t *testing.T) {
 	foo := NewTable("foo")
 	bar := NewTable("bar")
-	query, _, err := _With(foo, sqlf.F("SELECT 1")).
+	query, _, err := NewWith().With(foo, sqlf.F("SELECT 1")).
 		With(bar, sqlf.F("SELECT 2")).
 		For(sqlf.F(
 			"SELECT * FROM ?", foo,
@@ -28,7 +28,7 @@ func TestWithElimination(t *testing.T) {
 }
 
 func TestWithEmptyCTE(t *testing.T) {
-	w := newCTEs().For(sqlf.F("SELECT 1"))
+	w := NewWith().For(sqlf.F("SELECT 1"))
 	query, err := w.Build(sqlf.NewContext(sqlf.BindStyleQuestion))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -40,7 +40,7 @@ func TestWithEmptyCTE(t *testing.T) {
 }
 
 func TestWithEmptyFor(t *testing.T) {
-	w := _With(NewTable("foo"), sqlf.F("SELECT 1"))
+	w := NewWith().With(NewTable("foo"), sqlf.F("SELECT 1"))
 	query, err := w.Build(sqlf.NewContext(sqlf.BindStyleQuestion))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -54,12 +54,12 @@ func TestWithEmptyFor(t *testing.T) {
 func TestWithReportDeps(t *testing.T) {
 	foo := NewTable("foo")
 	bar := NewTable("bar")
-	w := _With(foo, sqlf.F("SELECT 1")).
+	w := NewWith().With(foo, sqlf.F("SELECT 1")).
 		For(sqlf.F(
 			"SELECT * FROM ? INNER JOIN ?", foo, bar,
 		))
-	deps := newDepTables()
-	ctx := contextWithDepTables(sqlf.NewContext(sqlf.BindStyleQuestion), deps)
+	deps := NewDependencies()
+	ctx := ContextWithDependencies(sqlf.NewContext(sqlf.BindStyleQuestion), deps)
 	_, err := w.Build(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

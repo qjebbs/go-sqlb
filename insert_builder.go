@@ -1,6 +1,7 @@
 package sqlb
 
 import (
+	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -11,7 +12,7 @@ var _ Builder = (*InsertBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type InsertBuilder struct {
-	ctes       *_CTEs
+	ctes       *clauses.With
 	target     Table
 	columns    []string       // select columns and keep values in scanning.
 	values     [][]any        // values for insert/update
@@ -29,7 +30,7 @@ type InsertBuilder struct {
 // NewInsertBuilder returns a new InsertBuilder.
 func NewInsertBuilder() *InsertBuilder {
 	return &InsertBuilder{
-		ctes: newCTEs(),
+		ctes: clauses.NewWith(),
 	}
 }
 

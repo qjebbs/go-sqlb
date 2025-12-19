@@ -12,11 +12,8 @@ import (
 //		foo.Column("id"), 1,
 //	))
 func (b *SelectBuilder) Where(s sqlf.Builder) *SelectBuilder {
-	if s == nil {
-		return b
-	}
 	b.resetDepTablesCache()
-	b.conditions = append(b.conditions, s)
+	b.where.Append(s)
 	return b
 }
 

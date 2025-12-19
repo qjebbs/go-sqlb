@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/qjebbs/go-sqlb/internal/clauses"
 	myutil "github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -36,10 +37,6 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}
-	err := b.anyError()
-	if err != nil {
-		return "", err
-	}
 	if b.target.Name == "" {
 		return "", fmt.Errorf("no target table specified for insert")
 	}
@@ -50,16 +47,16 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		return "", fmt.Errorf("cannot specify both select and values for insert")
 	}
 
-	clauses := make([]string, 0)
-	if b.selects != nil && len(b.ctes.ctes) > 0 {
-		myDeps := newDepTables(b.debugName)
-		depCtx := contextWithDepTables(sqlf.NewContext(sqlf.BindStyleDollar), myDeps)
-		_, err = b.selects.Build(depCtx)
+	built := make([]string, 0)
+	if b.selects != nil && b.ctes.HasCTE() {
+		myDeps := clauses.NewDependencies(b.debugName)
+		depCtx := clauses.ContextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), myDeps)
+		_, err := b.selects.Build(depCtx)
 		if err != nil {
 			return "", err
 		}
 
-		if deps := depTablesFromContext(ctx); deps != nil {
+		if deps := clauses.DependenciesFromContext(ctx); deps != nil {
 			for t := range myDeps.OuterTables {
 				deps.OuterTables[t] = true
 			}
@@ -74,18 +71,18 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		for cte := range myDeps.SourceNames {
 			ctes[cte] = true
 		}
-		with, err := b.ctes.buildRequired(ctx, ctes)
+		with, err := b.ctes.BuildRequired(ctx, ctes)
 		if err != nil {
 			return "", err
 		}
 		if with != "" {
-			clauses = append(clauses, with)
+			built = append(built, with)
 		}
 	}
-	clauses = append(clauses, fmt.Sprintf("INSERT INTO %s", b.target.Name))
+	built = append(built, fmt.Sprintf("INSERT INTO %s", b.target.Name))
 	if len(b.columns) > 0 {
 		cols := fmt.Sprintf("(%s)", strings.Join(b.columns, ", "))
-		clauses = append(clauses, cols)
+		built = append(built, cols)
 	}
 	if len(b.values) > 0 {
 		valueBuilders := sqlf.Join(", ", myutil.Map(b.values, func(values []any) sqlf.Builder {
@@ -95,34 +92,34 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("build insert values: %w", err)
 		}
-		clauses = append(clauses, valuesStr)
+		built = append(built, valuesStr)
 	}
 	if b.selects != nil {
 		sel, err := b.selects.Build(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build insert from select: %w", err)
 		}
-		clauses = append(clauses, sel)
+		built = append(built, sel)
 	}
 	if len(b.conflictOn) > 0 {
 		conflictTarget := fmt.Sprintf("ON CONFLICT (%s)", strings.Join(b.conflictOn, ", "))
-		clauses = append(clauses, conflictTarget)
+		built = append(built, conflictTarget)
 		if len(b.conflictDo) == 0 {
-			clauses = append(clauses, "DO NOTHING")
+			built = append(built, "DO NOTHING")
 		} else {
 			conflictActions, err := sqlf.Join(", ", b.conflictDo...).Build(ctx)
 			if err != nil {
 				return "", fmt.Errorf("build conflict do actions: %w", err)
 			}
-			clauses = append(clauses, "DO UPDATE SET")
-			clauses = append(clauses, conflictActions)
+			built = append(built, "DO UPDATE SET")
+			built = append(built, conflictActions)
 		}
 	}
 	if len(b.returning) > 0 {
 		returning := fmt.Sprintf("RETURNING %s", strings.Join(b.returning, ", "))
-		clauses = append(clauses, returning)
+		built = append(built, returning)
 	}
-	query := strings.TrimSpace(strings.Join(clauses, " "))
+	query := strings.TrimSpace(strings.Join(built, " "))
 	if b.debug {
 		printDebugQuery(b.debugName, query, ctx.Args())
 	}

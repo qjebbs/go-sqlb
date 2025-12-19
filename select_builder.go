@@ -1,6 +1,7 @@
 package sqlb
 
 import (
+	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -12,19 +13,18 @@ var _ Builder = (*SelectBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type SelectBuilder struct {
-	ctes       *_CTEs
-	tables     []*fromTable          // the tables in order
-	tablesDict map[string]*fromTable // the from tables by alias
+	ctes *clauses.With
+	from *clauses.From
 
-	selects    []sqlf.Builder // select columns and keep values in scanning.
-	conditions []sqlf.Builder // where conditions, joined with AND.
-	orders     []*orderItem   // order by columns, joined with comma.
-	groupbys   []sqlf.Builder // group by columns, joined with comma.
-	havings    []sqlf.Builder // having conditions, joined with AND.
-	distinct   bool           // select distinct
-	limit      int64          // limit count
-	offset     int64          // offset count
-	unions     []sqlf.Builder // union queries
+	selects  *clauses.PrefixedList // select columns and keep values in scanning.
+	where    *clauses.PrefixedList
+	order    *clauses.OrderBy
+	groupbys *clauses.PrefixedList // group by columns, joined with comma.
+	having   *clauses.PrefixedList // having conditions, joined with AND.
+	distinct bool                  // select distinct
+	limit    int64                 // limit count
+	offset   int64                 // offset count
+	unions   *clauses.PrefixedList // union queries
 
 	errors []error // errors during building
 
@@ -37,8 +37,14 @@ type SelectBuilder struct {
 // NewSelectBuilder returns a new SelectBuilder.
 func NewSelectBuilder() *SelectBuilder {
 	return &SelectBuilder{
-		ctes:       newCTEs(),
-		tablesDict: make(map[string]*fromTable),
+		ctes:     clauses.NewWith(),
+		from:     clauses.NewFrom(),
+		order:    clauses.NewOrderBy(),
+		groupbys: clauses.NewPrefixedList("GROUP BY", ", "),
+		having:   clauses.NewPrefixedList("HAVING", " AND "),
+		selects:  clauses.NewPrefixedList("SELECT", ", "),
+		where:    clauses.NewPrefixedList("WHERE", " AND "),
+		unions:   clauses.NewPrefixedList("", " "),
 	}
 }
 
@@ -69,7 +75,7 @@ func (b *SelectBuilder) Select(columns ...sqlf.Builder) *SelectBuilder {
 // which implements the SelectBuilder interface.
 func (b *SelectBuilder) SetSelect(columns ...sqlf.Builder) {
 	b.resetDepTablesCache()
-	b.selects = columns
+	b.selects.Replace(columns)
 }
 
 // Limit set the limit.
@@ -93,6 +99,18 @@ func (b *SelectBuilder) Offset(offset int64) *SelectBuilder {
 	return b
 }
 
+// OrderBy set the sorting order. the order can be "ASC", "DESC", "ASC NULLS FIRST" or "DESC NULLS LAST"
+//
+// !!! Make sure the columns are built from sqlb.Table to have their dependencies tracked.
+//
+//	foo := sqlb.NewTable("foo")
+//	b.OrderBy(foo.Column("bar"), sqlb.OrderAsc)
+func (b *SelectBuilder) OrderBy(column sqlf.Builder, order Order) *SelectBuilder {
+	b.resetDepTablesCache()
+	b.order.Add(column, order)
+	return b
+}
+
 // GroupBy set the sorting order.
 //
 // !!! Make sure the columns are built from sqlb.Table to have their dependencies tracked.
@@ -101,7 +119,30 @@ func (b *SelectBuilder) Offset(offset int64) *SelectBuilder {
 //	b.GroupBy(foo.Column("bar"))
 func (b *SelectBuilder) GroupBy(columns ...sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
-	b.groupbys = append(b.groupbys, columns...)
+	b.groupbys.Append(columns...)
+	return b
+}
+
+// With adds a fragment as common table expression,
+// the built query of s should be a subquery.
+//
+// !!! SelectBuilder tracks dependencies of CTEs with the help of sqlb.Table.
+//
+// If the CTE builder depends on other CTEs,
+// make sure all the table references are built from sqlb.Table,
+// for example:
+//
+//	foo := sqlb.NewTable("foo")
+//	bar := sqlb.NewTable("bar")
+//	builderFoo := sqlf.F("SELECT * FROM users WHERE active")
+//	// the dependency is tracked only if the foo (of sqlb.Table) is used
+//	builderBar := sqlf.F("SELECT * FROM ?", foo)
+//	builder := sqlb.NewSelectBuilder().
+//		With(foo, builderFoo).With(bar, builderBar).
+//		Select(bar.Column("*")).From(bar)
+func (b *SelectBuilder) With(name Table, builder sqlf.Builder) *SelectBuilder {
+	b.resetDepTablesCache()
+	b.ctes.With(name, builder)
 	return b
 }
 
@@ -111,7 +152,7 @@ func (b *SelectBuilder) GroupBy(columns ...sqlf.Builder) *SelectBuilder {
 // to have their dependencies tracked.
 func (b *SelectBuilder) Union(builders ...sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
-	b.unions = append(b.unions, util.Map(builders, func(b sqlf.Builder) sqlf.Builder {
+	b.unions.Append(util.Map(builders, func(b sqlf.Builder) sqlf.Builder {
 		return sqlf.Prefix("UNION", b)
 	})...)
 	return b
@@ -123,7 +164,7 @@ func (b *SelectBuilder) Union(builders ...sqlf.Builder) *SelectBuilder {
 // to have their dependencies tracked.
 func (b *SelectBuilder) UnionAll(builders ...sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
-	b.unions = append(b.unions, util.Map(builders, func(b sqlf.Builder) sqlf.Builder {
+	b.unions.Append(util.Map(builders, func(b sqlf.Builder) sqlf.Builder {
 		return sqlf.Prefix("UNION ALL", b)
 	})...)
 	return b

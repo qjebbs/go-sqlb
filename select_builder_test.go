@@ -17,7 +17,6 @@ func TestSelectBuilderDistinctElimination(t *testing.T) {
 		bar   = sqlb.NewTable("bar", "b")
 	)
 	q := sqlb.NewSelectBuilder().
-		Distinct().
 		With(sqlb.NewTable("xxx", ""), sqlf.F("SELECT 1 AS whatever")). // should be ignored
 		With(locs, sqlf.F("SELECT user_id AS id, loc FROM user_locs WHERE country_code = ?", "cn")).
 		With(
@@ -27,8 +26,8 @@ func TestSelectBuilderDistinctElimination(t *testing.T) {
 				users.TableAs(), locs.TableAs(),
 				users.Column("id"), locs.Column("id"),
 			),
-		)
-	q.Select(foo.Columns("id", "name")...).
+		).
+		Distinct().Select(foo.Columns("id", "name")...).
 		From(users).
 		LeftJoinOptional(foo, sqlf.F(
 			"?=?",
@@ -64,8 +63,8 @@ func TestSelectBuilderGroupbyElimination(t *testing.T) {
 		With(
 			baz,
 			sqlf.F("SELECT * FROM baz WHERE type=$1", "user"),
-		)
-	q.Select(foo.Columns("id", "bar")...).
+		).
+		Select(foo.Columns("id", "bar")...).
 		From(foo).
 		LeftJoinOptional(baz, sqlf.F(
 			"?=?",

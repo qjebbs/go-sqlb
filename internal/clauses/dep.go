@@ -1,24 +1,27 @@
-package sqlb
+package clauses
 
 import "github.com/qjebbs/go-sqlf/v4"
 
-type depTablesKey struct{}
+type dependenciesKey struct{}
 
-func contextWithDepTables(ctx *sqlf.Context, deps *depTables) *sqlf.Context {
-	return sqlf.ContextWith(ctx, depTablesKey{}, deps)
+// ContextWithDependencies returns a new context with *Dependencies attached.
+func ContextWithDependencies(ctx *sqlf.Context, deps *Dependencies) *sqlf.Context {
+	return sqlf.ContextWith(ctx, dependenciesKey{}, deps)
 }
 
-func depTablesFromContext(ctx *sqlf.Context) *depTables {
-	if v := ctx.Value(depTablesKey{}); v != nil {
-		if deps, ok := v.(*depTables); ok && deps != nil {
+// DependenciesFromContext extracts *Dependencies from context.
+func DependenciesFromContext(ctx *sqlf.Context) *Dependencies {
+	if v := ctx.Value(dependenciesKey{}); v != nil {
+		if deps, ok := v.(*Dependencies); ok && deps != nil {
 			return deps
 		}
 	}
 	return nil
 }
 
-type depTables struct {
-	debugName string
+// Dependencies tracks the table dependencies during building SQL queries.
+type Dependencies struct {
+	DebugName string
 	// Tables are the resolved tables referenced by columns.
 	// e.g. The table 'f' of 'f.id' in the query below is reported here:
 	//   SELECT f.* FROM foo f
@@ -38,7 +41,8 @@ type depTables struct {
 	SourceNames map[string]bool
 }
 
-func (d *depTables) Merge(from *depTables) {
+// Merge merges another DepTables into this one.
+func (d *Dependencies) Merge(from *Dependencies) {
 	for t := range from.Tables {
 		d.Tables[t] = true
 	}
@@ -50,13 +54,14 @@ func (d *depTables) Merge(from *depTables) {
 	}
 }
 
-func newDepTables(debugName ...string) *depTables {
+// NewDependencies creates a new Dependencies instance.
+func NewDependencies(debugName ...string) *Dependencies {
 	var name string
 	if len(debugName) > 0 {
 		name = debugName[0]
 	}
-	return &depTables{
-		debugName:   name,
+	return &Dependencies{
+		DebugName:   name,
 		Tables:      make(map[Table]bool),
 		OuterTables: make(map[Table]bool),
 		SourceNames: make(map[string]bool),

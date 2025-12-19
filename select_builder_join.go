@@ -1,36 +1,20 @@
 package sqlb
 
 import (
-	"fmt"
-
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
 // From set the from table.
 func (b *SelectBuilder) From(t Table) *SelectBuilder {
 	b.resetDepTablesCache()
-	if t.Name == "" {
-		b.pushError(fmt.Errorf("from table is empty"))
-		return b
-	}
-	table := &fromTable{
-		table:          t,
-		Builder:        t.TableAs(),
-		optional:       false,
-		forceEliminate: false,
-	}
-	if len(b.tables) == 0 {
-		b.tables = append(b.tables, table)
-	} else {
-		b.tables[0] = table
-	}
-	b.tablesDict[t.AppliedName()] = table
+	b.from.From(t)
 	return b
 }
 
 // InnerJoin append a inner join table.
 func (b *SelectBuilder) InnerJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
-	return b.join("INNER JOIN", t, on, false, false)
+	b.from.Join("INNER JOIN", t, on, false, false)
+	return b
 }
 
 // LeftJoin append / replace a left join table.
@@ -47,7 +31,8 @@ func (b *SelectBuilder) InnerJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
 //	// BAD: The dependency of foo will NOT be collected.
 //	b.SELECT(sqlf.F("foo.id"))
 func (b *SelectBuilder) LeftJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
-	return b.join("LEFT JOIN", t, on, true, false)
+	b.from.Join("LEFT JOIN", t, on, true, false)
+	return b
 }
 
 // LeftJoinOptional append / replace a left join table, which is forced to be eliminated
@@ -68,65 +53,24 @@ func (b *SelectBuilder) LeftJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
 //	// BAD: The dependency of foo will NOT be collected.
 //	b.SELECT(sqlf.F("foo.id"))
 func (b *SelectBuilder) LeftJoinOptional(t Table, on *sqlf.Fragment) *SelectBuilder {
-	return b.join("LEFT JOIN", t, on, true, true)
+	b.from.Join("LEFT JOIN", t, on, true, true)
+	return b
 }
 
 // RightJoin append / replace a right join table.
 func (b *SelectBuilder) RightJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
-	return b.join("RIGHT JOIN", t, on, false, false)
+	b.from.Join("RIGHT JOIN", t, on, false, false)
+	return b
 }
 
 // FullJoin append / replace a full join table.
 func (b *SelectBuilder) FullJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
-	return b.join("FULL JOIN", t, on, false, false)
+	b.from.Join("FULL JOIN", t, on, false, false)
+	return b
 }
 
 // CrossJoin append / replace a cross join table.
 func (b *SelectBuilder) CrossJoin(t Table) *SelectBuilder {
-	return b.join("CROSS JOIN", t, nil, false, false)
-}
-
-// join append or replace a join table.
-func (b *SelectBuilder) join(joinStr string, t Table, on *sqlf.Fragment, optional, forceEliminate bool) *SelectBuilder {
-	b.resetDepTablesCache()
-	if t.Name == "" {
-		b.pushError(fmt.Errorf("join table name is empty"))
-		return b
-	}
-	// if _, ok := b.tablesDict[t.AppliedName()]; ok {
-	// 	if t.Alias == "" {
-	// 		b.pushError(fmt.Errorf("table [%s] is already joined", t.Name))
-	// 		return b
-	// 	}
-	// 	b.pushError(fmt.Errorf("table [%s AS %s] is already joined", t.Name, t.Alias))
-	// 	return b
-	// }
-	if len(b.tables) == 0 {
-		// reserve the first alias for the main table
-		b.tables = append(b.tables, &fromTable{})
-	}
-	table := &fromTable{
-		table: t,
-		Builder: sqlf.F(
-			joinStr+" ? ?",
-			t.TableAs(),
-			sqlf.Prefix("ON", on),
-		),
-		optional:       optional,
-		forceEliminate: optional && forceEliminate,
-	}
-	if target, replacing := b.tablesDict[t.AppliedName()]; replacing {
-		*target = *table
-		return b
-	}
-	b.tables = append(b.tables, table)
-	b.tablesDict[t.AppliedName()] = table
+	b.from.Join("CROSS JOIN", t, nil, false, false)
 	return b
-}
-
-type fromTable struct {
-	sqlf.Builder
-	table          Table
-	optional       bool // only for auto-elimination of LEFT JOIN
-	forceEliminate bool // user declared to eliminate if not referenced
 }

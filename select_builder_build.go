@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlf/v4"
 	"github.com/qjebbs/go-sqlf/v4/util"
 )
@@ -36,17 +37,13 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}
-	err := b.anyError()
-	if err != nil {
-		return "", err
-	}
-	clauses := make([]string, 0)
+	built := make([]string, 0)
 
 	myDeps, err := b.collectDependencies()
 	if err != nil {
 		return "", err
 	}
-	if deps := depTablesFromContext(ctx); deps != nil {
+	if deps := clauses.DependenciesFromContext(ctx); deps != nil {
 		for t := range myDeps.unresolved.OuterTables {
 			deps.OuterTables[t] = true
 		}
@@ -57,72 +54,66 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		// no need to build anything here
 		return "", nil
 	}
-	with, err := b.ctes.buildRequired(ctx, myDeps.cteDeps)
+	with, err := b.ctes.BuildRequired(ctx, myDeps.cteDeps)
 	if err != nil {
 		return "", err
 	}
 	if with != "" {
-		clauses = append(clauses, with)
+		built = append(built, with)
 	}
-	// reserve a position for select
 	sel, err := b.buildSelects(ctx)
 	if err != nil {
 		return "", err
 	}
-	clauses = append(clauses, sel)
-	from, err := b.buildFrom(ctx, myDeps.queryDeps)
+	built = append(built, sel)
+	from, err := b.from.BuildRequired(ctx, &clauses.FromBuilderMeta{
+		DebugName:  b.debugName,
+		Distinct:   b.distinct,
+		HasGroupBy: !b.groupbys.Empty(),
+	}, myDeps.queryDeps)
 	if err != nil {
 		return "", err
 	}
 	if from != "" {
-		clauses = append(clauses, from)
+		built = append(built, from)
 	}
-	where, err := sqlf.Prefix(
-		"WHERE",
-		sqlf.Join(" AND ", b.conditions...),
-	).Build(ctx)
+	where, err := b.where.Build(ctx)
 	if err != nil {
 		return "", err
 	}
 	if where != "" {
-		clauses = append(clauses, where)
+		built = append(built, where)
 	}
-	groupby, err := sqlf.Prefix(
-		"GROUP BY",
-		sqlf.Join(", ", b.groupbys...),
-	).Build(ctx)
+	groupby, err := b.groupbys.Build(ctx)
 	if err != nil {
 		return "", err
 	}
 	if groupby != "" {
-		clauses = append(clauses, groupby)
-		having, err := sqlf.Prefix(
-			"HAVING",
-			sqlf.Join(" AND ", b.havings...),
-		).Build(ctx)
+		built = append(built, groupby)
+		having, err := b.having.Build(ctx)
 		if err != nil {
 			return "", err
 		}
 		if having != "" {
-			clauses = append(clauses, having)
+			built = append(built, having)
 		}
 	}
-	order, err := b.buildOrders(ctx)
+	order, err := b.order.Build(ctx)
 	if err != nil {
 		return "", err
 	}
 	if order != "" {
-		clauses = append(clauses, order)
+		built = append(built, order)
 	}
 	if b.limit > 0 {
-		clauses = append(clauses, fmt.Sprintf(`LIMIT %d`, b.limit))
+		built = append(built, fmt.Sprintf(`LIMIT %d`, b.limit))
 	}
 	if b.offset > 0 {
-		clauses = append(clauses, fmt.Sprintf(`OFFSET %d`, b.offset))
+		built = append(built, fmt.Sprintf(`OFFSET %d`, b.offset))
 	}
-	query := strings.TrimSpace(strings.Join(clauses, " "))
-	if len(b.unions) > 0 {
-		union, err := sqlf.Join(" ", b.unions...).Build(ctx)
+	query := strings.TrimSpace(strings.Join(built, " "))
+	if !b.unions.Empty() {
+		union, err := b.unions.Build(ctx)
 		if err != nil {
 			return "", err
 		}
@@ -147,14 +138,12 @@ func printDebugQuery(name, query string, args []any) {
 }
 
 func (b *SelectBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
-	prefix := "SELECT"
 	if b.distinct {
-		prefix = "SELECT DISTINCT"
+		b.selects.SetPrefix("SELECT DISTINCT")
+	} else {
+		b.selects.SetPrefix("SELECT")
 	}
-	sel, err := sqlf.Prefix(
-		prefix,
-		sqlf.Join(", ", b.selects...),
-	).Build(ctx)
+	sel, err := b.selects.Build(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -164,28 +153,48 @@ func (b *SelectBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 	return sel, nil
 }
 
-func (b *SelectBuilder) buildFrom(ctx *sqlf.Context, dep *depTables) (string, error) {
-	tables := make([]string, 0, len(b.tables))
-	for _, t := range b.tables {
-		if b.shouldEliminateTable(t, dep) {
-			continue
-		}
-		c, err := t.Builder.Build(ctx)
-		if err != nil {
-			return "", fmt.Errorf("build FROM '%s': %w", t.table, err)
-		}
-		tables = append(tables, c)
-	}
-	return "FROM " + strings.Join(tables, " "), nil
+type selectBuilderDependencies struct {
+	queryDeps  *clauses.Dependencies
+	cteDeps    map[string]bool
+	unresolved *clauses.Dependencies
 }
 
-func (b *SelectBuilder) shouldEliminateTable(t *fromTable, dep *depTables) bool {
-	if !t.optional || dep.Tables[t.table] {
-		return false
+// collectDependencies collects the dependencies of the tables.
+func (b *SelectBuilder) collectDependencies() (*selectBuilderDependencies, error) {
+	if b.deps != nil {
+		return b.deps, nil
 	}
-	// automatic elimination for LEFT JOIN tables
-	if b.distinct || len(b.groupbys) > 0 {
-		return true
+	queryDeps, err := b.from.CollectDependencies(&clauses.FromBuilderMeta{
+		DebugName: b.debugName,
+		DependOnMe: []sqlf.Builder{
+			b.selects,
+			b.where,
+			b.order,
+			b.groupbys,
+			b.having,
+			b.unions,
+		},
+		Distinct:   b.distinct,
+		HasGroupBy: !b.groupbys.Empty(),
+	})
+	if err != nil {
+		return nil, err
 	}
-	return t.forceEliminate
+	cteRequired, cteUnresolved, err := b.ctes.CollectDependenciesForDeps(queryDeps)
+	if err != nil {
+		return nil, err
+	}
+	r := &selectBuilderDependencies{
+		queryDeps:  queryDeps,
+		cteDeps:    cteRequired,
+		unresolved: cteUnresolved,
+	}
+	b.deps = r
+	// if b.debug && b.debugName != "" {
+	// 	fmt.Printf("[%s] unresolved: %s\n", b.debugName, util.Map(
+	// 		util.MapKeys(r.unresolved),
+	// 		func(t Table) string { return t.Name },
+	// 	))
+	// }
+	return r, nil
 }

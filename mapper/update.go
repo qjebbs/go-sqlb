@@ -103,6 +103,9 @@ func buildUpdateInfo(dialect dialects.Dialect, f *structInfo) updateInfo {
 			r.matchIndices = append(r.matchIndices, col.Index)
 			continue
 		}
+		if col.NoUpdate {
+			continue
+		}
 		r.updateColumns = append(r.updateColumns, colIndent)
 		r.updateIndices = append(r.updateIndices, col.Index)
 	}

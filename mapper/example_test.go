@@ -99,6 +99,8 @@ func ExampleUpdate() {
 		ID int `sqlb:"col:id;pk"`
 		// extra match column for WHERE clause
 		UserID int `sqlb:"col:user_id;match"`
+		// noupdate indicates to ignore this field during update
+		Created *time.Time `sqlb:"col:created_at;noupdate"`
 	}
 
 	type User struct {

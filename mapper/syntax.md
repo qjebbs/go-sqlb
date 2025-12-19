@@ -43,5 +43,6 @@ key|Inheritance|description
 ---|---|---
 table|Yes|Declare base table for the field or its sub-fields / subsequent sibling fields.
 col|No|Specify the column associated with the field.
+noupdate|No|Mark the field to be excluded from UPDATE statement.
 pk|No|Mark the field as primary key, which will be used in WHERE clause.
 match|No|Mark the field as match column, which will be used in WHERE clause.

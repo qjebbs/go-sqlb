@@ -98,7 +98,7 @@ func buildUpdateInfo(dialect dialects.Dialect, f *structInfo) updateInfo {
 			continue
 		}
 		colIndent := dialect.QuoteIdentifier(col.Column)
-		if col.PK {
+		if col.PK || col.Match {
 			r.matchColumns = append(r.matchColumns, colIndent)
 			r.matchIndices = append(r.matchIndices, col.Index)
 			continue

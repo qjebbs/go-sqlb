@@ -95,9 +95,10 @@ func ExampleInsert() {
 
 func ExampleUpdate() {
 	type Model struct {
-		// pk indicates primary key column which will be ignored during insert
-		ID     int `sqlb:"col:id;pk"`
-		UserID int `sqlb:"col:user_id;"`
+		// pk indicates primary key column which will be used in WHERE clause
+		ID int `sqlb:"col:id;pk"`
+		// extra match column for WHERE clause
+		UserID int `sqlb:"col:user_id;match"`
 	}
 
 	type User struct {
@@ -125,5 +126,5 @@ func ExampleUpdate() {
 		fmt.Println(err)
 	}
 	// Output:
-	// [sqlb] UPDATE users SET user_id = 2, email = 'example@example.com', name = '' WHERE id = 1
+	// [sqlb] UPDATE users SET email = 'example@example.com', name = '' WHERE id = 1 AND user_id = 2
 }

@@ -21,6 +21,8 @@ type Info struct {
 	Returning   bool    // Returning indicates whether "returning" key is present.
 	ConflictOn  bool    // ConflictOn indicates whether "conflict_on" key is present.
 	ConflictSet *string // ConflictSet is parsed from "conflict_set" key.
+
+	Match bool // Match indicates whether "match" key is present.
 }
 
 // Parse parses the input and returns the list of expressions.
@@ -161,6 +163,10 @@ func parseKeyValue(p *parser) (parseFn, error) {
 	case "pk":
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.PK = v
+		})
+	case "match":
+		return parseBoolAndSet(p, func(v bool) {
+			p.c.Match = v
 		})
 	case "returning":
 		return parseBoolAndSet(p, func(v bool) {

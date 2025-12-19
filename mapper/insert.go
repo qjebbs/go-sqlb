@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -115,7 +116,7 @@ type insertInfo struct {
 	returningFields  []fieldInfo
 }
 
-func buildInsertInfo(dialect Dialect, f *structInfo) insertInfo {
+func buildInsertInfo(dialect dialects.Dialect, f *structInfo) insertInfo {
 	var r insertInfo
 	for _, col := range f.columns {
 		if r.table == "" && !col.Diving && col.Table != "" {

@@ -13,7 +13,8 @@ type From struct {
 	tables     []*fromTable          // the tables in order
 	tablesDict map[string]*fromTable // the from tables by alias
 
-	errors []error // errors during building
+	explicitFrom bool    // whether From() has been called
+	errors       []error // errors during building
 }
 
 // NewFrom creates a new From instance.
@@ -37,8 +38,18 @@ func (b *From) BuildRequired(ctx *sqlf.Context, meta *FromBuilderMeta, deps *Dep
 	if err != nil {
 		return "", err
 	}
+	if len(b.tables) == 0 {
+		return "", nil
+	}
 	tables := make([]string, 0, len(b.tables))
-	for _, t := range b.tables {
+	if b.explicitFrom {
+		c, err := b.tables[0].Build(ctx)
+		if err != nil {
+			return "", fmt.Errorf("build FROM '%s': %w", b.tables[0].table, err)
+		}
+		tables = append(tables, "FROM "+c)
+	}
+	for _, t := range b.tables[1:] {
 		if b.shouldEliminateTable(meta, t, deps) {
 			continue
 		}
@@ -51,7 +62,7 @@ func (b *From) BuildRequired(ctx *sqlf.Context, meta *FromBuilderMeta, deps *Dep
 	if len(tables) == 0 {
 		return "", fmt.Errorf("no FROM tables available after elimination")
 	}
-	return "FROM " + strings.Join(tables, " "), nil
+	return strings.Join(tables, " "), nil
 
 }
 
@@ -156,6 +167,21 @@ func (b *From) shouldEliminateTable(meta *FromBuilderMeta, t *fromTable, dep *De
 
 // From set the from table.
 func (b *From) From(t Table) *From {
+	b.explicitFrom = true
+	return b.from(t)
+}
+
+// ImplicitedFrom set the from table only for dependency collection,
+// but ignore it in the final query building (for UPDATE .. JOIN ..).
+// It has no effect if From() has been called before.
+func (b *From) ImplicitedFrom(t Table) *From {
+	if b.explicitFrom {
+		return b
+	}
+	return b.from(t)
+}
+
+func (b *From) from(t Table) *From {
 	if t.Name == "" {
 		b.pushError(fmt.Errorf("from table is empty"))
 		return b

@@ -1,0 +1,24 @@
+package sqlb
+
+import (
+	"errors"
+	"strings"
+)
+
+func (b *UpdateBuilder) pushError(err error) {
+	b.errors = append(b.errors, err)
+}
+
+func (b *UpdateBuilder) anyError() error {
+	if len(b.errors) == 0 {
+		return nil
+	}
+	sb := new(strings.Builder)
+	sb.WriteString("collected errors: \n")
+	for _, err := range b.errors {
+		sb.WriteString(" - ")
+		sb.WriteString(err.Error())
+		sb.WriteRune('\n')
+	}
+	return errors.New(sb.String())
+}

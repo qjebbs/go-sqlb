@@ -1,4 +1,4 @@
-package mapper
+package dialects
 
 import (
 	"bufio"

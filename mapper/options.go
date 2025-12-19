@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -10,7 +11,7 @@ import (
 type Options struct {
 	style   sqlf.BindStyle
 	tags    []string
-	dialect Dialect
+	dialect dialects.Dialect
 
 	nullZeroTables []string
 }
@@ -34,7 +35,7 @@ func (o *Options) enableNullZero(name string) bool {
 type Option func(*Options)
 
 // WithDialect sets the SQL dialect for scanning.
-func WithDialect(dialect Dialect) Option {
+func WithDialect(dialect dialects.Dialect) Option {
 	return func(o *Options) {
 		o.dialect = dialect
 	}
@@ -81,7 +82,7 @@ func WithNullZeroTables(tables ...sqlb.Table) Option {
 
 func newDefaultOptions() *Options {
 	return &Options{
-		dialect: DialectPostgreSQL,
+		dialect: dialects.DialectPostgreSQL,
 		style:   sqlf.BindStyleDollar,
 		tags:    nil,
 	}

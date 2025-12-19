@@ -17,7 +17,7 @@ type UpdateBuilder struct {
 	ctes    *clauses.With
 	from    *clauses.From
 
-	target Table
+	target string
 	sets   *clauses.PrefixedList // select columns and keep values in scanning.
 	where  *clauses.PrefixedList // where conditions, joined with AND.
 	order  *clauses.OrderBy      // order by columns, joined with comma.
@@ -47,17 +47,18 @@ func NewUpdateBuilder(dialect ...dialects.Dialect) *UpdateBuilder {
 }
 
 // Update set the update target table.
-func (b *UpdateBuilder) Update(table Table) *UpdateBuilder {
+func (b *UpdateBuilder) Update(table string) *UpdateBuilder {
 	b.SetUpdate(table)
-	if b.dialact == dialects.DialectMySQL {
-		b.from.ImplicitedFrom(table)
-	}
+
 	return b
 }
 
 // SetUpdate set the update target table,
 // which implements the UpdateBuilder interface.
-func (b *UpdateBuilder) SetUpdate(table Table) {
+func (b *UpdateBuilder) SetUpdate(table string) {
+	if b.dialact == dialects.DialectMySQL {
+		b.from.ImplicitedFrom(clauses.NewTable(table))
+	}
 	b.resetDepTablesCache()
 	b.target = table
 }
@@ -90,6 +91,12 @@ func (b *UpdateBuilder) Limit(limit int64) *UpdateBuilder {
 		b.limit = limit
 	}
 	return b
+}
+
+// SetDialect sets the SQL dialect for the builder.
+// !!! This method MUST be called before all other methods to take effect.
+func (b *UpdateBuilder) SetDialect(d dialects.Dialect) {
+	b.dialact = d
 }
 
 func (b *UpdateBuilder) resetDepTablesCache() {

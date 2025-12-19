@@ -92,3 +92,38 @@ func ExampleInsert() {
 	// Output:
 	// [sqlb] INSERT INTO users (created_at, updated_at, deleted_at, email, name, notes) VALUES (NULL, NULL, NULL, 'example@example.com', '', '') ON CONFLICT (email) DO UPDATE SET updated_at = NOW(), deleted_at = NULL, name = EXCLUDED.name, notes = CASE WHEN users.notes = '' THEN excluded.notes ELSE users.notes END RETURNING id
 }
+
+func ExampleUpdate() {
+	type Model struct {
+		// pk indicates primary key column which will be ignored during insert
+		ID     int `sqlb:"col:id;pk"`
+		UserID int `sqlb:"col:user_id;"`
+	}
+
+	type User struct {
+		Model `sqlb:"table:users"`
+		Email string `sqlb:"col:email"`
+		Name  string `sqlb:"col:name"`
+	}
+
+	data := &User{
+		Model: Model{
+			ID:     1,
+			UserID: 2,
+		},
+		Email: "example@example.com",
+	}
+	b := sqlb.NewUpdateBuilder()
+	b.Debug() // enable debug to see the built query
+	defer func() {
+		if err := recover(); err != nil {
+			// ignore error since db is nil
+		}
+	}()
+	err := mapper.Update(nil, b, data)
+	if err != nil {
+		fmt.Println(err)
+	}
+	// Output:
+	// [sqlb] UPDATE users SET user_id = 2, email = 'example@example.com', name = '' WHERE id = 1
+}

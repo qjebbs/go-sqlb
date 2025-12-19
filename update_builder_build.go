@@ -66,7 +66,7 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	// UPDATE target
 	built = append(built, "UPDATE")
-	built = append(built, b.target.Name)
+	built = append(built, b.target)
 	if b.dialact == dialects.DialectMySQL {
 		// MySQL join goes first
 		joins, err := b.from.BuildRequired(ctx, b.joinBuilderMeta(), myDeps.queryDeps)

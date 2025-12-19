@@ -15,8 +15,7 @@ func ExampleUpdateBuilder_postgreSQL() {
 		baz = sqlb.NewTable("baz", "z")
 	)
 	b := sqlb.NewUpdateBuilder().
-		With(bar, sqlf.F("SELECT 1 id, 2 baz")).
-		Update(foo).
+		Update(foo.AppliedName()).
 		Set("a", 1).
 		Set("baz", bar.Column("baz")).
 		From(bar).
@@ -32,7 +31,7 @@ func ExampleUpdateBuilder_postgreSQL() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// WITH bar AS (SELECT 1 id, 2 baz) UPDATE foo SET a = ?, baz = b.baz FROM bar AS b INNER JOIN baz AS z ON b.id = z.bar_id WHERE foo.id = b.foo_id
+	// UPDATE foo SET a = ?, baz = b.baz FROM bar AS b INNER JOIN baz AS z ON b.id = z.bar_id WHERE foo.id = b.foo_id
 	// [1]
 }
 
@@ -43,8 +42,7 @@ func ExampleUpdateBuilder_sqlServer() {
 		bar = sqlb.NewTable("bar")
 	)
 	b := sqlb.NewUpdateBuilder(dialects.DialectSQLServer).
-		With(bar, sqlf.F("SELECT 1 id, 2 baz")).
-		Update(foo).
+		Update(foo.Name).
 		Set("a", 1).
 		Set("baz", bar.Column("baz")).
 		From(foo).
@@ -57,18 +55,17 @@ func ExampleUpdateBuilder_sqlServer() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// WITH bar AS (SELECT 1 id, 2 baz) UPDATE foo SET a = ?, baz = bar.baz FROM foo INNER JOIN bar ON foo.id = bar.foo_id
+	// UPDATE foo SET a = ?, baz = bar.baz FROM foo INNER JOIN bar ON foo.id = bar.foo_id
 	// [1]
 }
 
 func ExampleUpdateBuilder_mysql() {
 	var (
 		foo = sqlb.NewTable("foo")
-		bar = sqlb.NewTable("bar")
+		bar = sqlb.NewTable("bar", "z")
 	)
 	b := sqlb.NewUpdateBuilder(dialects.DialectMySQL).
-		With(bar, sqlf.F("SELECT 1 id, 2 baz")).
-		Update(foo).
+		Update(foo.Name).
 		Set("a", 1).
 		Set("baz", bar.Column("baz")).
 		InnerJoin(bar, sqlf.F("? = ?", foo.Column("id"), bar.Column("foo_id")))
@@ -80,6 +77,6 @@ func ExampleUpdateBuilder_mysql() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// WITH bar AS (SELECT 1 id, 2 baz) UPDATE foo INNER JOIN bar ON foo.id = bar.foo_id SET a = ?, baz = bar.baz
+	// UPDATE foo INNER JOIN bar AS z ON foo.id = z.foo_id SET a = ?, baz = z.baz
 	// [1]
 }

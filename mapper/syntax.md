@@ -32,7 +32,16 @@ For INSERT operations, the supported keys are:
 key|Inheritance|description
 ---|---|---
 table|Yes|Declare base table for the field or its sub-fields / subsequent sibling fields.
-pk|No|Mark the field as primary key, which will be skipped in INSERT operation.
+col|No|Specify the column associated with the field.
 returning|No|Mark the field to be included in RETURNING clause.
 conflict_on|No|Declare current as one of conflict detection column.
 conflict_set|No|Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
+
+For UPDATE operations, the supported keys are:
+
+key|Inheritance|description
+---|---|---
+table|Yes|Declare base table for the field or its sub-fields / subsequent sibling fields.
+col|No|Specify the column associated with the field.
+pk|No|Mark the field as primary key, which will be used in WHERE clause.
+match|No|Mark the field as match column, which will be used in WHERE clause.

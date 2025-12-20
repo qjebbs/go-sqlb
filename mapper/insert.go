@@ -22,13 +22,26 @@ type InsertBuilder interface {
 }
 
 // InsertOne inserts a single struct into the database.
+// It scans the returning columns into the corresponding fields of value.
+// If no returning columns are specified, it only executes the insert query.
+//
+// See Insert() for supported struct tags.
 func InsertOne[T any](db QueryAble, b InsertBuilder, value T, options ...Option) error {
 	return Insert(db, b, []T{value}, options...)
 }
 
-// Insert executes the query and scans the results into a slice of struct T.
+// Insert inserts multiple structs into the database.
+// It scans the returning columns into the corresponding fields of values.
 // If no returning columns are specified, it only executes the insert query.
-// Otherwise, it scans the returning columns into the corresponding fields of T.
+//
+// The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
+//
+// The supported struct tags are:
+//   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
+//   - col: Specify the column associated with the field.
+//   - returning: Mark the field to be included in RETURNING clause.
+//   - conflict_on: Declare current as one of conflict detection column.
+//   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
 func Insert[T any](db QueryAble, b InsertBuilder, values []T, options ...Option) error {
 	if len(values) == 0 {
 		return nil

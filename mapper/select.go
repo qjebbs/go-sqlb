@@ -25,6 +25,8 @@ type SelectLimitBuilder interface {
 }
 
 // SelectOne executes the query and scans the result into a struct T.
+//
+// See Select() for supported struct tags.
 func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T, error) {
 	b.SetLimit(1)
 	r, err := Select[T](db, b, options...)
@@ -39,7 +41,19 @@ func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T,
 	return r[0], nil
 }
 
-// Select executes the query and scans the results into a slice of struct T.
+// Select builds and executes the query and scans the results into a slice of struct T.
+//
+// The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"col:id;from:u;"`
+//
+// The supported struct tags are:
+//   - table: [Inheritable]Declare base table for the current field and its sub-fields / subsequent sibling fields. It usually works with `WithNullZeroTables()` Option.
+//   - from: [Inheritable]Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`.
+//   - sel: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. `sel:COALESCE(?.name,”);from:u;`, which is required by dependency analysis.
+//   - col: If `sel` key is not specified, specify the column to select for this field. It's recommended to use `col` key for simple column selection, which can be shared usage in INSERT/UPDATE operations. e.g. `col:name;from:u;`
+//   - on: Scan the field only on any one of tags specified, comma-separated. e.g. `on:full;`
+//   - dive: For struct fields, dive into scan its field. e.g. `dive;`
+//
+// Applied-Table-Name: The name of the table that is effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
 func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	opt := mergeOptions(options...)
 	queryStr, args, dests, err := buildSelectQueryForStruct[T](b, opt)

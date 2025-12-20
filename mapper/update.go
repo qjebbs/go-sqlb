@@ -20,7 +20,16 @@ type UpdateBuilder interface {
 	AppendWhere(conditions sqlf.Builder)
 }
 
-// Update updates a single struct in the database.
+// Update updates a single struct into the database.
+//
+// The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
+//
+// The supported struct tags are:
+//   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
+//   - col: The column associated with the field.
+//   - noupdate: The field is excluded from UPDATE statement.
+//   - pk: The column is primary key, which will be used in WHERE clause to locate the row.
+//   - match: The column will be always included in WHERE clause if it is not zero value.
 func Update[T any](db QueryAble, b UpdateBuilder, value T, options ...Option) error {
 	opt := mergeOptions(options...)
 	queryStr, args, err := buildUpdateQueryForStruct(b, value, opt)

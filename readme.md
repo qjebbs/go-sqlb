@@ -7,7 +7,6 @@ See Also:
 
 - [example_test.go](./example_test.go) for more builder examples.
 - [mapper/example_test.go](./mapper/example_test.go) for more mapping examples.
-- [syntax.md](./mapper/syntax.md) for mapping syntax.
 
 ```go
 import (

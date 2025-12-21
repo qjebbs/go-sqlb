@@ -130,3 +130,33 @@ func ExampleUpdate() {
 	// Output:
 	// [sqlb] UPDATE users SET email = 'example@example.com', name = '' WHERE id = 1 AND user_id = 2
 }
+
+func ExampleLoad() {
+	type Model struct {
+		// pk indicates primary key column which will be used in WHERE clause
+		ID int `sqlb:"col:id;pk"`
+		// noupdate indicates to ignore this field during update
+		Created *time.Time `sqlb:"col:created_at;noupdate"`
+	}
+
+	type User struct {
+		Model `sqlb:"table:users"`
+		// extra match column for WHERE clause
+		UserID int    `sqlb:"col:user_id;match"`
+		Email  string `sqlb:"col:email;unique"`
+		Name   string `sqlb:"col:name"`
+	}
+
+	user := &User{UserID: 2, Email: "example@example.com"}
+	defer func() {
+		if err := recover(); err != nil {
+			// ignore error since db is nil
+		}
+	}()
+	err := mapper.Load(nil, user, mapper.WithDebug())
+	if err != nil {
+		fmt.Println(err)
+	}
+	// Output:
+	// [Load(*mapper_test.User)] SELECT created_at, name, id FROM users WHERE email = 'example@example.com' AND user_id = 2
+}

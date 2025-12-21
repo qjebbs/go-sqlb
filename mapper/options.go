@@ -9,6 +9,7 @@ import (
 
 // Options defines options for scanning.
 type Options struct {
+	debug   bool
 	style   sqlf.BindStyle
 	tags    []string
 	dialect dialects.Dialect
@@ -33,6 +34,13 @@ func (o *Options) enableNullZero(name string) bool {
 
 // Option defines a function type for setting Options.
 type Option func(*Options)
+
+// WithDebug enables debug logging with an optional name.
+func WithDebug() Option {
+	return func(o *Options) {
+		o.debug = true
+	}
+}
 
 // WithDialect sets the SQL dialect for scanning.
 func WithDialect(dialect dialects.Dialect) Option {

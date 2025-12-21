@@ -48,19 +48,12 @@ func NewUpdateBuilder(dialect ...dialects.Dialect) *UpdateBuilder {
 
 // Update set the update target table.
 func (b *UpdateBuilder) Update(table string) *UpdateBuilder {
-	b.SetUpdate(table)
-
-	return b
-}
-
-// SetUpdate set the update target table,
-// which implements the UpdateBuilder interface.
-func (b *UpdateBuilder) SetUpdate(table string) {
 	if b.dialact == dialects.DialectMySQL {
 		b.from.ImplicitedFrom(clauses.NewTable(table))
 	}
 	b.resetDepTablesCache()
 	b.target = table
+	return b
 }
 
 // Set set the update sets.
@@ -76,13 +69,6 @@ func (b *UpdateBuilder) Set(column string, value any) *UpdateBuilder {
 	b.resetDepTablesCache()
 	b.sets.Append(sqlf.F("? = ?", sqlf.F(column), value))
 	return b
-}
-
-// SetSets set and replace the update sets,
-// which implements the UpdateBuilder interface.
-func (b *UpdateBuilder) SetSets(sets ...sqlf.Builder) {
-	b.resetDepTablesCache()
-	b.sets.Replace(sets)
 }
 
 // Limit set the limit.

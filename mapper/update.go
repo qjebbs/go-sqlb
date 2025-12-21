@@ -10,17 +10,6 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-var _ UpdateBuilder = (*sqlb.UpdateBuilder)(nil)
-
-// UpdateBuilder is the interface for builders that support Update method.
-type UpdateBuilder interface {
-	sqlb.Builder
-	SetDialect(d dialects.Dialect)
-	SetUpdate(table string)
-	SetSets(sets ...sqlf.Builder)
-	AppendWhere(conditions sqlf.Builder)
-}
-
 // Update updates a single struct into the database.
 //
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
@@ -33,12 +22,12 @@ type UpdateBuilder interface {
 //   - match: The column will be always included in WHERE clause if it is not zero value.
 //
 // If no `pk` field is defined or set, Update() will return an error to avoid accidental full-table update.
-func Update[T any](db QueryAble, b UpdateBuilder, value T, options ...Option) error {
+func Update[T any](db QueryAble, value T, options ...Option) error {
 	if err := checkStruct(value); err != nil {
 		return err
 	}
 	opt := mergeOptions(options...)
-	queryStr, args, err := buildUpdateQueryForStruct(b, value, opt)
+	queryStr, args, err := buildUpdateQueryForStruct(value, opt)
 	if err != nil {
 		return err
 	}
@@ -46,11 +35,16 @@ func Update[T any](db QueryAble, b UpdateBuilder, value T, options ...Option) er
 	return err
 }
 
-func buildUpdateQueryForStruct[T any](b UpdateBuilder, value T, opt *Options) (query string, args []any, err error) {
+func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
+	b := sqlb.NewUpdateBuilder()
 	b.SetDialect(opt.dialect)
+	if opt.debug {
+		b.Debug(fmt.Sprintf("Update(%T)", value))
+	}
+
 	var zero T
 	info, err := getStructInfo(zero)
 	if err != nil {
@@ -63,13 +57,11 @@ func buildUpdateQueryForStruct[T any](b UpdateBuilder, value T, opt *Options) (q
 
 	if updateInfo.table != "" {
 		// don't override with empty table in case the table is set manually
-		b.SetUpdate(updateInfo.table)
+		b.Update(updateInfo.table)
 	}
-	sets := make([]sqlf.Builder, len(updateInfo.updateColumns))
-	for i, coldata := range updateInfo.updateColumns {
-		sets[i] = sqlf.F("? = ?", sqlf.F(coldata.ColumnIndent), coldata.Value)
+	for _, coldata := range updateInfo.updateColumns {
+		b.Set(coldata.ColumnIndent, coldata.Value)
 	}
-	b.SetSets(sets...)
 
 	b.AppendWhere(sqlf.F("? = ?", sqlf.F(updateInfo.pk.ColumnIndent), updateInfo.pk.Value))
 	for _, coldata := range updateInfo.matchColumns {

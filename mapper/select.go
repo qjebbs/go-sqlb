@@ -3,6 +3,7 @@ package mapper
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -61,6 +62,11 @@ func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error
 		return nil, err
 	}
 	opt := mergeOptions(options...)
+	if opt.debug {
+		if b1, ok := b.(*sqlb.SelectBuilder); ok {
+			b1.Debug(fmt.Sprintf("Select(%T)", zero))
+		}
+	}
 	queryStr, args, dests, err := buildSelectQueryForStruct[T](b, opt)
 	if err != nil {
 		return nil, err

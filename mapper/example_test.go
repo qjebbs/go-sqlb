@@ -44,18 +44,17 @@ func ExampleSelect() {
 			Users, Orgs,
 		)).
 		WhereEquals(Users.Column("id"), 1)
-	b.Debug() // enable debug to see the built query
 	defer func() {
 		if err := recover(); err != nil {
 			// ignore error since db is nil
 		}
 	}()
-	_, err := mapper.Select[*UserOrg](nil, b)
+	_, err := mapper.Select[*UserOrg](nil, b, mapper.WithDebug())
 	if err != nil {
 		fmt.Println(err)
 	}
 	// Output:
-	// [sqlb] SELECT u.id, u.created_at, u.updated_at, u.deleted_at, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE u.id = 1
+	// [Select(*mapper_test.UserOrg)] SELECT u.id, u.created_at, u.updated_at, u.deleted_at, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE u.id = 1
 }
 
 func ExampleInsert() {
@@ -78,19 +77,17 @@ func ExampleInsert() {
 	}
 
 	data := &User{Email: "example@example.com"}
-	b := sqlb.NewInsertBuilder()
-	b.Debug() // enable debug to see the built query
 	defer func() {
 		if err := recover(); err != nil {
 			// ignore error since db is nil
 		}
 	}()
-	err := mapper.InsertOne(nil, b, data)
+	err := mapper.InsertOne(nil, data, mapper.WithDebug())
 	if err != nil {
 		fmt.Println(err)
 	}
 	// Output:
-	// [sqlb] INSERT INTO users (created_at, updated_at, deleted_at, email, name, notes) VALUES (NULL, NULL, NULL, 'example@example.com', '', '') ON CONFLICT (email) DO UPDATE SET updated_at = NOW(), deleted_at = NULL, name = EXCLUDED.name, notes = CASE WHEN users.notes = '' THEN excluded.notes ELSE users.notes END RETURNING id
+	// [Insert(*mapper_test.User)] INSERT INTO users (created_at, updated_at, deleted_at, email, name, notes) VALUES (NULL, NULL, NULL, 'example@example.com', '', '') ON CONFLICT (email) DO UPDATE SET updated_at = NOW(), deleted_at = NULL, name = EXCLUDED.name, notes = CASE WHEN users.notes = '' THEN excluded.notes ELSE users.notes END RETURNING id
 }
 
 func ExampleUpdate() {
@@ -116,19 +113,17 @@ func ExampleUpdate() {
 		UserID: 2,
 		Email:  "example@example.com",
 	}
-	b := sqlb.NewUpdateBuilder()
-	b.Debug() // enable debug to see the built query
 	defer func() {
 		if err := recover(); err != nil {
 			// ignore error since db is nil
 		}
 	}()
-	err := mapper.Update(nil, b, data)
+	err := mapper.Update(nil, data, mapper.WithDebug())
 	if err != nil {
 		fmt.Println(err)
 	}
 	// Output:
-	// [sqlb] UPDATE users SET email = 'example@example.com', name = '' WHERE id = 1 AND user_id = 2
+	// [Update(*mapper_test.User)] UPDATE users SET email = 'example@example.com', name = '' WHERE id = 1 AND user_id = 2
 }
 
 func ExampleLoad() {

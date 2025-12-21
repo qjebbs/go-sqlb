@@ -37,7 +37,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}
-	if b.target.Name == "" {
+	if b.target == "" {
 		return "", fmt.Errorf("no target table specified for insert")
 	}
 	if b.selects == nil && len(b.values) == 0 {
@@ -79,7 +79,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 			built = append(built, with)
 		}
 	}
-	built = append(built, fmt.Sprintf("INSERT INTO %s", b.target.Name))
+	built = append(built, fmt.Sprintf("INSERT INTO %s", b.target))
 	if len(b.columns) > 0 {
 		cols := fmt.Sprintf("(%s)", strings.Join(b.columns, ", "))
 		built = append(built, cols)

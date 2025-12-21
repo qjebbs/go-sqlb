@@ -13,7 +13,7 @@ var _ Builder = (*InsertBuilder)(nil)
 // more friendly API and improve fragment reusability.
 type InsertBuilder struct {
 	ctes       *clauses.With
-	target     Table
+	target     string         // target table for insertion
 	columns    []string       // select columns and keep values in scanning.
 	values     [][]any        // values for insert/update
 	selects    sqlf.Builder   // select columns and keep values in scanning.
@@ -35,39 +35,21 @@ func NewInsertBuilder() *InsertBuilder {
 }
 
 // InsertInto sets the target table for insertion.
-func (b *InsertBuilder) InsertInto(t Table) *InsertBuilder {
+func (b *InsertBuilder) InsertInto(t string) *InsertBuilder {
 	b.target = t
 	return b
 }
 
-// SetInsertTable sets the target table for insertion,
-// which implements the InsertBuilder interface.
-func (b *InsertBuilder) SetInsertTable(table string) {
-	b.target = NewTable(table)
-}
-
 // Columns sets the columns for insertion.
 func (b *InsertBuilder) Columns(cols ...string) *InsertBuilder {
-	b.SetColumns(cols)
-	return b
-}
-
-// SetColumns sets the columns for insertion,
-// which implements the InsertBuilder interface.
-func (b *InsertBuilder) SetColumns(cols []string) {
 	b.columns = cols
+	return b
 }
 
 // Values adds a row of values for insertion.
 func (b *InsertBuilder) Values(vals ...any) *InsertBuilder {
 	b.values = append(b.values, vals)
 	return b
-}
-
-// SetValues sets multiple rows of values for insertion,
-// which implements the InsertBuilder interface.
-func (b *InsertBuilder) SetValues(rows [][]any) {
-	b.values = rows
 }
 
 // From sets the SELECT builder for insertion.
@@ -85,11 +67,6 @@ func (b *InsertBuilder) From(s sqlf.Builder) *InsertBuilder {
 func (b *InsertBuilder) Returning(columns ...string) *InsertBuilder {
 	b.returning = append(b.returning, columns...)
 	return b
-}
-
-// SetReturning sets returning columns
-func (b *InsertBuilder) SetReturning(columns []string) {
-	b.returning = columns
 }
 
 // With adds a CTE to the insert statement.
@@ -117,10 +94,4 @@ func (b *InsertBuilder) OnConflict(columns []string, actions ...sqlf.Builder) *I
 	b.conflictOn = columns
 	b.conflictDo = actions
 	return b
-}
-
-// SetOnConflict sets the conflict action for the insert statement.
-func (b *InsertBuilder) SetOnConflict(columns []string, actions []sqlf.Builder) {
-	b.conflictOn = columns
-	b.conflictDo = actions
 }

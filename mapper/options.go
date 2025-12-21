@@ -36,6 +36,7 @@ func (o *Options) enableNullZero(name string) bool {
 type Option func(*Options)
 
 // WithDebug enables debug logging with an optional name.
+// This option applies only to sqlb builders who print built queries in debug mode.
 func WithDebug() Option {
 	return func(o *Options) {
 		o.debug = true

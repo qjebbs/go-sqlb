@@ -19,7 +19,7 @@ type QueryAble interface {
 // The provider fn is called for each row to get the destination value and scan fields.
 // Unlike SelectOne, it doesn't limit the query to 1 row automatically.
 func SelectOneManual[T any](db QueryAble, b sqlb.Builder, style sqlf.BindStyle, fn func() (T, []any)) (T, error) {
-	r, err := SelectManual[T](db, b, style, fn)
+	r, err := SelectManual(db, b, style, fn)
 	if err != nil {
 		var zero T
 		return zero, err

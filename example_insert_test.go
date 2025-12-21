@@ -8,9 +8,8 @@ import (
 )
 
 func ExampleInsertBuilder() {
-	var foo = sqlb.NewTable("foo", "f")
 	b := sqlb.NewInsertBuilder().
-		InsertInto(foo).
+		InsertInto("foo").
 		Columns("a", "b", "c").
 		Values(1, 2, 3).
 		Values(4, 5, 6).
@@ -34,7 +33,7 @@ func ExampleInsertBuilder_complex() {
 	)
 	b := sqlb.NewInsertBuilder().
 		With(bar, sqlf.F("SELECT 1, 2")).
-		InsertInto(foo).
+		InsertInto(foo.Name).
 		Columns("a", "b").
 		From(
 			sqlb.NewSelectBuilder().

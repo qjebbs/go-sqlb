@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -9,25 +10,13 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-var _ InsertBuilder = (*sqlb.InsertBuilder)(nil)
-
-// InsertBuilder is the interface for builders that support Insert method.
-type InsertBuilder interface {
-	sqlb.Builder
-	SetInsertTable(table string)
-	SetColumns(columns []string)
-	SetValues(rows [][]any)
-	SetOnConflict(columns []string, actions []sqlf.Builder)
-	SetReturning(columns []string)
-}
-
 // InsertOne inserts a single struct into the database.
 // It scans the returning columns into the corresponding fields of value.
 // If no returning columns are specified, it only executes the insert query.
 //
 // See Insert() for supported struct tags.
-func InsertOne[T any](db QueryAble, b InsertBuilder, value T, options ...Option) error {
-	return Insert(db, b, []T{value}, options...)
+func InsertOne[T any](db QueryAble, value T, options ...Option) error {
+	return Insert(db, []T{value}, options...)
 }
 
 // Insert inserts multiple structs into the database.
@@ -42,7 +31,7 @@ func InsertOne[T any](db QueryAble, b InsertBuilder, value T, options ...Option)
 //   - returning: Mark the field to be included in RETURNING clause.
 //   - conflict_on: Declare current as one of conflict detection column.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
-func Insert[T any](db QueryAble, b InsertBuilder, values []T, options ...Option) error {
+func Insert[T any](db QueryAble, values []T, options ...Option) error {
 	if len(values) == 0 {
 		return nil
 	}
@@ -50,7 +39,7 @@ func Insert[T any](db QueryAble, b InsertBuilder, values []T, options ...Option)
 		return err
 	}
 	opt := mergeOptions(options...)
-	queryStr, args, returningFields, err := buildInsertQueryForStruct[T](b, values, opt)
+	queryStr, args, returningFields, err := buildInsertQueryForStruct(values, opt)
 	if err != nil {
 		return err
 	}
@@ -76,7 +65,10 @@ func Insert[T any](db QueryAble, b InsertBuilder, values []T, options ...Option)
 	return nil
 }
 
-func buildInsertQueryForStruct[T any](b InsertBuilder, values []T, opt *Options) (query string, args []any, returningFields []fieldInfo, err error) {
+func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, args []any, returningFields []fieldInfo, err error) {
+	if len(values) == 0 {
+		return "", nil, nil, fmt.Errorf("no values to insert")
+	}
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
@@ -86,20 +78,26 @@ func buildInsertQueryForStruct[T any](b InsertBuilder, values []T, opt *Options)
 		return "", nil, nil, err
 	}
 	insertInfo := buildInsertInfo(opt.dialect, info)
-	if insertInfo.table != "" {
-		// don't override with empty table in case the table is set manually
-		b.SetInsertTable(insertInfo.table)
-	}
-	b.SetColumns(insertInfo.insertColumns)
-	b.SetValues(util.Map(values, func(v T) []any {
+	b := sqlb.NewInsertBuilder().
+		InsertInto(insertInfo.table).
+		Columns(insertInfo.insertColumns...)
+
+	for _, row := range util.Map(values, func(v T) []any {
 		return collectInsertValues(v, insertInfo)
-	}))
+	}) {
+		b.Values(row...)
+	}
+
 	if len(insertInfo.conflict) > 0 {
 		// allow manual setting of on conflict only if no config in tags
-		b.SetOnConflict(insertInfo.conflict, insertInfo.actions)
+		b.OnConflict(insertInfo.conflict, insertInfo.actions...)
 	}
 	// no allow manual setting of returning columns, since we cannot map them back
-	b.SetReturning(insertInfo.returningColumns)
+	b.Returning(insertInfo.returningColumns...)
+	if opt.debug {
+		b.Debug(fmt.Sprintf("Insert(%T)", values[0]))
+	}
+
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, nil, err

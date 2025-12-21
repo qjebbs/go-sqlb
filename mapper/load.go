@@ -36,10 +36,8 @@ func Load[T any](db QueryAble, value T, options ...Option) (T, error) {
 	if err != nil {
 		return zero, err
 	}
-	hasRow := false
 	agents := make([]*nullZeroAgent, 0)
-	_, err = scan(db, queryStr, args, func() (T, []any) {
-		hasRow = true
+	r, err := scan(db, queryStr, args, func() (T, []any) {
 		dest, fields, ag := prepareScanDestinations(value, dests, opt)
 		agents = append(agents, ag...)
 		return dest, fields
@@ -47,7 +45,7 @@ func Load[T any](db QueryAble, value T, options ...Option) (T, error) {
 	if err != nil {
 		return zero, err
 	}
-	if !hasRow {
+	if len(r) == 0 {
 		return zero, sql.ErrNoRows
 	}
 	for _, agent := range agents {

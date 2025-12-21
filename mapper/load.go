@@ -26,14 +26,15 @@ import (
 //
 // If a struct has all `pk`, `unique`, or `conflict_on` fields zero-valued, the `Load()` operation will return an error.
 // If all non-zero-valued, the priority for constructing the WHERE clause is `pk` > `unique` > `conflict_on`.
-func Load[T any](db QueryAble, value T, options ...Option) error {
+func Load[T any](db QueryAble, value T, options ...Option) (T, error) {
+	var zero T
 	if err := checkPtrStruct(value); err != nil {
-		return err
+		return zero, err
 	}
 	opt := mergeOptions(options...)
 	queryStr, args, dests, err := buildLoadQueryForStruct(value, opt)
 	if err != nil {
-		return err
+		return zero, err
 	}
 	hasRow := false
 	agents := make([]*nullZeroAgent, 0)
@@ -44,15 +45,15 @@ func Load[T any](db QueryAble, value T, options ...Option) error {
 		return dest, fields
 	})
 	if err != nil {
-		return err
+		return zero, err
 	}
 	if !hasRow {
-		return sql.ErrNoRows
+		return zero, sql.ErrNoRows
 	}
 	for _, agent := range agents {
 		agent.Apply()
 	}
-	return nil
+	return value, nil
 }
 
 func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args []any, dests []fieldInfo, err error) {

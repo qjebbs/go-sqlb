@@ -148,7 +148,7 @@ func ExampleLoad() {
 			// ignore error since db is nil
 		}
 	}()
-	err := mapper.Load(nil, user, mapper.WithDebug())
+	_, err := mapper.Load(nil, user, mapper.WithDebug())
 	if err != nil {
 		fmt.Println(err)
 	}

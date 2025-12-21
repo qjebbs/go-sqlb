@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -34,14 +35,19 @@ func Load[T any](db QueryAble, value T, options ...Option) error {
 	if err != nil {
 		return err
 	}
+	hasRow := false
 	agents := make([]*nullZeroAgent, 0)
 	_, err = scan(db, queryStr, args, func() (T, []any) {
+		hasRow = true
 		dest, fields, ag := prepareScanDestinations(value, dests, opt)
 		agents = append(agents, ag...)
 		return dest, fields
 	})
 	if err != nil {
 		return err
+	}
+	if !hasRow {
+		return sql.ErrNoRows
 	}
 	for _, agent := range agents {
 		agent.Apply()

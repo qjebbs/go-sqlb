@@ -21,6 +21,7 @@ import (
 //   - pk: The column is primary key, which could be used in WHERE clause to locate the row.
 //   - unique: The column could be used in WHERE clause to locate the row.
 //   - conflict_on: Multiple of them form a composite unique constraint, which could be used in WHERE clause to locate the row.
+//   - match: The column will be always included in WHERE clause even if it is zero value.
 //
 // If a struct has all `pk`, `unique`, or `conflict_on` fields zero-valued, the `Load()` operation will return an error.
 // If all non-zero-valued, the priority for constructing the WHERE clause is `pk` > `unique` > `conflict_on`.
@@ -139,9 +140,10 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 		case col.ConflictOn:
 			constraints = append(constraints, colData)
 		case col.Match:
-			if colValue == nil {
-				return nil, fmt.Errorf("column %q of %T is declared to be 'match' but zero", col.Column, value)
-			}
+			// if colValue == nil {
+			// 	return nil, fmt.Errorf("column %q of %T is declared to be 'match' but zero", col.Column, value)
+			// }
+			// allow match columns to be zero-valued, like deleted_at = NULL
 			match = append(match, colData)
 		default:
 			selectColumns = append(selectColumns, colData)

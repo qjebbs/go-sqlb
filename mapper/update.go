@@ -19,9 +19,9 @@ import (
 //   - col: The column associated with the field.
 //   - noupdate: The field is excluded from UPDATE statement.
 //   - pk: The column is primary key, which will be used in WHERE clause to locate the row.
-//   - match: The column will be always included in WHERE clause if it is not zero value.
+//   - match: The column will be always included in WHERE clause even if it is zero value.
 //
-// If no `pk` field is defined or set, Update() will return an error to avoid accidental full-table update.
+// If no `pk` field is defined, Update() will return an error to avoid accidental full-table update.
 func Update[T any](db QueryAble, value T, options ...Option) error {
 	if err := checkStruct(value); err != nil {
 		return err

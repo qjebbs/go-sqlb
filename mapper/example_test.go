@@ -97,24 +97,24 @@ func ExampleUpdate() {
 	type Model struct {
 		// pk indicates primary key column which will be used in WHERE clause
 		ID int `sqlb:"col:id;pk"`
-		// extra match column for WHERE clause
-		UserID int `sqlb:"col:user_id;match"`
 		// noupdate indicates to ignore this field during update
 		Created *time.Time `sqlb:"col:created_at;noupdate"`
 	}
 
 	type User struct {
 		Model `sqlb:"table:users"`
-		Email string `sqlb:"col:email"`
-		Name  string `sqlb:"col:name"`
+		// extra match column for WHERE clause
+		UserID int    `sqlb:"col:user_id;match"`
+		Email  string `sqlb:"col:email"`
+		Name   string `sqlb:"col:name"`
 	}
 
 	data := &User{
 		Model: Model{
-			ID:     1,
-			UserID: 2,
+			ID: 1,
 		},
-		Email: "example@example.com",
+		UserID: 2,
+		Email:  "example@example.com",
 	}
 	b := sqlb.NewUpdateBuilder()
 	b.Debug() // enable debug to see the built query

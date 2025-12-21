@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -30,6 +31,8 @@ type UpdateBuilder interface {
 //   - noupdate: The field is excluded from UPDATE statement.
 //   - pk: The column is primary key, which will be used in WHERE clause to locate the row.
 //   - match: The column will be always included in WHERE clause if it is not zero value.
+//
+// If no `pk` field is defined or set, Update() will return an error to avoid accidental full-table update.
 func Update[T any](db QueryAble, b UpdateBuilder, value T, options ...Option) error {
 	if err := checkStruct(value); err != nil {
 		return err
@@ -53,33 +56,24 @@ func buildUpdateQueryForStruct[T any](b UpdateBuilder, value T, opt *Options) (q
 	if err != nil {
 		return "", nil, err
 	}
-	updateInfo := buildUpdateInfo(opt.dialect, info)
-
-	if len(updateInfo.matchColumns) == 0 {
-		return "", nil, errors.New("no primary key defined for update")
-	}
-	if len(updateInfo.updateColumns) == 0 {
-		return "", nil, errors.New("no updatable columns found for update")
+	updateInfo, err := buildUpdateInfo(opt.dialect, info, value)
+	if err != nil {
+		return "", nil, err
 	}
 
 	if updateInfo.table != "" {
 		// don't override with empty table in case the table is set manually
 		b.SetUpdate(updateInfo.table)
 	}
-	valueVal := reflect.ValueOf(value)
-	if valueVal.Kind() == reflect.Ptr {
-		valueVal = valueVal.Elem()
-	}
 	sets := make([]sqlf.Builder, len(updateInfo.updateColumns))
-	for i, fieldIndex := range updateInfo.updateIndices {
-		val := valueVal.FieldByIndex(fieldIndex).Interface()
-		sets[i] = sqlf.F("? = ?", sqlf.F(updateInfo.updateColumns[i]), val)
+	for i, coldata := range updateInfo.updateColumns {
+		sets[i] = sqlf.F("? = ?", sqlf.F(coldata.ColumnIndent), coldata.Value)
 	}
 	b.SetSets(sets...)
 
-	for i, fieldIndex := range updateInfo.matchIndices {
-		val := valueVal.FieldByIndex(fieldIndex).Interface()
-		b.AppendWhere(sqlf.F("? = ?", sqlf.F(updateInfo.matchColumns[i]), val))
+	b.AppendWhere(sqlf.F("? = ?", sqlf.F(updateInfo.pk.ColumnIndent), updateInfo.pk.Value))
+	for _, coldata := range updateInfo.matchColumns {
+		b.AppendWhere(sqlf.F("? = ?", sqlf.F(coldata.ColumnIndent), coldata.Value))
 	}
 
 	query, args, err = b.BuildQuery(opt.style)
@@ -92,34 +86,85 @@ func buildUpdateQueryForStruct[T any](b UpdateBuilder, value T, opt *Options) (q
 type updateInfo struct {
 	table string
 
-	updateColumns []string
-	updateIndices [][]int
-
-	matchColumns []string
-	matchIndices [][]int
+	pk            fieldData
+	updateColumns []fieldData
+	matchColumns  []fieldData
 }
 
-func buildUpdateInfo(dialect dialects.Dialect, f *structInfo) updateInfo {
+type fieldData struct {
+	Info         fieldInfo
+	ColumnIndent string
+	Value        any
+}
+
+func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*updateInfo, error) {
+	valueVal := reflect.ValueOf(value)
+	if valueVal.Kind() == reflect.Ptr {
+		valueVal = valueVal.Elem()
+	}
 	var r updateInfo
 	for _, col := range f.columns {
-		if r.table == "" && !col.Diving && col.Table != "" {
-			// respect first non-diving column with table specified
+		if col.Diving {
+			continue
+		}
+		if r.table == "" && col.Table != "" {
+			// respect first column with table specified
 			r.table = col.Table
 		}
 		if col.Column == "" {
 			continue
 		}
 		colIndent := dialect.QuoteIdentifier(col.Column)
-		if col.PK || col.Match {
-			r.matchColumns = append(r.matchColumns, colIndent)
-			r.matchIndices = append(r.matchIndices, col.Index)
-			continue
+		colValue, ok := getValueAtIndex(col.Index, valueVal)
+		if !ok {
+			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
 		}
-		if col.NoUpdate {
-			continue
+		data := fieldData{
+			ColumnIndent: colIndent,
+			Info:         col,
+			Value:        colValue,
 		}
-		r.updateColumns = append(r.updateColumns, colIndent)
-		r.updateIndices = append(r.updateIndices, col.Index)
+		switch {
+		case col.PK:
+			if r.pk.ColumnIndent != "" {
+				return nil, errors.New("multiple primary key columns defined for update")
+			}
+			r.pk = data
+		case col.Match:
+			r.matchColumns = append(r.matchColumns, data)
+		case col.NoUpdate:
+			// skip
+		default:
+			r.updateColumns = append(r.updateColumns, data)
+		}
 	}
-	return r
+	if r.pk.ColumnIndent == "" {
+		return nil, errors.New("no primary key defined for update")
+	}
+	if len(r.updateColumns) == 0 {
+		return nil, errors.New("no updatable columns found for update")
+	}
+	return &r, nil
+}
+
+func getValueAtIndex(dest []int, v reflect.Value) (any, bool) {
+	current, ok := getReflectValueAtIndex(dest, v)
+	if !ok {
+		return nil, false
+	}
+	return current.Interface(), true
+}
+
+func getReflectValueAtIndex(dest []int, v reflect.Value) (reflect.Value, bool) {
+	current := v
+	for _, idx := range dest {
+		if current.Kind() == reflect.Ptr {
+			if current.IsNil() {
+				return reflect.Value{}, false
+			}
+			current = current.Elem()
+		}
+		current = current.Field(idx)
+	}
+	return current, true
 }

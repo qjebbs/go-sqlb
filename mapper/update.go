@@ -31,6 +31,9 @@ type UpdateBuilder interface {
 //   - pk: The column is primary key, which will be used in WHERE clause to locate the row.
 //   - match: The column will be always included in WHERE clause if it is not zero value.
 func Update[T any](db QueryAble, b UpdateBuilder, value T, options ...Option) error {
+	if err := checkStruct(value); err != nil {
+		return err
+	}
 	opt := mergeOptions(options...)
 	queryStr, args, err := buildUpdateQueryForStruct(b, value, opt)
 	if err != nil {

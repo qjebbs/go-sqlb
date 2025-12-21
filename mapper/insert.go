@@ -46,6 +46,9 @@ func Insert[T any](db QueryAble, b InsertBuilder, values []T, options ...Option)
 	if len(values) == 0 {
 		return nil
 	}
+	if err := checkStruct(values[0]); err != nil {
+		return err
+	}
 	opt := mergeOptions(options...)
 	queryStr, args, returningFields, err := buildInsertQueryForStruct[T](b, values, opt)
 	if err != nil {

@@ -70,7 +70,7 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 
 	conds := make([]sqlf.Builder, len(loadInfo.wheres))
 	for i, col := range loadInfo.wheres {
-		conds[i] = sqlf.F("? = ?", sqlf.F(col.ColumnIndent), col.Value)
+		conds[i] = eqOrIsNull(col.ColumnIndent, col.Value)
 	}
 
 	b := sqlb.NewSelectBuilder().

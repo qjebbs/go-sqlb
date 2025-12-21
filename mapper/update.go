@@ -31,7 +31,17 @@ func Update[T any](db QueryAble, value T, options ...Option) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec(queryStr, args...)
+	r, err := db.Exec(queryStr, args...)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := r.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return errors.New("no rows updated")
+	}
 	return err
 }
 
@@ -63,9 +73,9 @@ func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args
 		b.Set(coldata.ColumnIndent, coldata.Value)
 	}
 
-	b.AppendWhere(sqlf.F("? = ?", sqlf.F(updateInfo.pk.ColumnIndent), updateInfo.pk.Value))
+	b.AppendWhere(eqOrIsNull(updateInfo.pk.ColumnIndent, updateInfo.pk.Value))
 	for _, coldata := range updateInfo.matchColumns {
-		b.AppendWhere(sqlf.F("? = ?", sqlf.F(coldata.ColumnIndent), coldata.Value))
+		b.AppendWhere(eqOrIsNull(coldata.ColumnIndent, coldata.Value))
 	}
 
 	query, args, err = b.BuildQuery(opt.style)
@@ -73,6 +83,13 @@ func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args
 		return "", nil, err
 	}
 	return query, args, nil
+}
+
+func eqOrIsNull(column string, value any) sqlf.Builder {
+	if value == nil {
+		return sqlf.F("? IS NULL", sqlf.F(column))
+	}
+	return sqlf.F("? = ?", sqlf.F(column), value)
 }
 
 type updateInfo struct {
@@ -143,6 +160,12 @@ func getValueAtIndex(dest []int, v reflect.Value) (any, bool) {
 	current, ok := getReflectValueAtIndex(dest, v)
 	if !ok {
 		return nil, false
+	}
+	if current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			return nil, true
+		}
+		current = current.Elem()
 	}
 	return current.Interface(), true
 }

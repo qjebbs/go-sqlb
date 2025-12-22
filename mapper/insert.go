@@ -28,6 +28,7 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 // The supported struct tags are:
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: Specify the column associated with the field.
+//   - readonly: The field is excluded from INSERT statement.
 //   - returning: Mark the field to be included in RETURNING clause.
 //   - conflict_on: Declare current as one of conflict detection column.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
@@ -153,6 +154,9 @@ func buildInsertInfo(dialect dialects.Dialect, f *structInfo) insertInfo {
 			r.returningFields = append(r.returningFields, col)
 		}
 		if col.PK {
+			continue
+		}
+		if col.ReadOnly {
 			continue
 		}
 		r.insertColumns = append(r.insertColumns, colIndent)

@@ -18,8 +18,8 @@ func Example_cRUD() {
 		// returning means the ID will be returned after insertion.
 		ID int64 `sqlb:"col:id;pk;returning"`
 		// Created is the creation time.
-		// noupdate means this field will not be updated on update operations.
-		Created *time.Time `sqlb:"col:created;noupdate"`
+		// readonly means this field will be excluded from INSERT / UPDATE, created usually set by DB default value.
+		Created *time.Time `sqlb:"col:created;readonly"`
 		// Updated is the last update time.
 		// conflict_set means when inserting an existing record, the Updated will be updated.
 		Updated *time.Time `sqlb:"col:updated;conflict_set"`
@@ -28,7 +28,7 @@ func Example_cRUD() {
 	type User struct {
 		// The value defined by 'tables' and 'from' can be inherited by nested fields
 		// and by subsequent sibling fields of the current struct.
-		Model `sqlb:"table:users;from:u"`
+		Model `sqlb:"table:users"`
 		// unique indicates this column has a unique constraint, which can be used to locate records for Load / Delete operation.
 		// conflict_on indicates the column(s) to check for conflict during insert.
 		Email string `sqlb:"col:email;unique;conflict_on"`
@@ -39,11 +39,7 @@ func Example_cRUD() {
 		About string `sqlb:"col:about;on:full;conflict_set:CASE WHEN excluded.about = '' THEN users.about ELSE excluded.about END"`
 	}
 
-	created := time.Date(2020, 1, 1, 10, 10, 0, 0, time.UTC)
-	update := created.Add(time.Hour)
-
 	user := &User{Email: "alice@example.org"}
-	user.Created = &created
 	err := mapper.InsertOne(nil, user, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
@@ -57,6 +53,7 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 
+	update := time.Date(2020, 1, 1, 10, 10, 0, 0, time.UTC)
 	user.Updated = &update
 	user.Name = "New Name"
 	err = mapper.Update(nil, user, mapper.WithDebug())
@@ -69,9 +66,9 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Insert(*mapper_test.User)] INSERT INTO users (created, updated, email, name, about) VALUES ('2020-01-01 10:10:00 +0000 UTC', NULL, 'alice@example.org', '', '') ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, name = EXCLUDED.name, about = CASE WHEN excluded.about = '' THEN users.about ELSE excluded.about END RETURNING id
+	// [Insert(*mapper_test.User)] INSERT INTO users (updated, email, name, about) VALUES (NULL, 'alice@example.org', '', '') ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, name = EXCLUDED.name, about = CASE WHEN excluded.about = '' THEN users.about ELSE excluded.about END RETURNING id
 	// [Load(*mapper_test.User)] SELECT created, updated, name, about, id FROM users WHERE email = 'alice@example.org'
-	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T11:10:00Z', email = 'alice@example.org', name = 'New Name', about = '' WHERE id = 1
+	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T10:10:00Z', email = 'alice@example.org', name = 'New Name', about = '' WHERE id = 1
 	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
 }
 

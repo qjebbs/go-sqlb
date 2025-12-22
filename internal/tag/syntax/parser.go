@@ -18,13 +18,13 @@ type Info struct {
 	Dive   bool     // Dive indicates whether "dive" key is present.
 
 	PK          bool    // PK indicates whether "pk" key is present.
+	ReadOnly    bool    // ReadOnly indicates whether "readonly" key is present.
 	Returning   bool    // Returning indicates whether "returning" key is present.
 	ConflictOn  bool    // ConflictOn indicates whether "conflict_on" key is present.
 	ConflictSet *string // ConflictSet is parsed from "conflict_set" key.
 
-	Unique   bool // Unique indicates whether "unique" key is present.
-	Match    bool // Match indicates whether "match" key is present.
-	NoUpdate bool // NoUpdate indicates whether "noupdate" key is present.
+	Unique bool // Unique indicates whether "unique" key is present.
+	Match  bool // Match indicates whether "match" key is present.
 }
 
 // Parse parses the input and returns the list of expressions.
@@ -174,9 +174,9 @@ func parseKeyValue(p *parser) (parseFn, error) {
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.Match = v
 		})
-	case "noupdate":
+	case "readonly":
 		return parseBoolAndSet(p, func(v bool) {
-			p.c.NoUpdate = v
+			p.c.ReadOnly = v
 		})
 	case "returning":
 		return parseBoolAndSet(p, func(v bool) {

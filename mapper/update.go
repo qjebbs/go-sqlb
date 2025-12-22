@@ -17,9 +17,9 @@ import (
 // The supported struct tags are:
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: The column associated with the field.
-//   - noupdate: The field is excluded from UPDATE statement.
 //   - pk: The column is primary key, which will be used in WHERE clause to locate the row.
 //   - match: The column will be always included in WHERE clause even if it is zero value.
+//   - readonly: The field is excluded from UPDATE statement.
 //
 // If no `pk` field is defined, Update() will return an error to avoid accidental full-table update.
 func Update[T any](db QueryAble, value T, options ...Option) error {
@@ -151,7 +151,7 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*
 			r.pk = data
 		case col.Match:
 			r.matchColumns = append(r.matchColumns, data)
-		case col.NoUpdate:
+		case col.ReadOnly:
 			// skip
 		default:
 			r.updateColumns = append(r.updateColumns, data)

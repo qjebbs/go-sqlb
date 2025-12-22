@@ -30,6 +30,9 @@ func SelectManual[T any](db QueryAble, b sqlb.Builder, style sqlf.BindStyle, fn 
 	if err != nil {
 		return nil, err
 	}
+	if db == nil {
+		return nil, ErrNilDB
+	}
 	return scan(db, query, args, fn)
 }
 

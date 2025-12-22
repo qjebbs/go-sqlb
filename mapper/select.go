@@ -78,6 +78,9 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 	if err != nil {
 		return nil, err
 	}
+	if db == nil {
+		return nil, ErrNilDB
+	}
 	agents := make([]*nullZeroAgent, 0)
 	r, err := scan(db, queryStr, args, func() (T, []any) {
 		var dest T

@@ -41,6 +41,9 @@ func delete[T any](db QueryAble, value T, options ...Option) (T, error) {
 	if err != nil {
 		return zero, err
 	}
+	if db == nil {
+		return zero, ErrNilDB
+	}
 	agents := make([]*nullZeroAgent, 0)
 	r, err := scan(db, queryStr, args, func() (T, []any) {
 		dest, fields, ag := prepareScanDestinations(value, dests, opt)

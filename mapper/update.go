@@ -35,6 +35,9 @@ func update[T any](db QueryAble, value T, options ...Option) error {
 	if err != nil {
 		return err
 	}
+	if db == nil {
+		return ErrNilDB
+	}
 	r, err := db.Exec(queryStr, args...)
 	if err != nil {
 		return err

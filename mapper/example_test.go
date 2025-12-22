@@ -1,6 +1,7 @@
 package mapper_test
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -44,13 +45,8 @@ func ExampleSelect() {
 			Users, Orgs,
 		)).
 		WhereEquals(Users.Column("id"), 1)
-	defer func() {
-		if err := recover(); err != nil {
-			// ignore error since db is nil
-		}
-	}()
 	_, err := mapper.Select[*UserOrg](nil, b, mapper.WithDebug())
-	if err != nil {
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
@@ -75,15 +71,9 @@ func ExampleInsert() {
 		// conflict_set can accept SQL expressions
 		Notes string `sqlb:"col:notes;conflict_set:CASE WHEN users.notes = '' THEN excluded.notes ELSE users.notes END"`
 	}
-
 	data := &User{Email: "example@example.com"}
-	defer func() {
-		if err := recover(); err != nil {
-			// ignore error since db is nil
-		}
-	}()
 	err := mapper.InsertOne(nil, data, mapper.WithDebug())
-	if err != nil {
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
@@ -113,13 +103,8 @@ func ExampleUpdate() {
 		UserID: 2,
 		Email:  "example@example.com",
 	}
-	defer func() {
-		if err := recover(); err != nil {
-			// ignore error since db is nil
-		}
-	}()
 	err := mapper.Update(nil, data, mapper.WithDebug())
-	if err != nil {
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
@@ -143,13 +128,8 @@ func ExampleLoad() {
 	}
 
 	user := &User{UserID: 2, Email: "example@example.com"}
-	defer func() {
-		if err := recover(); err != nil {
-			// ignore error since db is nil
-		}
-	}()
 	_, err := mapper.Load(nil, user, mapper.WithDebug())
-	if err != nil {
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
@@ -173,13 +153,8 @@ func ExampleDelete() {
 	}
 
 	user := &User{UserID: 2, Email: "example@example.com"}
-	defer func() {
-		if err := recover(); err != nil {
-			// ignore error since db is nil
-		}
-	}()
 	_, err := mapper.Delete(nil, user, mapper.WithDebug())
-	if err != nil {
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:

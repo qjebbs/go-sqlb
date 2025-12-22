@@ -47,6 +47,9 @@ func insert[T any](db QueryAble, values []T, options ...Option) error {
 	if err != nil {
 		return err
 	}
+	if db == nil {
+		return ErrNilDB
+	}
 	if len(returningFields) == 0 {
 		_, err = db.Exec(queryStr, args...)
 		return err

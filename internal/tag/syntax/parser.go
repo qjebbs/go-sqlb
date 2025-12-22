@@ -17,12 +17,12 @@ type Info struct {
 	On     []string // On is parsed from "on" key.
 	Dive   bool     // Dive indicates whether "dive" key is present.
 
-	PK              bool    // PK indicates whether "pk" key is present.
-	ReadOnly        bool    // ReadOnly indicates whether "readonly" key is present.
-	InsertOmitEmpty bool    // InsertOmitEmpty indicates whether "insert_omitempty" key is present.
-	Returning       bool    // Returning indicates whether "returning" key is present.
-	ConflictOn      bool    // ConflictOn indicates whether "conflict_on" key is present.
-	ConflictSet     *string // ConflictSet is parsed from "conflict_set" key.
+	PK             bool    // PK indicates whether "pk" key is present.
+	ReadOnly       bool    // ReadOnly indicates whether "readonly" key is present.
+	InsertOmitZero bool    // InsertOmitZero indicates whether "insert_omitzero" key is present.
+	Returning      bool    // Returning indicates whether "returning" key is present.
+	ConflictOn     bool    // ConflictOn indicates whether "conflict_on" key is present.
+	ConflictSet    *string // ConflictSet is parsed from "conflict_set" key.
 
 	Unique bool // Unique indicates whether "unique" key is present.
 	Match  bool // Match indicates whether "match" key is present.
@@ -179,9 +179,9 @@ func parseKeyValue(p *parser) (parseFn, error) {
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.ReadOnly = v
 		})
-	case "insert_omitempty":
+	case "insert_omitzero":
 		return parseBoolAndSet(p, func(v bool) {
-			p.c.InsertOmitEmpty = v
+			p.c.InsertOmitZero = v
 		})
 	case "returning":
 		return parseBoolAndSet(p, func(v bool) {

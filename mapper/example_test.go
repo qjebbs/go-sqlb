@@ -22,8 +22,8 @@ func Example_cRUD() {
 		Created *time.Time `sqlb:"col:created;readonly"`
 		// Updated is the last update time.
 		// conflict_set means when inserting an existing record, the Updated will be updated.
-		// insert_omitempty is added since insert NULL for updated is meaningless.
-		Updated *time.Time `sqlb:"col:updated;insert_omitempty;conflict_set"`
+		// insert_omitzero is added since insert NULL for updated is meaningless.
+		Updated *time.Time `sqlb:"col:updated;insert_omitzero;conflict_set"`
 	}
 
 	type User struct {
@@ -35,8 +35,8 @@ func Example_cRUD() {
 		Email string `sqlb:"col:email;unique;conflict_on"`
 		// conflict_set without value means to use excluded column value
 		Name string `sqlb:"col:name;conflict_set"`
-		// insert_omitempty means this field will be excluded from INSERT if it has zero value, useful when the column has a DB default value.
-		Age int `sqlb:"col:age;insert_omitempty"`
+		// insert_omitzero means this field will be excluded from INSERT if it has zero value, useful when the column has a DB default value.
+		Age int `sqlb:"col:age;insert_omitzero"`
 	}
 
 	user := &User{Email: "alice@example.org"}

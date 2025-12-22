@@ -30,7 +30,7 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: Specify the column associated with the field.
 //   - readonly: The field is excluded from INSERT statement.
-//   - insert_omitempty: Omit the field from INSERT statement if it has zero value, useful when the column has a DB default value.
+//   - insert_omitzero: Omit the field from INSERT statement if it has zero value, useful when the column has a DB default value.
 //   - returning: Mark the field to be included in RETURNING clause.
 //   - conflict_on: Declare current as one of conflict detection column.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
@@ -167,7 +167,7 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 		colValues := util.Map(reflectValues, func(v reflect.Value) any {
 			field := v.FieldByIndex(col.Index)
 			if field.IsZero() {
-				if col.InsertOmitEmpty {
+				if col.InsertOmitZero {
 					return defaultBuilder
 				}
 			} else if allZero {
@@ -179,7 +179,7 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 			r.returningColumns = append(r.returningColumns, colIndent)
 			r.returningFields = append(r.returningFields, col)
 		}
-		if col.PK || col.ReadOnly || col.InsertOmitEmpty && allZero {
+		if col.PK || col.ReadOnly || col.InsertOmitZero && allZero {
 			continue
 		}
 		if col.ReadOnly {

@@ -37,10 +37,13 @@ func Update[T any](db QueryAble, value T, options ...Option) error {
 	}
 	rowsAffected, err := r.RowsAffected()
 	if err != nil {
-		return err
+		return nil
 	}
 	if rowsAffected == 0 {
 		return errors.New("no rows updated")
+	}
+	if rowsAffected > 1 {
+		return fmt.Errorf("unexpectedly updated %d rows, wrong 'pk'?", rowsAffected)
 	}
 	return err
 }

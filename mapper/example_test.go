@@ -22,7 +22,8 @@ func Example_cRUD() {
 		Created *time.Time `sqlb:"col:created;readonly"`
 		// Updated is the last update time.
 		// conflict_set means when inserting an existing record, the Updated will be updated.
-		Updated *time.Time `sqlb:"col:updated;conflict_set"`
+		// insert_omitempty is added since insert NULL for updated is meaningless.
+		Updated *time.Time `sqlb:"col:updated;insert_omitempty;conflict_set"`
 	}
 
 	type User struct {
@@ -36,9 +37,6 @@ func Example_cRUD() {
 		Name string `sqlb:"col:name;conflict_set"`
 		// insert_omitempty means this field will be excluded from INSERT if it has zero value, useful when the column has a DB default value.
 		Age int `sqlb:"col:age;insert_omitempty"`
-		// Included only when the "full" tag is specified
-		// conflict_set can accept SQL expressions
-		About string `sqlb:"col:about;on:full;insert_omitempty;conflict_set:CASE WHEN excluded.about = '' THEN users.about ELSE excluded.about END"`
 	}
 
 	user := &User{Email: "alice@example.org"}
@@ -70,9 +68,9 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Insert(mapper_test.User)] INSERT INTO users (updated, email, name, age) VALUES (NULL, 'alice@example.org', '', DEFAULT), (NULL, 'bob@example.org', '', 18) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, age, about, id FROM users WHERE email = 'alice@example.org'
-	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T10:10:00Z', email = 'alice@example.org', name = 'New Name', age = 0, about = '' WHERE id = 1
+	// [Insert(mapper_test.User)] INSERT INTO users (email, name, age) VALUES ('alice@example.org', '', DEFAULT), ('bob@example.org', '', 18) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id
+	// [Load(*mapper_test.User)] SELECT created, updated, name, age, id FROM users WHERE email = 'alice@example.org'
+	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T10:10:00Z', email = 'alice@example.org', name = 'New Name', age = 0 WHERE id = 1
 	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
 }
 

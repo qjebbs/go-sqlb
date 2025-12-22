@@ -1,8 +1,11 @@
 ## Go SQL Builder with Struct Mapping
 
-This package champions a declarative, "definition as documentation" philosophy for database interactions in Go. It empowers developers to define data models and their corresponding database behaviors directly within Go structs using sqlb tags, abstracting away the need for manual SQL writing for standard CRUD operations.
+sqlb is a powerful SQL builder paired with a lightweight ORM.
 
-> sqlb utilizes [go-sqlf](https://github.com/qjebbs/go-sqlf) as the underlying foundation.
+- It provides a SQL builder to craft complex queries and effortlessly map results to Go structs.
+- It automates common CRUD operations declaratively, using struct tags as the single source of truth.
+
+This design makes sqlb easy to learn. By limiting abstractions to simple CRUD operations and not hiding SQL details for complex queries, it preserves both flexibility and transparency in your database interactions.
 
 ```go
 
@@ -24,15 +27,16 @@ func Example_cRUD() {
 		// returning means the ID will be returned after insertion.
 		ID int64 `sqlb:"col:id;pk;returning"`
 		// Created is the creation time.
-		// noupdate means this field will not be updated on update operations.
-		Created *time.Time `sqlb:"col:created;noupdate"`
+		// readonly means this field will be excluded from INSERT / UPDATE, created usually set by DB default value.
+		Created *time.Time `sqlb:"col:created;readonly"`
 		// Updated is the last update time.
 		// conflict_set means when inserting an existing record, the Updated will be updated.
-		Updated *time.Time `sqlb:"col:updated;conflict_set"`
+		// insert_omitempty is added since insert NULL for updated is meaningless.
+		Updated *time.Time `sqlb:"col:updated;insert_omitempty;conflict_set"`
 	}
 
 	type User struct {
-		// The value defined by 'tables' can be inherited by nested fields
+		// The value defined by 'tables' and 'from' can be inherited by nested fields
 		// and by subsequent sibling fields of the current struct.
 		Model `sqlb:"table:users"`
 		// unique indicates this column has a unique constraint, which can be used to locate records for Load / Delete operation.
@@ -40,29 +44,27 @@ func Example_cRUD() {
 		Email string `sqlb:"col:email;unique;conflict_on"`
 		// conflict_set without value means to use excluded column value
 		Name string `sqlb:"col:name;conflict_set"`
-		// Included only when the "full" tag is specified
-		// conflict_set can accept SQL expressions
-		About string `sqlb:"col:about;on:full;conflict_set:CASE WHEN excluded.about = '' THEN users.about ELSE excluded.about END"`
+		// insert_omitempty means this field will be excluded from INSERT if it has zero value, useful when the column has a DB default value.
+		Age int `sqlb:"col:age;insert_omitempty"`
 	}
 
-	created := time.Date(2020, 1, 1, 10, 10, 0, 0, time.UTC)
-	update := created.Add(time.Hour)
-
 	user := &User{Email: "alice@example.org"}
-	user.Created = &created
-	err := mapper.InsertOne(nil, user, mapper.WithDebug())
+	user2 := &User{Email: "bob@example.org", Age: 18}
+	err := mapper.Insert(nil, []User{*user, *user2}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// After insertion, the ID field will be populated and set by mapper.
 	// Here we just simulate it.
 	user.ID = 1
+	user2.ID = 2
 
 	_, err = mapper.Load(nil, &User{Email: "alice@example.org"}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 
+	update := time.Date(2020, 1, 1, 10, 10, 0, 0, time.UTC)
 	user.Updated = &update
 	user.Name = "New Name"
 	err = mapper.Update(nil, user, mapper.WithDebug())
@@ -75,16 +77,17 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Insert(*mapper_test.User)] INSERT INTO users (created, updated, email, name, about) VALUES ('2020-01-01 10:10:00 +0000 UTC', NULL, 'alice@example.org', '', '') ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, name = EXCLUDED.name, about = CASE WHEN excluded.about = '' THEN users.about ELSE excluded.about END RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, about, id FROM users WHERE email = 'alice@example.org'
-	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T11:10:00Z', email = 'alice@example.org', name = 'New Name', about = '' WHERE id = 1
+	// [Insert(mapper_test.User)] INSERT INTO users (email, name, age) VALUES ('alice@example.org', '', DEFAULT), ('bob@example.org', '', 18) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id
+	// [Load(*mapper_test.User)] SELECT created, updated, name, age, id FROM users WHERE email = 'alice@example.org'
+	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T10:10:00Z', email = 'alice@example.org', name = 'New Name', age = 0 WHERE id = 1
 	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
 }
-
 ```
 
 For complex queries, sqlb provides a select builder shipped with WITH-CTE / JOIN 
-Elimination abilities, allowing you to build sophisticated SQL queries programmatically.
+Elimination abilities, allowing you to build sophisticated SQL queries programmatically, 
+and easily map the results to nested structs with `mapper.Select()`.
+
 
 ```go
 func Example_complexSelect() {

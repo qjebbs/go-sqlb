@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -100,7 +101,10 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	if err != nil {
 		return "", nil, nil, err
 	}
-	insertInfo := buildInsertInfo(opt.dialect, info, values)
+	insertInfo, err := buildInsertInfo(opt.dialect, info, values)
+	if err != nil {
+		return "", nil, nil, err
+	}
 	b := sqlb.NewInsertBuilder().
 		InsertInto(insertInfo.table).
 		Columns(insertInfo.insertColumns...)
@@ -143,7 +147,7 @@ type insertInfo struct {
 	returningFields  []fieldInfo
 }
 
-func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T) insertInfo {
+func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T) (insertInfo, error) {
 	var r insertInfo
 	reflectValues := util.Map(values, func(v T) reflect.Value {
 		return reflect.ValueOf(v)
@@ -191,6 +195,11 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 			colQuoted := sqlf.F(colIndent)
 			var setValue sqlf.Builder
 			if *col.ConflictSet == "" {
+				if dialect != dialects.DialectPostgreSQL &&
+					dialect != dialects.DialectSQLite {
+					// only Postgres and SQLite support EXCLUDED keyword
+					return r, errors.New("does not support 'conflict_set' without expression for current dialect since it doesn't support EXCLUDED keyword in ON CONFLICT clause")
+				}
 				setValue = sqlf.F("EXCLUDED.?", colQuoted)
 			} else {
 				setValue = sqlf.F(*col.ConflictSet)
@@ -198,5 +207,5 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 			r.actions = append(r.actions, sqlf.F("? = ?", colQuoted, setValue))
 		}
 	}
-	return r
+	return r, nil
 }

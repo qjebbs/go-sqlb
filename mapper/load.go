@@ -19,7 +19,7 @@ import (
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: The column associated with the field.
 //   - pk: The column is primary key, which could be used in WHERE clause to locate the row.
-//   - unique: The column could be used in WHERE clause to locate the row.
+//   - unique: The column could be used in WHERE clause to locate the row. There's no tag for "Composite Unique" fields, since any one of them is not unique alone.
 //   - conflict_on: Multiple of them form a composite unique constraint, which could be used in WHERE clause to locate the row.
 //   - match: The column will be always included in WHERE clause even if it is zero value.
 //

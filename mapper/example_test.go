@@ -10,30 +10,102 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-func ExampleSelect() {
+func Example_cRUD() {
+	// Model represents the base model with common fields.
 	type Model struct {
-		ID      int        `sqlb:"col:id"`
-		Created *time.Time `sqlb:"col:created_at"`
-		Updated *time.Time `sqlb:"col:updated_at"`
-		Deleted *time.Time `sqlb:"col:deleted_at"`
+		// ID is the model ID.
+		// pk means primary key, which is used to locate records for Load / Update / Delete operations.
+		// returning means the ID will be returned after insertion.
+		ID int64 `sqlb:"col:id;pk;returning"`
+		// Created is the creation time.
+		// noupdate means this field will not be updated on update operations.
+		Created *time.Time `sqlb:"col:created;noupdate"`
+		// Updated is the last update time.
+		// conflict_set means when inserting an existing record, the Updated will be updated.
+		Updated *time.Time `sqlb:"col:updated;conflict_set"`
 	}
 
 	type User struct {
-		// Anonymous field supports only the 'tables' key.
-		// The value defined by 'tables' can be inherited by nested fields
+		// The value defined by 'tables' and 'from' can be inherited by nested fields
 		// and by subsequent sibling fields of the current struct.
 		Model `sqlb:"table:users;from:u"`
-		Name  string `sqlb:"col:name"`
+		// unique indicates this column has a unique constraint, which can be used to locate records for Load / Delete operation.
+		// conflict_on indicates the column(s) to check for conflict during insert.
+		Email string `sqlb:"col:email;unique;conflict_on"`
+		// conflict_set without value means to use excluded column value
+		Name string `sqlb:"col:name;conflict_set"`
 		// Included only when the "full" tag is specified
-		Notes string `sqlb:"col:notes;on:full"`
+		// conflict_set can accept SQL expressions
+		About string `sqlb:"col:about;on:full;conflict_set:CASE WHEN excluded.about = '' THEN users.about ELSE excluded.about END"`
 	}
 
-	type UserOrg struct {
-		// Dive into structs
-		User *User `sqlb:"dive"`
-		// Unlike col tags, a sel tag semantically suggest that
-		// it's a SELECT expression rather than a column.
-		OrgName float64 `sqlb:"sel:COALESCE(?.name,'');from:o"`
+	created := time.Date(2020, 1, 1, 10, 10, 0, 0, time.UTC)
+	update := created.Add(time.Hour)
+
+	user := &User{Email: "alice@example.org"}
+	user.Created = &created
+	err := mapper.InsertOne(nil, user, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+	// After insertion, the ID field will be populated and set by mapper.
+	// Here we just simulate it.
+	user.ID = 1
+
+	_, err = mapper.Load(nil, &User{Email: "alice@example.org"}, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+
+	user.Updated = &update
+	user.Name = "New Name"
+	err = mapper.Update(nil, user, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+
+	_, err = mapper.Delete(nil, user, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+	// Output:
+	// [Insert(*mapper_test.User)] INSERT INTO users (created, updated, email, name, about) VALUES ('2020-01-01 10:10:00 +0000 UTC', NULL, 'alice@example.org', '', '') ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, name = EXCLUDED.name, about = CASE WHEN excluded.about = '' THEN users.about ELSE excluded.about END RETURNING id
+	// [Load(*mapper_test.User)] SELECT created, updated, name, about, id FROM users WHERE email = 'alice@example.org'
+	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T11:10:00Z', email = 'alice@example.org', name = 'New Name', about = '' WHERE id = 1
+	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
+}
+
+func Example_complexSelect() {
+	type Model struct {
+		ID      int        `sqlb:"col:id"`
+		Created *time.Time `sqlb:"col:created"`
+		Updated *time.Time `sqlb:"col:updated"`
+		Deleted *time.Time `sqlb:"col:deleted"`
+	}
+
+	type User struct {
+		// 'from' defines the from table in SQL for this struct,
+		// it can be inherited by nested fields and by subsequent sibling fields of the current struct.
+		Model `sqlb:"from:u"`
+		// For fields without 'sel' tag, mapper constructs the selection column
+		// from the 'from' tag (inherited here) and the 'col' tag of the field.
+		// It is equivalent to:
+		//  table := sqlb.NewTable("", "u")
+		//  identifier := table.Column("name")
+		//  const expr = "?.?"
+		//  sel := sqlf.F(expr, table, identifier)
+		Name string `sqlb:"col:name"`
+	}
+
+	type userListItem struct {
+		// Dive into User struct to include its fields
+		User `sqlb:"dive"`
+		// OrgName is from joined table,
+		// 'sel' works together with 'from', which is equivalent to:
+		//  table := sqlb.NewTable("", "o")
+		//  expr := "COALESCE(?.name,'')"
+		//  sel := sqlf.F(expr, table)
+		OrgName string `sqlb:"sel:COALESCE(?.name,'');from:o"`
 	}
 
 	Users := sqlb.NewTable("users", "u")
@@ -41,122 +113,15 @@ func ExampleSelect() {
 	b := sqlb.NewSelectBuilder().
 		From(Users).
 		LeftJoin(Orgs, sqlf.F(
-			"?.org_id = ?.id",
-			Users, Orgs,
+			"? = ?",
+			Users.Column("org_id"),
+			Orgs.Column("id"),
 		)).
-		WhereEquals(Users.Column("id"), 1)
-	_, err := mapper.Select[*UserOrg](nil, b, mapper.WithDebug())
+		WhereEquals(Orgs.Column("id"), 1)
+	_, err := mapper.Select[*userListItem](nil, b, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Select(*mapper_test.UserOrg)] SELECT u.id, u.created_at, u.updated_at, u.deleted_at, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE u.id = 1
-}
-
-func ExampleInsert() {
-	type Model struct {
-		// pk indicates primary key column which will be ignored during insert
-		ID      int        `sqlb:"col:id;pk;returning"`
-		Created *time.Time `sqlb:"col:created_at"`
-		Updated *time.Time `sqlb:"col:updated_at;conflict_set:NOW()"`
-		Deleted *time.Time `sqlb:"col:deleted_at;conflict_set:NULL"`
-	}
-
-	type User struct {
-		Model `sqlb:"table:users"`
-		// conflict_on indicates the column(s) to check for conflict
-		Email string `sqlb:"col:email;conflict_on"`
-		// conflict_set without value means to use excluded column value
-		Name string `sqlb:"col:name;conflict_set"`
-		// conflict_set can accept SQL expressions
-		Notes string `sqlb:"col:notes;conflict_set:CASE WHEN users.notes = '' THEN excluded.notes ELSE users.notes END"`
-	}
-	data := &User{Email: "example@example.com"}
-	err := mapper.InsertOne(nil, data, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-	// Output:
-	// [Insert(*mapper_test.User)] INSERT INTO users (created_at, updated_at, deleted_at, email, name, notes) VALUES (NULL, NULL, NULL, 'example@example.com', '', '') ON CONFLICT (email) DO UPDATE SET updated_at = NOW(), deleted_at = NULL, name = EXCLUDED.name, notes = CASE WHEN users.notes = '' THEN excluded.notes ELSE users.notes END RETURNING id
-}
-
-func ExampleUpdate() {
-	type Model struct {
-		// pk indicates primary key column which will be used in WHERE clause
-		ID int `sqlb:"col:id;pk"`
-		// noupdate indicates to ignore this field during update
-		Created *time.Time `sqlb:"col:created_at;noupdate"`
-	}
-
-	type User struct {
-		Model `sqlb:"table:users"`
-		// extra match column for WHERE clause
-		UserID int    `sqlb:"col:user_id;match"`
-		Email  string `sqlb:"col:email"`
-		Name   string `sqlb:"col:name"`
-	}
-
-	data := &User{
-		Model: Model{
-			ID: 1,
-		},
-		UserID: 2,
-		Email:  "example@example.com",
-	}
-	err := mapper.Update(nil, data, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-	// Output:
-	// [Update(*mapper_test.User)] UPDATE users SET email = 'example@example.com', name = '' WHERE id = 1 AND user_id = 2
-}
-
-func ExampleLoad() {
-	type Model struct {
-		// pk indicates primary key column which will be used in WHERE clause
-		ID int `sqlb:"col:id;pk"`
-		// noupdate indicates to ignore this field during update
-		Created *time.Time `sqlb:"col:created_at;noupdate"`
-	}
-
-	type User struct {
-		Model `sqlb:"table:users"`
-		// extra match column for WHERE clause
-		UserID int    `sqlb:"col:user_id;match"`
-		Email  string `sqlb:"col:email;unique"`
-		Name   string `sqlb:"col:name"`
-	}
-
-	user := &User{UserID: 2, Email: "example@example.com"}
-	_, err := mapper.Load(nil, user, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-	// Output:
-	// [Load(*mapper_test.User)] SELECT created_at, name, id FROM users WHERE email = 'example@example.com' AND user_id = 2
-}
-
-func ExampleDelete() {
-	type Model struct {
-		// pk indicates primary key column which will be used in WHERE clause
-		ID int `sqlb:"col:id;pk"`
-		// noupdate indicates to ignore this field during update
-		Created *time.Time `sqlb:"col:created_at;noupdate"`
-	}
-
-	type User struct {
-		Model `sqlb:"table:users"`
-		// extra match column for WHERE clause
-		UserID int    `sqlb:"col:user_id;match"`
-		Email  string `sqlb:"col:email;unique"`
-		Name   string `sqlb:"col:name"`
-	}
-
-	user := &User{UserID: 2, Email: "example@example.com"}
-	_, err := mapper.Delete(nil, user, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-	// Output:
-	// [Delete(*mapper_test.User)] DELETE FROM users WHERE email = 'example@example.com' AND user_id = 2
+	// [Select(*mapper_test.userListItem)] SELECT u.id, u.created, u.updated, u.deleted, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE o.id = 1
 }

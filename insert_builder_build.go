@@ -86,7 +86,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	if len(b.values) > 0 {
 		valueBuilders := sqlf.Join(", ", myutil.Map(b.values, func(values []any) sqlf.Builder {
-			return sqlf.F("(?)", sqlf.JoinArgs(", ", values...))
+			return sqlf.F("(?)", sqlf.JoinMixed(", ", values...))
 		})...)
 		valuesStr, err := sqlf.Prefix("VALUES", valueBuilders).Build(ctx)
 		if err != nil {

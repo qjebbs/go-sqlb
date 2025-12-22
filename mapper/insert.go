@@ -29,6 +29,7 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: Specify the column associated with the field.
 //   - readonly: The field is excluded from INSERT statement.
+//   - insert_omitempty: Omit the field from INSERT statement if it has zero value, useful when the column has a DB default value.
 //   - returning: Mark the field to be included in RETURNING clause.
 //   - conflict_on: Declare current as one of conflict detection column.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
@@ -36,14 +37,28 @@ func Insert[T any](db QueryAble, values []T, options ...Option) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return wrapErrWithDebugName("Insert", values[0], insert(db, values, options...))
+	opt := mergeOptions(options...)
+	if opt.dialect == dialects.DialectOracle {
+		// Oracle does not support DEFAULT keyword in INSERT VALUES,
+		// so we have to insert one by one.
+		return wrapErrWithDebugName("Insert", values[0], insertOneByOne(db, values, opt))
+	}
+	return wrapErrWithDebugName("Insert", values[0], insert(db, values, opt))
 }
 
-func insert[T any](db QueryAble, values []T, options ...Option) error {
+func insertOneByOne[T any](db QueryAble, values []T, opt *Options) error {
+	for _, v := range values {
+		if err := insert(db, []T{v}, opt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func insert[T any](db QueryAble, values []T, opt *Options) error {
 	if err := checkStruct(values[0]); err != nil {
 		return err
 	}
-	opt := mergeOptions(options...)
 	queryStr, args, returningFields, err := buildInsertQueryForStruct(values, opt)
 	if err != nil {
 		return err
@@ -85,14 +100,16 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	if err != nil {
 		return "", nil, nil, err
 	}
-	insertInfo := buildInsertInfo(opt.dialect, info)
+	insertInfo := buildInsertInfo(opt.dialect, info, values)
 	b := sqlb.NewInsertBuilder().
 		InsertInto(insertInfo.table).
 		Columns(insertInfo.insertColumns...)
 
-	for _, row := range util.Map(values, func(v T) []any {
-		return collectInsertValues(v, insertInfo)
-	}) {
+	for i := 0; i < len(insertInfo.insertValues[0]); i++ {
+		var row []any
+		for j := 0; j < len(insertInfo.insertColumns); j++ {
+			row = append(row, insertInfo.insertValues[j][i])
+		}
 		b.Values(row...)
 	}
 
@@ -113,24 +130,12 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	return query, args, insertInfo.returningFields, nil
 }
 
-func collectInsertValues[T any](values T, insertInfo insertInfo) []any {
-	valueVal := reflect.ValueOf(values)
-	if valueVal.Kind() == reflect.Ptr {
-		valueVal = valueVal.Elem()
-	}
-	var row []any
-	for _, indexPath := range insertInfo.insertIndices {
-		field := valueVal.FieldByIndex(indexPath)
-		row = append(row, field.Interface())
-	}
-	return row
-}
-
 type insertInfo struct {
 	table string
 
 	insertColumns []string
 	insertIndices [][]int
+	insertValues  [][]any
 	conflict      []string
 	actions       []sqlf.Builder
 
@@ -138,8 +143,13 @@ type insertInfo struct {
 	returningFields  []fieldInfo
 }
 
-func buildInsertInfo(dialect dialects.Dialect, f *structInfo) insertInfo {
+func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T) insertInfo {
 	var r insertInfo
+	reflectValues := util.Map(values, func(v T) reflect.Value {
+		return reflect.ValueOf(v)
+	})
+	// FIXME: Oracle does not support DEFAULT keyword in INSERT VALUES
+	var defaultBuilder sqlf.Builder = sqlf.F("DEFAULT")
 	for _, col := range f.columns {
 		if r.table == "" && !col.Diving && col.Table != "" {
 			// respect first non-diving column with table specified
@@ -149,11 +159,23 @@ func buildInsertInfo(dialect dialects.Dialect, f *structInfo) insertInfo {
 			continue
 		}
 		colIndent := dialect.QuoteIdentifier(col.Column)
+		allZero := true
+		colValues := util.Map(reflectValues, func(v reflect.Value) any {
+			field := v.FieldByIndex(col.Index)
+			if field.IsZero() {
+				if col.InsertOmitEmpty {
+					return defaultBuilder
+				}
+			} else if allZero {
+				allZero = false
+			}
+			return field.Interface()
+		})
 		if col.Returning {
 			r.returningColumns = append(r.returningColumns, colIndent)
 			r.returningFields = append(r.returningFields, col)
 		}
-		if col.PK {
+		if col.PK || col.ReadOnly || col.InsertOmitEmpty && allZero {
 			continue
 		}
 		if col.ReadOnly {
@@ -161,6 +183,7 @@ func buildInsertInfo(dialect dialects.Dialect, f *structInfo) insertInfo {
 		}
 		r.insertColumns = append(r.insertColumns, colIndent)
 		r.insertIndices = append(r.insertIndices, col.Index)
+		r.insertValues = append(r.insertValues, colValues)
 		if col.ConflictOn {
 			r.conflict = append(r.conflict, colIndent)
 		}

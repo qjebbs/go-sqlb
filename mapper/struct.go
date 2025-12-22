@@ -60,7 +60,11 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 
 			var info *syntax.Info
 			var checkUsage = true
-			if tag := field.Tag.Get("sqlb"); tag != "" {
+			tag := field.Tag.Get("sqlb")
+			if tag == "-" {
+				continue
+			}
+			if tag != "" {
 				parsed, err := syntax.Parse(tag)
 				if err != nil {
 					return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tag, err)

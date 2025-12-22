@@ -7,14 +7,6 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-// QueryAble is the interface for query-able *sql.DB, *sql.Tx, etc.
-type QueryAble interface {
-	Exec(query string, args ...any) (sql.Result, error)
-	Prepare(query string) (*sql.Stmt, error)
-	Query(query string, args ...any) (*sql.Rows, error)
-	QueryRow(query string, args ...any) *sql.Row
-}
-
 // SelectOneManual executes a query and scans the results using a provider function.
 // The provider fn is called for each row to get the destination value and scan fields.
 // Unlike SelectOne, it doesn't limit the query to 1 row automatically.

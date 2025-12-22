@@ -3,7 +3,6 @@ package mapper
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -27,6 +26,15 @@ import (
 // If a struct has all `pk`, `unique`, or `conflict_on` fields zero-valued, the `Load()` operation will return an error.
 // If all non-zero-valued, the priority for constructing the WHERE clause is `pk` > `unique` > `conflict_on`.
 func Load[T any](db QueryAble, value T, options ...Option) (T, error) {
+	r, err := load(db, value, options...)
+	if err != nil {
+		var zero T
+		return zero, wrapErrWithDebugName("Load", zero, err)
+	}
+	return r, nil
+}
+
+func load[T any](db QueryAble, value T, options ...Option) (T, error) {
 	var zero T
 	if err := checkPtrStruct(value); err != nil {
 		return zero, err
@@ -80,7 +88,7 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 		Where(sqlf.Join(" AND ", conds...))
 
 	if opt.debug {
-		b.Debug(fmt.Sprintf("Load(%T)", value))
+		b.Debug(debugName("Load", value))
 	}
 
 	query, args, err = b.BuildQuery(opt.style)
@@ -137,7 +145,7 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 		switch {
 		case col.PK:
 			if pk.ColumnIndent != "" {
-				return nil, errors.New("multiple primary key columns defined for update")
+				return nil, errors.New("multiple primary key columns defined")
 			}
 			pk = colData
 		case col.Unique && colValue != nil:
@@ -145,9 +153,6 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 		case col.ConflictOn:
 			constraints = append(constraints, colData)
 		case col.Match:
-			// if colValue == nil {
-			// 	return nil, fmt.Errorf("column %q of %T is declared to be 'match' but zero", col.Column, value)
-			// }
 			// allow match columns to be zero-valued, like deleted_at = NULL
 			match = append(match, colData)
 		default:
@@ -155,7 +160,7 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 		}
 	}
 	if table == "" {
-		return nil, fmt.Errorf("no table defined in %T for load", value)
+		return nil, errors.New("no table defined ")
 	}
 	if pk.ColumnIndent != "" && pk.Value != nil {
 		whereColumns = append(whereColumns, pk)
@@ -174,7 +179,7 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 			}
 		}
 		if !allNonZero {
-			return nil, errors.New("no primary field / unique field / conflict_on fields with non-zero values defined for load")
+			return nil, errors.New("no primary field / unique field / conflict_on fields with non-zero values defined")
 		}
 		whereColumns = append(whereColumns, constraints...)
 		selectColumns = append(selectColumns, pk)

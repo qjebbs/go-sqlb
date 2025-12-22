@@ -35,6 +35,10 @@ func Insert[T any](db QueryAble, values []T, options ...Option) error {
 	if len(values) == 0 {
 		return nil
 	}
+	return wrapErrWithDebugName("Insert", values[0], insert(db, values, options...))
+}
+
+func insert[T any](db QueryAble, values []T, options ...Option) error {
 	if err := checkStruct(values[0]); err != nil {
 		return err
 	}
@@ -95,7 +99,7 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	// no allow manual setting of returning columns, since we cannot map them back
 	b.Returning(insertInfo.returningColumns...)
 	if opt.debug {
-		b.Debug(fmt.Sprintf("Insert(%T)", values[0]))
+		b.Debug(debugName("Insert", values[0]))
 	}
 
 	query, args, err = b.BuildQuery(opt.style)

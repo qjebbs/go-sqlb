@@ -23,6 +23,10 @@ import (
 //
 // If no `pk` field is defined, Update() will return an error to avoid accidental full-table update.
 func Update[T any](db QueryAble, value T, options ...Option) error {
+	return wrapErrWithDebugName("Update", value, update(db, value, options...))
+}
+
+func update[T any](db QueryAble, value T, options ...Option) error {
 	if err := checkStruct(value); err != nil {
 		return err
 	}
@@ -55,7 +59,7 @@ func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args
 	b := sqlb.NewUpdateBuilder()
 	b.SetDialect(opt.dialect)
 	if opt.debug {
-		b.Debug(fmt.Sprintf("Update(%T)", value))
+		b.Debug(debugName("Update", value))
 	}
 
 	var zero T

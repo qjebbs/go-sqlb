@@ -2,8 +2,6 @@ package mapper
 
 import (
 	"database/sql"
-	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -57,6 +55,15 @@ func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T,
 //
 // Applied-Table-Name: The name of the table that is effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
 func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
+	r, err := _select[T](db, b, options...)
+	if err != nil {
+		var zero T
+		return nil, wrapErrWithDebugName("Select", zero, err)
+	}
+	return r, nil
+}
+
+func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	var zero T
 	if err := checkPtrStruct(zero); err != nil {
 		return nil, err
@@ -64,7 +71,7 @@ func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error
 	opt := mergeOptions(options...)
 	if opt.debug {
 		if b1, ok := b.(*sqlb.SelectBuilder); ok {
-			b1.Debug(fmt.Sprintf("Select(%T)", zero))
+			b1.Debug(debugName("Select", zero))
 		}
 	}
 	queryStr, args, dests, err := buildSelectQueryForStruct[T](b, opt)
@@ -167,28 +174,4 @@ func buildSelectInfo(opt *Options, f *structInfo) (columns []sqlf.Builder, dests
 		dests = append(dests, col)
 	}
 	return
-}
-
-func checkPtrStruct(value any) error {
-	v := reflect.TypeOf(value)
-	if v.Kind() != reflect.Ptr {
-		return errors.New("value must be a pointer to struct")
-	}
-	v = v.Elem()
-	if v.Kind() != reflect.Struct {
-		return errors.New("value must be a pointer to struct")
-	}
-	return nil
-}
-
-func checkStruct(value any) error {
-	v := reflect.TypeOf(value)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	k := v.Kind()
-	if k != reflect.Struct {
-		return errors.New("value must be a struct or a pointer to struct")
-	}
-	return nil
 }

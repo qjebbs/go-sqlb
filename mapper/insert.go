@@ -189,15 +189,6 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 			r.returningColumns = append(r.returningColumns, colIndent)
 			r.returningFields = append(r.returningFields, col)
 		}
-		if col.PK || col.ReadOnly || !col.InsertZero && allZero {
-			continue
-		}
-		if col.ReadOnly {
-			continue
-		}
-		r.insertColumns = append(r.insertColumns, colIndent)
-		r.insertIndices = append(r.insertIndices, col.Index)
-		r.insertValues = append(r.insertValues, colValues)
 		if col.ConflictOn {
 			switch dialect {
 			case dialects.DialectPostgreSQL, dialects.DialectSQLite:
@@ -235,6 +226,13 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 			}
 			r.actions = append(r.actions, sqlf.F("? = ?", colQuoted, setValue))
 		}
+
+		if col.PK || col.ReadOnly || !col.InsertZero && allZero {
+			continue
+		}
+		r.insertColumns = append(r.insertColumns, colIndent)
+		r.insertIndices = append(r.insertIndices, col.Index)
+		r.insertValues = append(r.insertValues, colValues)
 	}
 	return r, nil
 }

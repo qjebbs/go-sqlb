@@ -15,6 +15,23 @@ const (
 	DialectSQLServer
 )
 
+func (d Dialect) String() string {
+	switch d {
+	case DialectOracle:
+		return "Oracle"
+	case DialectPostgreSQL:
+		return "PostgreSQL"
+	case DialectMySQL:
+		return "MySQL"
+	case DialectSQLite:
+		return "SQLite"
+	case DialectSQLServer:
+		return "SQLServer"
+	default:
+		return "Unknown"
+	}
+}
+
 // QuoteIdentifier quotes an identifier based on the dialect.
 func (d Dialect) QuoteIdentifier(identifier string) string {
 	if !d.isReservedWord(d, identifier) {

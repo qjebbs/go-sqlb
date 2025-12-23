@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/qjebbs/go-sqlb/internal/clauses"
+	"github.com/qjebbs/go-sqlb/internal/dialects"
+	"github.com/qjebbs/go-sqlb/internal/util"
 	myutil "github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -84,6 +86,18 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		cols := fmt.Sprintf("(%s)", strings.Join(b.columns, ", "))
 		built = append(built, cols)
 	}
+	// returning clause
+	if len(b.returning) > 0 && b.dialact == dialects.DialectSQLServer {
+		returning, err := sqlf.F("OUTPUT ?", sqlf.Join(
+			", ", util.Map(b.returning, func(r string) sqlf.Builder {
+				return sqlf.F("INSERTED." + r)
+			})...,
+		)).Build(ctx)
+		if err != nil {
+			return "", fmt.Errorf("build returning clause: %w", err)
+		}
+		built = append(built, returning)
+	}
 	if len(b.values) > 0 {
 		valueBuilders := sqlf.Join(", ", myutil.Map(b.values, func(values []any) sqlf.Builder {
 			return sqlf.F("(?)", sqlf.JoinMixed(", ", values...))
@@ -101,23 +115,49 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		}
 		built = append(built, sel)
 	}
-	if len(b.conflictOn) > 0 {
-		conflictTarget := fmt.Sprintf("ON CONFLICT (%s)", strings.Join(b.conflictOn, ", "))
-		built = append(built, conflictTarget)
-		if len(b.conflictDo) == 0 {
-			built = append(built, "DO NOTHING")
-		} else {
+	// conflict handling
+	switch b.dialact {
+	case dialects.DialectPostgreSQL, dialects.DialectSQLite:
+		if len(b.conflictOn) > 0 {
+			conflictTarget := fmt.Sprintf("ON CONFLICT (%s)", strings.Join(b.conflictOn, ", "))
+			built = append(built, conflictTarget)
+			if len(b.conflictDo) == 0 {
+				built = append(built, "DO NOTHING")
+			} else {
+				conflictActions, err := sqlf.Join(", ", b.conflictDo...).Build(ctx)
+				if err != nil {
+					return "", fmt.Errorf("build conflict do actions: %w", err)
+				}
+				built = append(built, "DO UPDATE SET")
+				built = append(built, conflictActions)
+			}
+		}
+	case dialects.DialectMySQL:
+		if len(b.conflictDo) > 0 {
+			built = append(built, "ON DUPLICATE KEY UPDATE")
 			conflictActions, err := sqlf.Join(", ", b.conflictDo...).Build(ctx)
 			if err != nil {
 				return "", fmt.Errorf("build conflict do actions: %w", err)
 			}
-			built = append(built, "DO UPDATE SET")
 			built = append(built, conflictActions)
 		}
+	default:
+		if len(b.conflictOn) > 0 || len(b.conflictDo) > 0 {
+			return "", fmt.Errorf("ON CONFLICT is not supported for %s", b.dialact.String())
+		}
 	}
+
+	// returning clause
 	if len(b.returning) > 0 {
-		returning := fmt.Sprintf("RETURNING %s", strings.Join(b.returning, ", "))
-		built = append(built, returning)
+		switch b.dialact {
+		case dialects.DialectPostgreSQL, dialects.DialectSQLite:
+			returning := fmt.Sprintf("RETURNING %s", strings.Join(b.returning, ", "))
+			built = append(built, returning)
+		case dialects.DialectSQLServer:
+			// already built
+		default:
+			return "", fmt.Errorf("returning is not supported for %s", b.dialact.String())
+		}
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
 	if b.debug {

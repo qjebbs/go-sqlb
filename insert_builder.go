@@ -2,6 +2,7 @@ package sqlb
 
 import (
 	"github.com/qjebbs/go-sqlb/internal/clauses"
+	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -12,6 +13,8 @@ var _ Builder = (*InsertBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type InsertBuilder struct {
+	dialact dialects.Dialect
+
 	ctes       *clauses.With
 	target     string         // target table for insertion
 	columns    []string       // select columns and keep values in scanning.
@@ -28,9 +31,14 @@ type InsertBuilder struct {
 }
 
 // NewInsertBuilder returns a new InsertBuilder.
-func NewInsertBuilder() *InsertBuilder {
+func NewInsertBuilder(dialect ...dialects.Dialect) *InsertBuilder {
+	d := dialects.DialectPostgreSQL
+	if len(dialect) > 0 {
+		d = dialect[0]
+	}
 	return &InsertBuilder{
-		ctes: clauses.NewWith(),
+		dialact: d,
+		ctes:    clauses.NewWith(),
 	}
 }
 

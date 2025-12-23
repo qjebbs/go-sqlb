@@ -1,7 +1,6 @@
 package mapper
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -24,7 +23,12 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 // It scans the returning columns into the corresponding fields of values.
 // If no returning columns are specified, it only executes the insert query.
 //
-// Note: Insert omits zero-value fields by default. To include zero-value fields in the INSERT statement, use the `insert_zero` struct tag.
+// Insert omits zero-value fields by default. To include zero-value fields in the INSERT statement, use the `insert_zero` struct tag.
+//
+// Limitations:
+//   - Full tags support for PostgreSQL and SQLite
+//   - No 'returning' support for MySQL
+//   - No 'conflict_on' / 'conflict_set' support for SQL Server or Oracle
 //
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
@@ -107,7 +111,7 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	if err != nil {
 		return "", nil, nil, err
 	}
-	b := sqlb.NewInsertBuilder().
+	b := sqlb.NewInsertBuilder(opt.dialect).
 		InsertInto(insertInfo.table).
 		Columns(insertInfo.insertColumns...)
 
@@ -119,7 +123,7 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 		b.Values(row...)
 	}
 
-	if len(insertInfo.conflict) > 0 {
+	if len(insertInfo.conflict) > 0 || len(insertInfo.actions) > 0 {
 		// allow manual setting of on conflict only if no config in tags
 		b.OnConflict(insertInfo.conflict, insertInfo.actions...)
 	}
@@ -195,20 +199,39 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 		r.insertIndices = append(r.insertIndices, col.Index)
 		r.insertValues = append(r.insertValues, colValues)
 		if col.ConflictOn {
-			r.conflict = append(r.conflict, colIndent)
+			switch dialect {
+			case dialects.DialectPostgreSQL, dialects.DialectSQLite:
+				r.conflict = append(r.conflict, colIndent)
+			case dialects.DialectMySQL:
+				// ignore, MySQL uses different syntax
+			default:
+				return r, fmt.Errorf("does not support 'conflict_on' tag for %s", dialect)
+			}
 		}
 		if col.ConflictSet != nil {
 			colQuoted := sqlf.F(colIndent)
 			var setValue sqlf.Builder
 			if *col.ConflictSet == "" {
-				if dialect != dialects.DialectPostgreSQL &&
-					dialect != dialects.DialectSQLite {
-					// only Postgres and SQLite support EXCLUDED keyword
-					return r, errors.New("does not support 'conflict_set' without expression for current dialect since it doesn't support EXCLUDED keyword in ON CONFLICT clause")
+				switch dialect {
+				case dialects.DialectPostgreSQL, dialects.DialectSQLite:
+					setValue = sqlf.F("EXCLUDED.?", colQuoted)
+				case dialects.DialectMySQL:
+					setValue = sqlf.F("VALUES(?)", colQuoted)
+				case dialects.DialectSQLServer, dialects.DialectOracle:
+					return r, fmt.Errorf("'conflict_set' is not supported for %s", dialect)
+				default:
+					return r, fmt.Errorf("'conflict_set' without expression is not supported for %s", dialect)
 				}
-				setValue = sqlf.F("EXCLUDED.?", colQuoted)
 			} else {
-				setValue = sqlf.F(*col.ConflictSet)
+				// user specified expression
+				switch dialect {
+				case dialects.DialectPostgreSQL, dialects.DialectSQLite, dialects.DialectMySQL:
+					setValue = sqlf.F(*col.ConflictSet)
+				case dialects.DialectSQLServer, dialects.DialectOracle:
+					return r, fmt.Errorf("'conflict_set' is not supported for %s", dialect)
+				default:
+					return r, fmt.Errorf("'conflict_set' without expression is not supported for %s", dialect)
+				}
 			}
 			r.actions = append(r.actions, sqlf.F("? = ?", colQuoted, setValue))
 		}

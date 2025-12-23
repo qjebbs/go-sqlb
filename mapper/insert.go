@@ -24,13 +24,15 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 // It scans the returning columns into the corresponding fields of values.
 // If no returning columns are specified, it only executes the insert query.
 //
+// Note: Insert omits zero-value fields by default. To include zero-value fields in the INSERT statement, use the `insert_zero` struct tag.
+//
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
 // The supported struct tags are:
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: Specify the column associated with the field.
 //   - readonly: The field is excluded from INSERT statement.
-//   - insert_omitzero: Omit the field from INSERT statement if it has zero value, useful when the column has a DB default value.
+//   - insert_zero: Don't omit the field from INSERT statement even if it has zero value.
 //   - returning: Mark the field to be included in RETURNING clause.
 //   - conflict_on: Declare current as one of conflict detection column.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
@@ -57,7 +59,7 @@ func insertOneByOne[T any](db QueryAble, values []T, opt *Options) error {
 }
 
 func insert[T any](db QueryAble, values []T, opt *Options) error {
-	if err := checkStruct(values[0]); err != nil {
+	if err := checkPtrStruct(values[0]); err != nil {
 		return err
 	}
 	queryStr, args, returningFields, err := buildInsertQueryForStruct(values, opt)
@@ -150,7 +152,11 @@ type insertInfo struct {
 func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T) (insertInfo, error) {
 	var r insertInfo
 	reflectValues := util.Map(values, func(v T) reflect.Value {
-		return reflect.ValueOf(v)
+		rv := reflect.ValueOf(v)
+		for rv.Kind() == reflect.Ptr {
+			rv = rv.Elem()
+		}
+		return rv
 	})
 	// FIXME: Oracle does not support DEFAULT keyword in INSERT VALUES
 	var defaultBuilder sqlf.Builder = sqlf.F("DEFAULT")
@@ -167,7 +173,7 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 		colValues := util.Map(reflectValues, func(v reflect.Value) any {
 			field := v.FieldByIndex(col.Index)
 			if field.IsZero() {
-				if col.InsertOmitZero {
+				if !col.InsertZero {
 					return defaultBuilder
 				}
 			} else if allZero {
@@ -179,7 +185,7 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 			r.returningColumns = append(r.returningColumns, colIndent)
 			r.returningFields = append(r.returningFields, col)
 		}
-		if col.PK || col.ReadOnly || col.InsertOmitZero && allZero {
+		if col.PK || col.ReadOnly || !col.InsertZero && allZero {
 			continue
 		}
 		if col.ReadOnly {

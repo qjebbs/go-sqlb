@@ -22,8 +22,7 @@ func Example_cRUD() {
 		Created *time.Time `sqlb:"col:created;readonly"`
 		// Updated is the last update time.
 		// conflict_set means when inserting an existing record, the Updated will be updated.
-		// insert_omitzero is added since insert NULL for updated is meaningless.
-		Updated *time.Time `sqlb:"col:updated;insert_omitzero;conflict_set"`
+		Updated *time.Time `sqlb:"col:updated;conflict_set"`
 	}
 
 	type User struct {
@@ -35,13 +34,11 @@ func Example_cRUD() {
 		Email string `sqlb:"col:email;unique;conflict_on"`
 		// conflict_set without value means to use excluded column value
 		Name string `sqlb:"col:name;conflict_set"`
-		// insert_omitzero means this field will be excluded from INSERT if it has zero value, useful when the column has a DB default value.
-		Age int `sqlb:"col:age;insert_omitzero"`
 	}
 
-	user := &User{Email: "alice@example.org"}
-	user2 := &User{Email: "bob@example.org", Age: 18}
-	err := mapper.Insert(nil, []User{*user, *user2}, mapper.WithDebug())
+	user := &User{Email: "alice@example.org", Name: "Alice"}
+	user2 := &User{Email: "bob@example.org", Name: ""}
+	err := mapper.Insert(nil, []*User{user, user2}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
@@ -68,9 +65,9 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Insert(mapper_test.User)] INSERT INTO users (email, name, age) VALUES ('alice@example.org', '', DEFAULT), ('bob@example.org', '', 18) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, age, id FROM users WHERE email = 'alice@example.org'
-	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T10:10:00Z', email = 'alice@example.org', name = 'New Name', age = 0 WHERE id = 1
+	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id
+	// [Load(*mapper_test.User)] SELECT created, updated, name, id FROM users WHERE email = 'alice@example.org'
+	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T10:10:00Z', email = 'alice@example.org', name = 'New Name' WHERE id = 1
 	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
 }
 

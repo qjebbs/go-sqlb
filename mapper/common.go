@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -36,7 +37,11 @@ func debugName(funcName string, value any) string {
 
 func wrapErrWithDebugName(funcName string, value any, err error) error {
 	if err == nil {
-		return nil
+		return err
+	}
+	// not wrapping well known errors for easier checking
+	if errors.Is(err, sql.ErrNoRows) {
+		return err
 	}
 	return fmt.Errorf("%s(%T): %w", funcName, value, err)
 }

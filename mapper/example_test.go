@@ -103,9 +103,8 @@ func Example_complexSelect() {
 	}
 
 	type userListItem struct {
-		// Dive into User struct to include its fields
-		User `sqlb:"dive"`
-		// OrgName is from joined table,
+		User
+		// OrgName is from another table and could be NULL,
 		// 'sel' works together with 'from', which is equivalent to:
 		//  table := sqlb.NewTable("", "o")
 		//  expr := "COALESCE(?.name,'')"
@@ -122,11 +121,12 @@ func Example_complexSelect() {
 			Users.Column("org_id"),
 			Orgs.Column("id"),
 		)).
-		WhereEquals(Orgs.Column("id"), 1)
+		WhereEquals(Orgs.Column("id"), 1).
+		WhereIsNull(Users.Column("deleted_at"))
 	_, err := mapper.Select[*userListItem](nil, b, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Select(*mapper_test.userListItem)] SELECT u.id, u.created, u.updated, u.deleted, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE o.id = 1
+	// [Select(*mapper_test.userListItem)] SELECT u.id, u.created, u.updated, u.deleted, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE o.id = 1 AND u.deleted_at IS NULL
 }

@@ -33,7 +33,8 @@ func Example_cRUD() {
 		// conflict_on indicates the column(s) to check for conflict during insert.
 		Email string `sqlb:"col:email;unique;conflict_on"`
 		// conflict_set without value means to use excluded column value
-		Name string `sqlb:"col:name;conflict_set"`
+		Name      string `sqlb:"col:name;conflict_set"`
+		LoginName string `sqlb:"col:login_name;load:COALESCE(?,'');"`
 	}
 
 	user := &User{Email: "alice@example.org", Name: "Alice"}
@@ -73,9 +74,9 @@ func Example_cRUD() {
 	}
 	// Output:
 	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, id FROM users WHERE email = 'alice@example.org'
+	// [Load(*mapper_test.User)] SELECT created, updated, name, COALESCE(login_name,''), id FROM users WHERE email = 'alice@example.org'
 	// [Update(*mapper_test.User)] UPDATE users SET name = 'Alice' WHERE id = 1
-	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '' WHERE id = 1
+	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '', login_name = '' WHERE id = 1
 	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
 }
 

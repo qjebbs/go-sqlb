@@ -24,8 +24,9 @@ type Info struct {
 	ConflictOn  bool    // ConflictOn indicates whether "conflict_on" key is present.
 	ConflictSet *string // ConflictSet is parsed from "conflict_set" key.
 
-	Unique bool // Unique indicates whether "unique" key is present.
-	Match  bool // Match indicates whether "match" key is present.
+	Unique bool   // Unique indicates whether "unique" key is present.
+	Match  bool   // Match indicates whether "match" key is present.
+	Load   string // Load is parsed from "load" key.
 }
 
 // Parse parses the input and returns the list of expressions.
@@ -174,6 +175,11 @@ func parseKeyValue(p *parser) (parseFn, error) {
 	case "match":
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.Match = v
+		})
+	case "load":
+		return parseStringAndSet(p, func(v string) error {
+			p.c.Load = v
+			return nil
 		})
 	case "readonly":
 		return parseBoolAndSet(p, func(v bool) {

@@ -1,11 +1,75 @@
-## Go SQL Builder with Struct Mapping
+# Go SQL Builder with Struct Mapping
 
-sqlb is a powerful SQL builder paired with a lightweight ORM.
+sqlb is a powerful SQL builder and struct mapper. It provides,
 
-- It provides a SQL builder to craft complex queries and effortlessly map results to Go structs.
-- It automates common CRUD operations declaratively, using struct tags as the single source of truth.
+- SQL builders to craft complex queries.
+- Effortlessly map query results to Go structs.
+- Declarative automation of common CRUD operations.
 
-This design makes sqlb easy to learn. By limiting abstractions to simple CRUD operations and not hiding SQL details for complex queries, it preserves both flexibility and transparency in your database interactions.
+With sqlb, All queries are explicitly coded or declared, there is no hidden behavior, preserving both flexibility and transparency in your database interactions.
+
+## Complex SELECT with Struct Mapping
+
+sqlb provides a select builder shipped with WITH-CTE / JOIN 
+Elimination abilities, allowing you to build sophisticated SQL queries programmatically, 
+and easily map the results to nested structs with `mapper.Select()`.
+
+```go
+func Example_complexSelect() {
+	type Model struct {
+		ID      int        `sqlb:"col:id"`
+		Created *time.Time `sqlb:"col:created"`
+		Updated *time.Time `sqlb:"col:updated"`
+		Deleted *time.Time `sqlb:"col:deleted"`
+	}
+
+	type User struct {
+		// 'from' defines the from table in SQL for this struct,
+		// it can be inherited by nested fields and by subsequent sibling fields of the current struct.
+		Model `sqlb:"from:u"`
+		// For fields without 'sel' tag, mapper constructs the selection column
+		// from the 'from' tag (inherited here) and the 'col' tag of the field.
+		// It is equivalent to:
+		//  table := sqlb.NewTable("", "u")
+		//  identifier := table.Column("name")
+		//  const expr = "?.?"
+		//  sel := sqlf.F(expr, table, identifier)
+		Name string `sqlb:"col:name"`
+	}
+
+	type userListItem struct {
+		// Dive into User struct to include its fields
+		User `sqlb:"dive"`
+		// OrgName is from joined table,
+		// 'sel' works together with 'from', which is equivalent to:
+		//  table := sqlb.NewTable("", "o")
+		//  expr := "COALESCE(?.name,'')"
+		//  sel := sqlf.F(expr, table)
+		OrgName string `sqlb:"sel:COALESCE(?.name,'');from:o"`
+	}
+
+	Users := sqlb.NewTable("users", "u")
+	Orgs := sqlb.NewTable("orgs", "o")
+	b := sqlb.NewSelectBuilder().
+		From(Users).
+		LeftJoin(Orgs, sqlf.F(
+			"? = ?",
+			Users.Column("org_id"),
+			Orgs.Column("id"),
+		)).
+		WhereEquals(Orgs.Column("id"), 1)
+	_, err := mapper.Select[*userListItem](nil, b, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+	// Output:
+	// [Select(*mapper_test.userListItem)] SELECT u.id, u.created, u.updated, u.deleted, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE o.id = 1
+}
+```
+
+## CRUD Operations
+
+sqlb provides declarative struct mapping via `mapper` package,
 
 ```go
 
@@ -61,10 +125,17 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 
-	update := time.Date(2020, 1, 1, 10, 10, 0, 0, time.UTC)
-	user.Updated = &update
-	user.Name = "New Name"
-	err = mapper.Update(nil, user, mapper.WithDebug())
+	// Partial update: only non-zero fields will be updated.
+	err = mapper.Update(nil, &User{
+		Model: Model{ID: user.ID},
+		Name:  "Alice",
+	}, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+
+	user.Name = ""
+	err = mapper.Update(nil, user, mapper.WithUpdateAll(), mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
@@ -76,66 +147,9 @@ func Example_cRUD() {
 	// Output:
 	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id
 	// [Load(*mapper_test.User)] SELECT created, updated, name, id FROM users WHERE email = 'alice@example.org'
-	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T10:10:00Z', email = 'alice@example.org', name = 'New Name' WHERE id = 1
+	// [Update(*mapper_test.User)] UPDATE users SET name = 'Alice' WHERE id = 1
+	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '' WHERE id = 1
 	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
-}
-```
-
-For complex queries, sqlb provides a select builder shipped with WITH-CTE / JOIN 
-Elimination abilities, allowing you to build sophisticated SQL queries programmatically, 
-and easily map the results to nested structs with `mapper.Select()`.
-
-
-```go
-func Example_complexSelect() {
-	type Model struct {
-		ID      int        `sqlb:"col:id"`
-		Created *time.Time `sqlb:"col:created"`
-		Updated *time.Time `sqlb:"col:updated"`
-		Deleted *time.Time `sqlb:"col:deleted"`
-	}
-
-	type User struct {
-		// 'from' defines the from table in SQL for this struct,
-		// it can be inherited by nested fields and by subsequent sibling fields of the current struct.
-		Model `sqlb:"from:u"`
-		// For fields without 'sel' tag, mapper constructs the selection column
-		// from the 'from' tag (inherited here) and the 'col' tag of the field.
-		// It is equivalent to:
-		//  table := sqlb.NewTable("", "u")
-		//  identifier := table.Column("name")
-		//  const expr = "?.?"
-		//  sel := sqlf.F(expr, table, identifier)
-		Name string `sqlb:"col:name"`
-	}
-
-	type userListItem struct {
-		// Dive into User struct to include its fields
-		User `sqlb:"dive"`
-		// OrgName is from joined table,
-		// 'sel' works together with 'from', which is equivalent to:
-		//  table := sqlb.NewTable("", "o")
-		//  expr := "COALESCE(?.name,'')"
-		//  sel := sqlf.F(expr, table)
-		OrgName string `sqlb:"sel:COALESCE(?.name,'');from:o"`
-	}
-
-	Users := sqlb.NewTable("users", "u")
-	Orgs := sqlb.NewTable("orgs", "o")
-	b := sqlb.NewSelectBuilder().
-		From(Users).
-		LeftJoin(Orgs, sqlf.F(
-			"? = ?",
-			Users.Column("org_id"),
-			Orgs.Column("id"),
-		)).
-		WhereEquals(Orgs.Column("id"), 1)
-	_, err := mapper.Select[*userListItem](nil, b, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-	// Output:
-	// [Select(*mapper_test.userListItem)] SELECT u.id, u.created, u.updated, u.deleted, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE o.id = 1
 }
 ```
 

@@ -52,10 +52,17 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 
-	update := time.Date(2020, 1, 1, 10, 10, 0, 0, time.UTC)
-	user.Updated = &update
-	user.Name = "New Name"
-	err = mapper.Update(nil, user, mapper.WithDebug())
+	// Partial update: only non-zero fields will be updated.
+	err = mapper.Update(nil, &User{
+		Model: Model{ID: user.ID},
+		Name:  "Alice",
+	}, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+
+	user.Name = ""
+	err = mapper.Update(nil, user, mapper.WithUpdateAll(), mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
@@ -67,7 +74,8 @@ func Example_cRUD() {
 	// Output:
 	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id
 	// [Load(*mapper_test.User)] SELECT created, updated, name, id FROM users WHERE email = 'alice@example.org'
-	// [Update(*mapper_test.User)] UPDATE users SET updated = '2020-01-01T10:10:00Z', email = 'alice@example.org', name = 'New Name' WHERE id = 1
+	// [Update(*mapper_test.User)] UPDATE users SET name = 'Alice' WHERE id = 1
+	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '' WHERE id = 1
 	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
 }
 

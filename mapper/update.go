@@ -12,6 +12,9 @@ import (
 
 // Update updates a single struct into the database.
 //
+// Update omits zero-value fields by default. To force do a full update including zero-value fields,
+// use WithUpdateAll() option.
+//
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
 // The supported struct tags are:
@@ -70,7 +73,7 @@ func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args
 	if err != nil {
 		return "", nil, err
 	}
-	updateInfo, err := buildUpdateInfo(opt.dialect, info, value)
+	updateInfo, err := buildUpdateInfo(opt.dialect, info, opt, value)
 	if err != nil {
 		return "", nil, err
 	}
@@ -116,7 +119,7 @@ type fieldData struct {
 	Value        any
 }
 
-func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*updateInfo, error) {
+func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, opt *Options, value T) (*updateInfo, error) {
 	valueVal := reflect.ValueOf(value)
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()
@@ -134,7 +137,7 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*
 			continue
 		}
 		colIndent := dialect.QuoteIdentifier(col.Column)
-		colValue, ok := getValueAtIndex(col.Index, valueVal)
+		colValue, iszero, ok := getValueAtIndex(col.Index, valueVal)
 		if !ok {
 			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
 		}
@@ -151,7 +154,7 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*
 			r.pk = data
 		case col.Match:
 			r.matchColumns = append(r.matchColumns, data)
-		case col.ReadOnly:
+		case col.ReadOnly || (iszero && !opt.updateAll):
 			// skip
 		default:
 			r.updateColumns = append(r.updateColumns, data)
@@ -166,18 +169,18 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*
 	return &r, nil
 }
 
-func getValueAtIndex(dest []int, v reflect.Value) (any, bool) {
+func getValueAtIndex(dest []int, v reflect.Value) (value any, iszero, ok bool) {
 	current, ok := getReflectValueAtIndex(dest, v)
 	if !ok {
-		return nil, false
+		return nil, false, false
 	}
 	if current.Kind() == reflect.Ptr {
 		if current.IsNil() {
-			return nil, true
+			return nil, true, true
 		}
 		current = current.Elem()
 	}
-	return current.Interface(), true
+	return current.Interface(), current.IsZero(), true
 }
 
 func getReflectValueAtIndex(dest []int, v reflect.Value) (reflect.Value, bool) {

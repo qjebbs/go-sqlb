@@ -15,6 +15,9 @@ type Options struct {
 	dialect dialects.Dialect
 
 	nullZeroTables []string
+
+	// For Update() only: whether to update all fields, including zero-value fields.
+	updateAll bool
 }
 
 func (o *Options) matchTag(onTags []string) bool {
@@ -86,6 +89,14 @@ func WithNullZeroTables(tables ...sqlb.Table) Option {
 		o.nullZeroTables = util.Map(tables, func(t sqlb.Table) string {
 			return t.Name
 		})
+	}
+}
+
+// WithUpdateAll enables updating all fields, including zero-value fields.
+// This option applies only to Update().
+func WithUpdateAll() Option {
+	return func(o *Options) {
+		o.updateAll = true
 	}
 }
 

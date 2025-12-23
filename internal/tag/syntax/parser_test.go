@@ -70,8 +70,8 @@ func TestParser(t *testing.T) {
 				if !reflect.DeepEqual(got.From, tc.want.From) {
 					t.Errorf("got Tables %q, want %q", strings.Join(got.From, ","), strings.Join(tc.want.From, ","))
 				}
-				if !reflect.DeepEqual(got.On, tc.want.On) {
-					t.Errorf("got On %q, want %q", strings.Join(got.On, ","), strings.Join(tc.want.On, ","))
+				if !reflect.DeepEqual(got.SelectOn, tc.want.SelectOn) {
+					t.Errorf("got On %q, want %q", strings.Join(got.SelectOn, ","), strings.Join(tc.want.SelectOn, ","))
 				}
 			}
 		})

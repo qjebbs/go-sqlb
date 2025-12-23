@@ -85,7 +85,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 			}
 			if field.Anonymous {
 				if info != nil {
-					if info.Column != "" || len(info.On) > 0 {
+					if info.Column != "" || len(info.SelectOn) > 0 {
 						return fmt.Errorf("sqlb tag: %T.%s: anonymous field supports only the 'tables' key", zero, field.Name)
 					}
 				}

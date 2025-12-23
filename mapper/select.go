@@ -49,8 +49,8 @@ func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T,
 //   - table: [Inheritable]Declare base table for the current field and its sub-fields / subsequent sibling fields. It usually works with `WithNullZeroTables()` Option.
 //   - from: [Inheritable]Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`.
 //   - sel: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. `sel:COALESCE(?.name,”);from:u;`, which is required by dependency analysis.
+//   - sel_on: Scan the field only on any one of tags specified, comma-separated. e.g. `sel_on:full;`
 //   - col: If `sel` key is not specified, specify the column to select for this field. It's recommended to use `col` key for simple column selection, which can be shared usage in INSERT/UPDATE operations. e.g. `col:name;from:u;`
-//   - on: Scan the field only on any one of tags specified, comma-separated. e.g. `on:full;`
 //   - dive: For struct fields, dive into scan its field. e.g. `dive;`
 //
 // Applied-Table-Name: The name of the table that is effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
@@ -156,7 +156,7 @@ func buildSelectQueryForStruct[T any](b SelectBuilder, opt *Options) (query stri
 
 func buildSelectInfo(opt *Options, f *structInfo) (columns []sqlf.Builder, dests []fieldInfo) {
 	for _, col := range f.columns {
-		included := opt.matchTag(col.On)
+		included := opt.matchTag(col.SelectOn)
 		if !included {
 			continue
 		}

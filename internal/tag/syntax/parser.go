@@ -10,12 +10,12 @@ import (
 
 // Info represents parsed tag information.
 type Info struct {
-	Select string   // Select is parsed from "sel" key.
-	Column string   // Column is parsed from "col" key.
-	Table  string   // Table is parsed from "table" key.
-	From   []string // From is parsed from "from" key.
-	On     []string // On is parsed from "on" key.
-	Dive   bool     // Dive indicates whether "dive" key is present.
+	Select   string   // Select is parsed from "sel" key.
+	Column   string   // Column is parsed from "col" key.
+	Table    string   // Table is parsed from "table" key.
+	From     []string // From is parsed from "from" key.
+	SelectOn []string // On is parsed from "sel_on" key.
+	Dive     bool     // Dive indicates whether "dive" key is present.
 
 	PK          bool    // PK indicates whether "pk" key is present.
 	ReadOnly    bool    // ReadOnly indicates whether "readonly" key is present.
@@ -155,13 +155,13 @@ func parseKeyValue(p *parser) (parseFn, error) {
 			p.c.From = names
 			return nil
 		})
-	case "on":
+	case "sel_on":
 		return parseStringAndSet(p, func(v string) error {
 			names, err := parseNames(v)
 			if err != nil {
 				return err
 			}
-			p.c.On = names
+			p.c.SelectOn = names
 			return nil
 		})
 	case "pk":

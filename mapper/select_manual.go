@@ -53,7 +53,7 @@ func scan[T any](db QueryAble, query string, args []any, fn func() (T, []any)) (
 		}
 		results = append(results, dest)
 	}
-	return results, nil
+	return results, rows.Err()
 }
 
 // // ScanRow scans a single row to dest, unlike rows.Scan(), it drops the extra columns.

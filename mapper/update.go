@@ -62,8 +62,7 @@ func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
-	b := sqlb.NewUpdateBuilder()
-	b.SetDialect(opt.dialect)
+	b := sqlb.NewUpdateBuilder(opt.dialect)
 	if opt.debug {
 		b.Debug(debugName("Update", value))
 	}

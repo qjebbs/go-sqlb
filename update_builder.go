@@ -79,12 +79,6 @@ func (b *UpdateBuilder) Limit(limit int64) *UpdateBuilder {
 	return b
 }
 
-// SetDialect sets the SQL dialect for the builder.
-// !!! This method MUST be called before all other methods to take effect.
-func (b *UpdateBuilder) SetDialect(d dialects.Dialect) {
-	b.dialact = d
-}
-
 func (b *UpdateBuilder) resetDepTablesCache() {
 	b.deps = nil
 }

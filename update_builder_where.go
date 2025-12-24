@@ -16,7 +16,7 @@ func (b *UpdateBuilder) Where(s sqlf.Builder) *UpdateBuilder {
 	return b
 }
 
-// AppendWhere appends raw where conditions to the builder.
+// AppendWhere appends raw where conditions to the sqlb.
 func (b *UpdateBuilder) AppendWhere(s sqlf.Builder) {
 	if s == nil {
 		return

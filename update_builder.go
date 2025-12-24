@@ -1,26 +1,25 @@
 package sqlb
 
 import (
-	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
 var _ sqlf.Builder = (*UpdateBuilder)(nil)
 var _ Builder = (*UpdateBuilder)(nil)
 
-// UpdateBuilder is the SQL query builder.
+// UpdateBuilder is the SQL query sqlb.
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type UpdateBuilder struct {
 	dialact Dialect
-	ctes    *clauses.With
-	from    *clauses.From
+	ctes    *clauseWith
+	from    *clauseFrom
 
 	target string
-	sets   *clauses.PrefixedList // select columns and keep values in scanning.
-	where  *clauses.PrefixedList // where conditions, joined with AND.
-	order  *clauses.OrderBy      // order by columns, joined with comma.
-	limit  int64                 // limit count
+	sets   *clauseList    // select columns and keep values in scanning.
+	where  *clauseList    // where conditions, joined with AND.
+	order  *clauseOrderBy // order by columns, joined with comma.
+	limit  int64          // limit count
 
 	debug     bool // debug mode
 	debugName string
@@ -37,18 +36,18 @@ func NewUpdateBuilder(dialect ...Dialect) *UpdateBuilder {
 	}
 	return &UpdateBuilder{
 		dialact: d,
-		ctes:    clauses.NewWith(),
-		from:    clauses.NewFrom(),
-		sets:    clauses.NewPrefixedList("SET", ", "),
-		where:   clauses.NewPrefixedList("WHERE", " AND "),
-		order:   clauses.NewOrderBy(),
+		ctes:    newWith(),
+		from:    newFrom(),
+		sets:    newPrefixedList("SET", ", "),
+		where:   newPrefixedList("WHERE", " AND "),
+		order:   newOrderBy(),
 	}
 }
 
 // Update set the update target table.
 func (b *UpdateBuilder) Update(table string) *UpdateBuilder {
 	if b.dialact == DialectMySQL {
-		b.from.ImplicitedFrom(clauses.NewTable(table))
+		b.from.ImplicitedFrom(NewTable(table))
 	}
 	b.resetDepTablesCache()
 	b.target = table

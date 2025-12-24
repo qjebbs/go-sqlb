@@ -1,26 +1,26 @@
-package clauses
+package sqlb
 
 import "github.com/qjebbs/go-sqlf/v4"
 
 type dependenciesKey struct{}
 
-// ContextWithDependencies returns a new context with *Dependencies attached.
-func ContextWithDependencies(ctx *sqlf.Context, deps *Dependencies) *sqlf.Context {
+// contextWithDependencies returns a new context with *Dependencies attached.
+func contextWithDependencies(ctx *sqlf.Context, deps *dependencies) *sqlf.Context {
 	return sqlf.ContextWith(ctx, dependenciesKey{}, deps)
 }
 
-// DependenciesFromContext extracts *Dependencies from context.
-func DependenciesFromContext(ctx *sqlf.Context) *Dependencies {
+// dependenciesFromContext extracts *Dependencies from context.
+func dependenciesFromContext(ctx *sqlf.Context) *dependencies {
 	if v := ctx.Value(dependenciesKey{}); v != nil {
-		if deps, ok := v.(*Dependencies); ok && deps != nil {
+		if deps, ok := v.(*dependencies); ok && deps != nil {
 			return deps
 		}
 	}
 	return nil
 }
 
-// Dependencies tracks the table dependencies during building SQL queries.
-type Dependencies struct {
+// dependencies tracks the table dependencies during building SQL queries.
+type dependencies struct {
 	DebugName string
 	// Tables are the resolved tables referenced by columns.
 	// e.g. The table 'f' of 'f.id' in the query below is reported here:
@@ -42,7 +42,7 @@ type Dependencies struct {
 }
 
 // Merge merges another DepTables into this one.
-func (d *Dependencies) Merge(from *Dependencies) {
+func (d *dependencies) Merge(from *dependencies) {
 	for t := range from.Tables {
 		d.Tables[t] = true
 	}
@@ -54,13 +54,13 @@ func (d *Dependencies) Merge(from *Dependencies) {
 	}
 }
 
-// NewDependencies creates a new Dependencies instance.
-func NewDependencies(debugName ...string) *Dependencies {
+// newDependencies creates a new Dependencies instance.
+func newDependencies(debugName ...string) *dependencies {
 	var name string
 	if len(debugName) > 0 {
 		name = debugName[0]
 	}
-	return &Dependencies{
+	return &dependencies{
 		DebugName:   name,
 		Tables:      make(map[Table]bool),
 		OuterTables: make(map[Table]bool),

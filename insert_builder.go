@@ -1,20 +1,19 @@
 package sqlb
 
 import (
-	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
 var _ sqlf.Builder = (*InsertBuilder)(nil)
 var _ Builder = (*InsertBuilder)(nil)
 
-// InsertBuilder is the SQL query builder.
+// InsertBuilder is the SQL query sqlb.
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type InsertBuilder struct {
 	dialact Dialect
 
-	ctes       *clauses.With
+	ctes       *clauseWith
 	target     string         // target table for insertion
 	columns    []string       // select columns and keep values in scanning.
 	values     [][]any        // values for insert/update
@@ -37,7 +36,7 @@ func NewInsertBuilder(dialect ...Dialect) *InsertBuilder {
 	}
 	return &InsertBuilder{
 		dialact: d,
-		ctes:    clauses.NewWith(),
+		ctes:    newWith(),
 	}
 }
 

@@ -1,29 +1,29 @@
-package clauses
+package sqlb
 
 import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-var _ sqlf.Builder = (*PrefixedList)(nil)
+var _ sqlf.Builder = (*clauseList)(nil)
 
-// PrefixedList represents a SQL clause that consists of multiple builders
+// clauseList represents a SQL clause that consists of multiple builders
 // prefixed with a clause keyword, e.g., SELECT, WHERE, HAVING, GROUP BY, UNION, etc.
-type PrefixedList struct {
+type clauseList struct {
 	prefix    string
 	separator string
 	elements  []sqlf.Builder // where conditions, joined with AND.
 }
 
-// NewPrefixedList creates a new WhereLike instance.
-func NewPrefixedList(clause, separator string) *PrefixedList {
-	return &PrefixedList{
+// newPrefixedList creates a new WhereLike instance.
+func newPrefixedList(clause, separator string) *clauseList {
+	return &clauseList{
 		prefix:    clause,
 		separator: separator,
 	}
 }
 
 // SetPrefix sets the clause prefix.
-func (b *PrefixedList) SetPrefix(clause string) *PrefixedList {
+func (b *clauseList) SetPrefix(clause string) *clauseList {
 	b.prefix = clause
 	return b
 }
@@ -34,7 +34,7 @@ func (b *PrefixedList) SetPrefix(clause string) *PrefixedList {
 //		"? = ?",
 //		foo.Column("id"), 1,
 //	))
-func (b *PrefixedList) Append(s ...sqlf.Builder) *PrefixedList {
+func (b *clauseList) Append(s ...sqlf.Builder) *clauseList {
 	if s == nil {
 		return b
 	}
@@ -43,18 +43,18 @@ func (b *PrefixedList) Append(s ...sqlf.Builder) *PrefixedList {
 }
 
 // Replace replaces all existing elements with the given ones.
-func (b *PrefixedList) Replace(elements []sqlf.Builder) *PrefixedList {
+func (b *clauseList) Replace(elements []sqlf.Builder) *clauseList {
 	b.elements = elements
 	return b
 }
 
 // Empty returns whether there is no element.
-func (b *PrefixedList) Empty() bool {
+func (b *clauseList) Empty() bool {
 	return b == nil || len(b.elements) == 0
 }
 
 // Build implements sqlf.Builder
-func (b *PrefixedList) Build(ctx *sqlf.Context) (string, error) {
+func (b *clauseList) Build(ctx *sqlf.Context) (string, error) {
 	if b == nil || len(b.elements) == 0 {
 		return "", nil
 	}

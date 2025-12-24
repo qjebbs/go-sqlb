@@ -1,4 +1,4 @@
-package clauses
+package sqlb
 
 import (
 	"fmt"
@@ -6,10 +6,10 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-var _ sqlf.Builder = (*OrderBy)(nil)
+var _ sqlf.Builder = (*clauseOrderBy)(nil)
 
-// OrderBy represents a SQL ORDER BY clause.
-type OrderBy struct {
+// clauseOrderBy represents a SQL ORDER BY clause.
+type clauseOrderBy struct {
 	orders []*orderItem
 }
 
@@ -41,13 +41,13 @@ var orders = []string{
 	"DESC NULLS LAST",
 }
 
-// NewOrderBy creates a new OrderBy instance.
-func NewOrderBy() *OrderBy {
-	return &OrderBy{}
+// newOrderBy creates a new OrderBy instance.
+func newOrderBy() *clauseOrderBy {
+	return &clauseOrderBy{}
 }
 
 // Add adds an order item.
-func (o *OrderBy) Add(column sqlf.Builder, order Order) *OrderBy {
+func (o *clauseOrderBy) Add(column sqlf.Builder, order Order) *clauseOrderBy {
 	o.orders = append(o.orders, &orderItem{
 		column: column,
 		order:  order,
@@ -56,7 +56,7 @@ func (o *OrderBy) Add(column sqlf.Builder, order Order) *OrderBy {
 }
 
 // Build implements sqlf.Builder
-func (o *OrderBy) Build(ctx *sqlf.Context) (string, error) {
+func (o *clauseOrderBy) Build(ctx *sqlf.Context) (string, error) {
 	if o == nil || len(o.orders) == 0 {
 		return "", nil
 	}

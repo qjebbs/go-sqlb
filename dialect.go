@@ -1,4 +1,4 @@
-package dialects
+package sqlb
 
 import "strings"
 

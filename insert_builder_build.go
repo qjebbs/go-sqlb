@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	myutil "github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
@@ -50,14 +49,14 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 
 	built := make([]string, 0)
 	if b.selects != nil && b.ctes.HasCTE() {
-		myDeps := clauses.NewDependencies(b.debugName)
-		depCtx := clauses.ContextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), myDeps)
+		myDeps := newDependencies(b.debugName)
+		depCtx := contextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), myDeps)
 		_, err := b.selects.Build(depCtx)
 		if err != nil {
 			return "", err
 		}
 
-		if deps := clauses.DependenciesFromContext(ctx); deps != nil {
+		if deps := dependenciesFromContext(ctx); deps != nil {
 			for t := range myDeps.OuterTables {
 				deps.OuterTables[t] = true
 			}

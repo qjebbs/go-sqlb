@@ -1,4 +1,4 @@
-package clauses
+package sqlb
 
 import (
 	"errors"
@@ -8,8 +8,8 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-// From represents a SQL FROM clause.
-type From struct {
+// clauseFrom represents a SQL FROM clause.
+type clauseFrom struct {
 	tables     []*fromTable          // the tables in order
 	tablesDict map[string]*fromTable // the from tables by alias
 
@@ -17,15 +17,15 @@ type From struct {
 	errors       []error // errors during building
 }
 
-// NewFrom creates a new From instance.
-func NewFrom() *From {
-	return &From{
+// newFrom creates a new From instance.
+func newFrom() *clauseFrom {
+	return &clauseFrom{
 		tablesDict: make(map[string]*fromTable),
 	}
 }
 
-// FromBuilderMeta contains metadata for building FROM clause.
-type FromBuilderMeta struct {
+// fromBuilderMeta contains metadata for building FROM clause.
+type fromBuilderMeta struct {
 	DebugName  string
 	DependOnMe []sqlf.Builder
 	Distinct   bool
@@ -33,7 +33,7 @@ type FromBuilderMeta struct {
 }
 
 // BuildRequired builds the FROM clause with required tables.
-func (b *From) BuildRequired(ctx *sqlf.Context, meta *FromBuilderMeta, deps *Dependencies) (string, error) {
+func (b *clauseFrom) BuildRequired(ctx *sqlf.Context, meta *fromBuilderMeta, deps *dependencies) (string, error) {
 	err := b.anyError()
 	if err != nil {
 		return "", err
@@ -67,7 +67,7 @@ func (b *From) BuildRequired(ctx *sqlf.Context, meta *FromBuilderMeta, deps *Dep
 }
 
 // CollectDependencies collects the table dependencies from FROM clause.
-func (b *From) CollectDependencies(meta *FromBuilderMeta) (*Dependencies, error) {
+func (b *clauseFrom) CollectDependencies(meta *fromBuilderMeta) (*dependencies, error) {
 	// extractTables gets all deps used in the builders,
 	// there are two types of table reporting:
 	// 1. *SelectBuilder only reports its unresolved deps (not defined in CTEs).
@@ -81,7 +81,7 @@ func (b *From) CollectDependencies(meta *FromBuilderMeta) (*Dependencies, error)
 		deps.Tables[t] = true
 	}
 	deps.OuterTables = map[Table]bool{}
-	depsOfTables := NewDependencies()
+	depsOfTables := newDependencies()
 	for _, t := range b.tables {
 		if b.shouldEliminateTable(meta, t, deps) {
 			continue
@@ -117,7 +117,7 @@ func (b *From) CollectDependencies(meta *FromBuilderMeta) (*Dependencies, error)
 	return deps, nil
 }
 
-func (b *From) collectDepsFromTable(meta *FromBuilderMeta, dep *Dependencies, t Table) error {
+func (b *clauseFrom) collectDepsFromTable(meta *fromBuilderMeta, dep *dependencies, t Table) error {
 	from, ok := b.tablesDict[t.AppliedName()]
 	if !ok {
 		if meta.DebugName != "" {
@@ -145,16 +145,16 @@ func (b *From) collectDepsFromTable(meta *FromBuilderMeta, dep *Dependencies, t 
 	return nil
 }
 
-func (b *From) extractTables(debugName string, args ...sqlf.Builder) (*Dependencies, error) {
-	tables := NewDependencies(debugName)
-	ctx := ContextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), tables)
+func (b *clauseFrom) extractTables(debugName string, args ...sqlf.Builder) (*dependencies, error) {
+	tables := newDependencies(debugName)
+	ctx := contextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), tables)
 	_, err := sqlf.Join(";", args...).Build(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return tables, nil
 }
-func (b *From) shouldEliminateTable(meta *FromBuilderMeta, t *fromTable, dep *Dependencies) bool {
+func (b *clauseFrom) shouldEliminateTable(meta *fromBuilderMeta, t *fromTable, dep *dependencies) bool {
 	if !t.optional || dep.Tables[t.table] {
 		return false
 	}
@@ -166,7 +166,7 @@ func (b *From) shouldEliminateTable(meta *FromBuilderMeta, t *fromTable, dep *De
 }
 
 // From set the from table.
-func (b *From) From(t Table) *From {
+func (b *clauseFrom) From(t Table) *clauseFrom {
 	b.explicitFrom = true
 	return b.from(t)
 }
@@ -174,14 +174,14 @@ func (b *From) From(t Table) *From {
 // ImplicitedFrom set the from table only for dependency collection,
 // but ignore it in the final query building (for UPDATE .. JOIN ..).
 // It has no effect if From() has been called before.
-func (b *From) ImplicitedFrom(t Table) *From {
+func (b *clauseFrom) ImplicitedFrom(t Table) *clauseFrom {
 	if b.explicitFrom {
 		return b
 	}
 	return b.from(t)
 }
 
-func (b *From) from(t Table) *From {
+func (b *clauseFrom) from(t Table) *clauseFrom {
 	if t.Name == "" {
 		b.pushError(fmt.Errorf("from table is empty"))
 		return b
@@ -202,7 +202,7 @@ func (b *From) from(t Table) *From {
 }
 
 // Join append or replace a Join table.
-func (b *From) Join(joinStr string, t Table, on *sqlf.Fragment, optional, forceEliminate bool) *From {
+func (b *clauseFrom) Join(joinStr string, t Table, on *sqlf.Fragment, optional, forceEliminate bool) *clauseFrom {
 	if t.Name == "" {
 		b.pushError(fmt.Errorf("join table name is empty"))
 		return b
@@ -245,11 +245,11 @@ type fromTable struct {
 	forceEliminate bool // user declared to eliminate if not referenced
 }
 
-func (b *From) pushError(err error) {
+func (b *clauseFrom) pushError(err error) {
 	b.errors = append(b.errors, err)
 }
 
-func (b *From) anyError() error {
+func (b *clauseFrom) anyError() error {
 	if len(b.errors) == 0 {
 		return nil
 	}

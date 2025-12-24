@@ -1,7 +1,6 @@
 package sqlb
 
 import (
-	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -9,24 +8,23 @@ import (
 var _ sqlf.Builder = (*SelectBuilder)(nil)
 var _ Builder = (*SelectBuilder)(nil)
 
-// SelectBuilder is the SQL query builder.
+// SelectBuilder is the SQL query sqlb.
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type SelectBuilder struct {
-	ctes *clauses.With
-	from *clauses.From
+	ctes *clauseWith
+	from *clauseFrom
 
-	selects  *clauses.PrefixedList // select columns and keep values in scanning.
-	where    *clauses.PrefixedList
-	order    *clauses.OrderBy
-	groupbys *clauses.PrefixedList // group by columns, joined with comma.
-	having   *clauses.PrefixedList // having conditions, joined with AND.
-	distinct bool                  // select distinct
-	limit    int64                 // limit count
-	offset   int64                 // offset count
-	unions   *clauses.PrefixedList // union queries
-
-	errors []error // errors during building
+	selects  *clauseList // select columns and keep values in scanning.
+	where    *clauseList
+	order    *clauseOrderBy
+	groupbys *clauseList // group by columns, joined with comma.
+	having   *clauseList // having conditions, joined with AND.
+	distinct bool        // select distinct
+	limit    int64       // limit count
+	offset   int64       // offset count
+	unions   *clauseList // union queries
+	errors   []error     // errors during building
 
 	debug     bool // debug mode
 	debugName string
@@ -37,14 +35,14 @@ type SelectBuilder struct {
 // NewSelectBuilder returns a new SelectBuilder.
 func NewSelectBuilder() *SelectBuilder {
 	return &SelectBuilder{
-		ctes:     clauses.NewWith(),
-		from:     clauses.NewFrom(),
-		order:    clauses.NewOrderBy(),
-		groupbys: clauses.NewPrefixedList("GROUP BY", ", "),
-		having:   clauses.NewPrefixedList("HAVING", " AND "),
-		selects:  clauses.NewPrefixedList("SELECT", ", "),
-		where:    clauses.NewPrefixedList("WHERE", " AND "),
-		unions:   clauses.NewPrefixedList("", " "),
+		ctes:     newWith(),
+		from:     newFrom(),
+		order:    newOrderBy(),
+		groupbys: newPrefixedList("GROUP BY", ", "),
+		having:   newPrefixedList("HAVING", " AND "),
+		selects:  newPrefixedList("SELECT", ", "),
+		where:    newPrefixedList("WHERE", " AND "),
+		unions:   newPrefixedList("", " "),
 	}
 }
 

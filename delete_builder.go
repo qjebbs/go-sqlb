@@ -1,7 +1,6 @@
 package sqlb
 
 import (
-	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlf/v4"
 	"github.com/qjebbs/go-sqlf/v4/util"
 )
@@ -9,12 +8,12 @@ import (
 var _ sqlf.Builder = (*DeleteBuilder)(nil)
 var _ Builder = (*DeleteBuilder)(nil)
 
-// DeleteBuilder is the SQL query builder.
+// DeleteBuilder is the SQL query sqlb.
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type DeleteBuilder struct {
 	target string
-	where  *clauses.PrefixedList // where conditions, joined with AND.
+	where  *clauseList // where conditions, joined with AND.
 
 	debug     bool // debug mode
 	debugName string
@@ -23,7 +22,7 @@ type DeleteBuilder struct {
 // NewDeleteBuilder returns a new DeleteBuilder.
 func NewDeleteBuilder() *DeleteBuilder {
 	return &DeleteBuilder{
-		where: clauses.NewPrefixedList("WHERE", " AND "),
+		where: newPrefixedList("WHERE", " AND "),
 	}
 }
 

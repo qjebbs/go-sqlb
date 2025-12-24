@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -45,7 +44,7 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if deps := clauses.DependenciesFromContext(ctx); deps != nil {
+	if deps := dependenciesFromContext(ctx); deps != nil {
 		for t := range myDeps.unresolved.OuterTables {
 			deps.OuterTables[t] = true
 		}
@@ -120,8 +119,8 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	return query, nil
 }
 
-func (b *UpdateBuilder) joinBuilderMeta() *clauses.FromBuilderMeta {
-	return &clauses.FromBuilderMeta{
+func (b *UpdateBuilder) joinBuilderMeta() *fromBuilderMeta {
+	return &fromBuilderMeta{
 		DebugName: b.debugName,
 		DependOnMe: []sqlf.Builder{
 			b.sets,

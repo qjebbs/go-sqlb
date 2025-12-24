@@ -1,4 +1,4 @@
-package clauses
+package sqlb
 
 import "github.com/qjebbs/go-sqlf/v4"
 
@@ -6,7 +6,7 @@ var _ (sqlf.Builder) = Table{}
 
 // Build implements sqlf.Builder
 func (t Table) Build(ctx *sqlf.Context) (query string, err error) {
-	if deps := DependenciesFromContext(ctx); deps != nil {
+	if deps := dependenciesFromContext(ctx); deps != nil {
 		// collecting
 		deps.Tables[t] = true
 	}

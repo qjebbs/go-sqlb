@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/qjebbs/go-sqlb/internal/clauses"
 	"github.com/qjebbs/go-sqlf/v4"
 	"github.com/qjebbs/go-sqlf/v4/util"
 )
@@ -43,7 +42,7 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if deps := clauses.DependenciesFromContext(ctx); deps != nil {
+	if deps := dependenciesFromContext(ctx); deps != nil {
 		for t := range myDeps.unresolved.OuterTables {
 			deps.OuterTables[t] = true
 		}
@@ -66,7 +65,7 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		return "", err
 	}
 	built = append(built, sel)
-	from, err := b.from.BuildRequired(ctx, &clauses.FromBuilderMeta{
+	from, err := b.from.BuildRequired(ctx, &fromBuilderMeta{
 		DebugName:  b.debugName,
 		Distinct:   b.distinct,
 		HasGroupBy: !b.groupbys.Empty(),
@@ -154,9 +153,9 @@ func (b *SelectBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 }
 
 type selectBuilderDependencies struct {
-	queryDeps  *clauses.Dependencies
+	queryDeps  *dependencies
 	cteDeps    map[string]bool
-	unresolved *clauses.Dependencies
+	unresolved *dependencies
 }
 
 // collectDependencies collects the dependencies of the tables.
@@ -164,7 +163,7 @@ func (b *SelectBuilder) collectDependencies() (*selectBuilderDependencies, error
 	if b.deps != nil {
 		return b.deps, nil
 	}
-	queryDeps, err := b.from.CollectDependencies(&clauses.FromBuilderMeta{
+	queryDeps, err := b.from.CollectDependencies(&fromBuilderMeta{
 		DebugName: b.debugName,
 		DependOnMe: []sqlf.Builder{
 			b.selects,

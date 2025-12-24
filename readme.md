@@ -10,8 +10,8 @@ With sqlb, All queries are explicitly coded or declared, there is no hidden beha
 
 ## Complex SELECT with Struct Mapping
 
-sqlb provides a select builder shipped with WITH-CTE / JOIN 
-Elimination abilities, allowing you to build sophisticated SQL queries programmatically, 
+sqlb provides a select builder shipped with WITH-CTE / JOIN
+Elimination abilities, allowing you to build sophisticated SQL queries programmatically,
 and easily map the results to nested structs with `mapper.Select()`.
 
 ```go
@@ -67,6 +67,11 @@ func Example_complexSelect() {
 }
 ```
 
+See Also:
+
+- [example_select_test.go](./example_select_test.go) for more SELECT builder examples.
+
+
 ## CRUD Operations
 
 sqlb provides declarative struct mapping via `mapper` package,
@@ -107,6 +112,8 @@ func Example_cRUD() {
 		Email string `sqlb:"col:email;unique;conflict_on"`
 		// conflict_set without value means to use excluded column value
 		Name string `sqlb:"col:name;conflict_set"`
+		// load tag defines how to load the value from DB, here it uses COALESCE to handle NULL values.
+		LoginName string `sqlb:"col:login_name;load:COALESCE(?,'');"`
 	}
 
 	user := &User{Email: "alice@example.org", Name: "Alice"}
@@ -145,15 +152,10 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, id FROM users WHERE email = 'alice@example.org'
+	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, name = EXCLUDED.name RETURNING id
+	// [Load(*mapper_test.User)] SELECT created, updated, name, COALESCE(login_name,''), id FROM users WHERE email = 'alice@example.org'
 	// [Update(*mapper_test.User)] UPDATE users SET name = 'Alice' WHERE id = 1
-	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '' WHERE id = 1
+	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '', login_name = '' WHERE id = 1
 	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
 }
 ```
-
-See Also:
-
-- [example_select_test.go](./example_select_test.go) for more SELECT builder examples.
-- [example_update_test.go](./example_update_test.go) for more UPDATE operation examples.

@@ -133,7 +133,7 @@ func Example_cRUD() {
 	}
 
 	// Partial update: only non-zero fields will be updated.
-	err = mapper.Update(nil, &User{
+	err = mapper.Patch(nil, &User{
 		Model: Model{ID: user.ID},
 		Name:  "Alice",
 	}, mapper.WithDebug())
@@ -142,7 +142,7 @@ func Example_cRUD() {
 	}
 
 	user.Name = ""
-	err = mapper.Update(nil, user, mapper.WithUpdateAll(), mapper.WithDebug())
+	err = mapper.Update(nil, user, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}

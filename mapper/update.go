@@ -26,15 +26,22 @@ import (
 //
 // If no `pk` field is defined, Update() will return an error to avoid accidental full-table update.
 func Update[T any](db QueryAble, value T, options ...Option) error {
-	return wrapErrWithDebugName("Update", value, update(db, value, options...))
+	return wrapErrWithDebugName("Update", value, update(db, value, true, options...))
 }
 
-func update[T any](db QueryAble, value T, options ...Option) error {
+// Patch is similar to Update(), but it only updates non-zero fields of the struct.
+//
+// See Update() for more details.
+func Patch[T any](db QueryAble, value T, options ...Option) error {
+	return wrapErrWithDebugName("Update", value, update(db, value, false, options...))
+}
+
+func update[T any](db QueryAble, value T, updateAll bool, options ...Option) error {
 	if err := checkStruct(value); err != nil {
 		return err
 	}
 	opt := mergeOptions(options...)
-	queryStr, args, err := buildUpdateQueryForStruct(value, opt)
+	queryStr, args, err := buildUpdateQueryForStruct(value, updateAll, opt)
 	if err != nil {
 		return err
 	}
@@ -58,7 +65,7 @@ func update[T any](db QueryAble, value T, options ...Option) error {
 	return err
 }
 
-func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args []any, err error) {
+func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
@@ -72,7 +79,7 @@ func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args
 	if err != nil {
 		return "", nil, err
 	}
-	updateInfo, err := buildUpdateInfo(opt.dialect, info, opt, value)
+	updateInfo, err := buildUpdateInfo(opt.dialect, info, updateAll, opt, value)
 	if err != nil {
 		return "", nil, err
 	}
@@ -119,7 +126,7 @@ type fieldData struct {
 	IsZero bool
 }
 
-func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, opt *Options, value T) (*updateInfo, error) {
+func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll bool, opt *Options, value T) (*updateInfo, error) {
 	valueVal := reflect.ValueOf(value)
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()
@@ -155,7 +162,7 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, opt *Option
 			r.pk = data
 		case col.Match:
 			r.matchColumns = append(r.matchColumns, data)
-		case col.ReadOnly || (iszero && !opt.updateAll):
+		case col.ReadOnly || (iszero && !updateAll):
 			// skip
 		default:
 			r.updateColumns = append(r.updateColumns, data)

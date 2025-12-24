@@ -18,7 +18,6 @@ import (
 // The supported struct tags are:
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: The column associated with the field.
-//   - load: Custom SQL expression for loading the field, e.g. `COALESCE(?, 0)`, `?` will be replaced with the column identifier.
 //   - pk: The column is primary key, which could be used in WHERE clause to locate the row.
 //   - unique: The column could be used in WHERE clause to locate the row. There's no tag for "Composite Unique" fields, since any one of them is not unique alone.
 //   - conflict_on: Multiple of them form a composite unique constraint, which could be used in WHERE clause to locate the row.
@@ -86,10 +85,7 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 
 	b := sqlb.NewSelectBuilder().
 		Select(util.Map(loadInfo.selects, func(c fieldData) sqlf.Builder {
-			if c.Info.Load == "" {
-				return sqlf.F(c.Indent)
-			}
-			return sqlf.F(c.Info.Load, sqlf.F(c.Indent))
+			return sqlf.F(c.Indent)
 		})...).
 		From(sqlb.NewTable(loadInfo.table)).
 		Where(sqlf.Join(" AND ", conds...))

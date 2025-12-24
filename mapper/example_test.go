@@ -39,22 +39,17 @@ func Example_cRUD() {
 		Email string `sqlb:"col:email;unique;conflict_on"`
 		// conflict_set without value means to use excluded column value
 		Name string `sqlb:"col:name;conflict_set"`
-		// load tag defines how to load the value from DB, here it uses COALESCE to handle NULL values.
-		LoginName string `sqlb:"col:login_name;load:COALESCE(?,'');"`
 	}
 
-	user := &User{Email: "alice@example.org", Name: "Alice"}
-	user2 := &User{Email: "bob@example.org", Name: ""}
-	err := mapper.Insert(nil, []*User{user, user2}, mapper.WithDebug())
+	err := mapper.Insert(nil, []*User{
+		{Email: "alice@example.org", Name: "Alice"},
+		{Email: "bob@example.org", Name: ""},
+	}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
-	// After insertion, the ID field will be populated and set by mapper.
-	// Here we just simulate it.
-	user.ID = 1
-	user2.ID = 2
 
-	_, err = mapper.Load(nil, &User{Email: "alice@example.org"}, mapper.WithDebug())
+	_, err = mapper.Load(nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
@@ -62,7 +57,6 @@ func Example_cRUD() {
 	// Partial update: only non-zero fields will be updated.
 	// Here we located the record by unique Email field.
 	err = mapper.Patch(nil, &User{
-		// Model: Model{ID: user.ID},
 		Email: "alice@example.org",
 		Name:  "Happy Alice",
 	}, mapper.WithDebug())
@@ -70,14 +64,14 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 
-	user.Name = ""
-	err = mapper.Update(nil, user, mapper.WithDebug())
+	err = mapper.Update(nil, &User{Email: "alice@example.org"}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 
 	// You don't have to set the .Deleted field manually, mapper will set it to current time automatically.
 	// But here we set it to a fixed value to make the example output deterministic.
+	user := &User{Model: Model{ID: 1}}
 	user.Deleted = &time.Time{}
 	err = mapper.Delete(nil, user, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
@@ -85,9 +79,9 @@ func Example_cRUD() {
 	}
 	// Output:
 	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, deleted = EXCLUDED.deleted, name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, COALESCE(login_name,''), id FROM users WHERE email = 'alice@example.org' AND deleted IS NULL
+	// [Load(*mapper_test.User)] SELECT created, updated, name, email FROM users WHERE id = 1 AND deleted IS NULL
 	// [Patch(*mapper_test.User)] UPDATE users SET name = 'Happy Alice' WHERE email = 'alice@example.org' AND deleted IS NULL
-	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, name = '', login_name = '', email = 'alice@example.org' WHERE id = 1 AND deleted IS NULL
+	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, name = '' WHERE email = 'alice@example.org' AND deleted IS NULL
 	// [Delete(*mapper_test.User)] UPDATE users SET deleted = '0001-01-01 00:00:00 +0000 UTC' WHERE id = 1 AND deleted = NULL
 }
 

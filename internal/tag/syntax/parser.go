@@ -24,9 +24,8 @@ type Info struct {
 	ConflictOn  bool    // ConflictOn indicates whether "conflict_on" key is present.
 	ConflictSet *string // ConflictSet is parsed from "conflict_set" key.
 
-	Unique bool   // Unique indicates whether "unique" key is present.
-	Match  bool   // Match indicates whether "match" key is present.
-	Load   string // Load is parsed from "load" key.
+	Unique bool // Unique indicates whether "unique" key is present.
+	Match  bool // Match indicates whether "match" key is present.
 
 	SoftDelete bool // SoftDelete indicates whether "soft_delete" key is present.
 }
@@ -181,11 +180,6 @@ func parseKeyValue(p *parser) (parseFn, error) {
 	case "soft_delete":
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.SoftDelete = v
-		})
-	case "load":
-		return parseStringAndSet(p, func(v string) error {
-			p.c.Load = v
-			return nil
 		})
 	case "readonly":
 		return parseBoolAndSet(p, func(v bool) {

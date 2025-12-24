@@ -177,7 +177,7 @@ func getValueAtIndex(dest []int, v reflect.Value) (value any, iszero, ok bool) {
 		if current.IsNil() {
 			return nil, true, true
 		}
-		current = current.Elem()
+		return current.Interface(), false, true
 	}
 	return current.Interface(), current.IsZero(), true
 }

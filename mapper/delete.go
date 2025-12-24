@@ -77,7 +77,7 @@ func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args
 
 	conds := make([]sqlf.Builder, len(deleteInfo.wheres))
 	for i, col := range deleteInfo.wheres {
-		conds[i] = eqOrIsNull(col.ColumnIndent, col.Value)
+		conds[i] = eqOrIsNull(col.Indent, col.Value)
 	}
 
 	b := sqlb.NewDeleteBuilder().

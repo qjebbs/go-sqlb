@@ -14,7 +14,7 @@ type structInfo struct {
 }
 
 type fieldInfo struct {
-	*syntax.Info
+	syntax.Info
 
 	Diving     bool  // whether this field is from a 'dive' operation
 	CheckUsage bool  // whether to do usage check for tables inherited from anonymous fields
@@ -129,7 +129,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					continue
 				}
 				columns = append(columns, fieldInfo{
-					Info:       info,
+					Info:       *info,
 					CheckUsage: checkUsage,
 					Index:      currentPath,
 				})

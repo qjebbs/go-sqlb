@@ -3,6 +3,7 @@ package mapper
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -81,15 +82,15 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 
 	conds := make([]sqlf.Builder, len(loadInfo.wheres))
 	for i, col := range loadInfo.wheres {
-		conds[i] = eqOrIsNull(col.ColumnIndent, col.Value)
+		conds[i] = eqOrIsNull(col.Indent, col.Value)
 	}
 
 	b := sqlb.NewSelectBuilder().
 		Select(util.Map(loadInfo.selects, func(c fieldData) sqlf.Builder {
 			if c.Info.Load == "" {
-				return sqlf.F(c.ColumnIndent)
+				return sqlf.F(c.Indent)
 			}
-			return sqlf.F(c.Info.Load, sqlf.F(c.ColumnIndent))
+			return sqlf.F(c.Info.Load, sqlf.F(c.Indent))
 		})...).
 		From(sqlb.NewTable(loadInfo.table)).
 		Where(sqlf.Join(" AND ", conds...))
@@ -142,20 +143,24 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 			continue
 		}
 		colIndent := dialect.QuoteIdentifier(col.Column)
-		colValue := getNonZeroAtIndexOrNil(col.Index, valueVal)
+		colValue, iszero, ok := getValueAtIndex(col.Index, valueVal)
+		if !ok {
+			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
+		}
 		colData := fieldData{
-			ColumnIndent: colIndent,
-			Info:         col,
-			Value:        colValue,
+			Info:   col,
+			Indent: colIndent,
+			Value:  colValue,
+			IsZero: iszero,
 		}
 
 		switch {
 		case col.PK:
-			if pk.ColumnIndent != "" {
+			if pk.Indent != "" {
 				return nil, errors.New("multiple primary key columns defined")
 			}
 			pk = colData
-		case col.Unique && colValue != nil:
+		case col.Unique && !iszero:
 			unique = append(unique, colData)
 		case col.ConflictOn:
 			constraints = append(constraints, colData)
@@ -169,7 +174,7 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 	if table == "" {
 		return nil, errors.New("no table defined ")
 	}
-	if pk.ColumnIndent != "" && pk.Value != nil {
+	if pk.Indent != "" && !pk.IsZero {
 		whereColumns = append(whereColumns, pk)
 		selectColumns = append(selectColumns, unique...)
 		selectColumns = append(selectColumns, constraints...)
@@ -198,12 +203,4 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 		selects: selectColumns,
 		wheres:  whereColumns,
 	}, nil
-}
-
-func getNonZeroAtIndexOrNil(dest []int, v reflect.Value) any {
-	current, ok := getReflectValueAtIndex(dest, v)
-	if !ok || current.IsZero() {
-		return nil
-	}
-	return current.Interface()
 }

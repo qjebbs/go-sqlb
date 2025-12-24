@@ -82,12 +82,12 @@ func buildUpdateQueryForStruct[T any](value T, opt *Options) (query string, args
 		b.Update(updateInfo.table)
 	}
 	for _, coldata := range updateInfo.updateColumns {
-		b.Set(coldata.ColumnIndent, coldata.Value)
+		b.Set(coldata.Indent, coldata.Value)
 	}
 
-	b.AppendWhere(eqOrIsNull(updateInfo.pk.ColumnIndent, updateInfo.pk.Value))
+	b.AppendWhere(eqOrIsNull(updateInfo.pk.Indent, updateInfo.pk.Value))
 	for _, coldata := range updateInfo.matchColumns {
-		b.AppendWhere(eqOrIsNull(coldata.ColumnIndent, coldata.Value))
+		b.AppendWhere(eqOrIsNull(coldata.Indent, coldata.Value))
 	}
 
 	query, args, err = b.BuildQuery(opt.style)
@@ -113,9 +113,10 @@ type updateInfo struct {
 }
 
 type fieldData struct {
-	Info         fieldInfo
-	ColumnIndent string
-	Value        any
+	Info   fieldInfo
+	Indent string
+	Value  any
+	IsZero bool
 }
 
 func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, opt *Options, value T) (*updateInfo, error) {
@@ -141,13 +142,14 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, opt *Option
 			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
 		}
 		data := fieldData{
-			ColumnIndent: colIndent,
-			Info:         col,
-			Value:        colValue,
+			Info:   col,
+			Indent: colIndent,
+			Value:  colValue,
+			IsZero: iszero,
 		}
 		switch {
 		case col.PK:
-			if r.pk.ColumnIndent != "" {
+			if r.pk.Indent != "" {
 				return nil, errors.New("multiple primary key columns defined for update")
 			}
 			r.pk = data
@@ -159,39 +161,11 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, opt *Option
 			r.updateColumns = append(r.updateColumns, data)
 		}
 	}
-	if r.pk.ColumnIndent == "" {
+	if r.pk.Indent == "" {
 		return nil, errors.New("no primary key defined for update")
 	}
 	if len(r.updateColumns) == 0 {
 		return nil, errors.New("no updatable columns found for update")
 	}
 	return &r, nil
-}
-
-func getValueAtIndex(dest []int, v reflect.Value) (value any, iszero, ok bool) {
-	current, ok := getReflectValueAtIndex(dest, v)
-	if !ok {
-		return nil, false, false
-	}
-	if current.Kind() == reflect.Ptr {
-		if current.IsNil() {
-			return nil, true, true
-		}
-		return current.Interface(), false, true
-	}
-	return current.Interface(), current.IsZero(), true
-}
-
-func getReflectValueAtIndex(dest []int, v reflect.Value) (reflect.Value, bool) {
-	current := v
-	for _, idx := range dest {
-		if current.Kind() == reflect.Ptr {
-			if current.IsNil() {
-				return reflect.Value{}, false
-			}
-			current = current.Elem()
-		}
-		current = current.Field(idx)
-	}
-	return current, true
 }

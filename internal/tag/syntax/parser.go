@@ -27,6 +27,8 @@ type Info struct {
 	Unique bool   // Unique indicates whether "unique" key is present.
 	Match  bool   // Match indicates whether "match" key is present.
 	Load   string // Load is parsed from "load" key.
+
+	SoftDelete bool // SoftDelete indicates whether "soft_delete" key is present.
 }
 
 // Parse parses the input and returns the list of expressions.
@@ -175,6 +177,10 @@ func parseKeyValue(p *parser) (parseFn, error) {
 	case "match":
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.Match = v
+		})
+	case "soft_delete":
+		return parseBoolAndSet(p, func(v bool) {
+			p.c.SoftDelete = v
 		})
 	case "load":
 		return parseStringAndSet(p, func(v string) error {

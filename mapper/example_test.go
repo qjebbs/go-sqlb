@@ -23,6 +23,11 @@ func Example_cRUD() {
 		// Updated is the last update time.
 		// conflict_set means when inserting an existing record, the Updated will be updated.
 		Updated *time.Time `sqlb:"col:updated;conflict_set"`
+		// soft_delete indicates this column is used for soft deletion.
+		// When deleting, the column will be set to current time or true instead of actually deleting the record.
+		// When loading, records with non-zero value in this column will be ignored.
+		// conflict_set means when inserting an deleted record, undelete it.
+		Deleted *time.Time `sqlb:"col:deleted;soft_delete;conflict_set"`
 	}
 
 	type User struct {
@@ -69,16 +74,19 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 
-	_, err = mapper.Delete(nil, user, mapper.WithDebug())
+	// You don't have to set the .Deleted field manually, mapper will set it to current time automatically.
+	// But here we set it to a fixed value to make the example output deterministic.
+	user.Deleted = &time.Time{}
+	err = mapper.Delete(nil, user, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, COALESCE(login_name,''), id FROM users WHERE email = 'alice@example.org'
-	// [Update(*mapper_test.User)] UPDATE users SET name = 'Alice' WHERE id = 1
-	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '', login_name = '' WHERE id = 1
-	// [Delete(*mapper_test.User)] DELETE FROM users WHERE id = 1
+	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, deleted = EXCLUDED.deleted, name = EXCLUDED.name RETURNING id
+	// [Load(*mapper_test.User)] SELECT created, updated, name, COALESCE(login_name,''), id FROM users WHERE email = 'alice@example.org' AND deleted IS NULL
+	// [Patch(*mapper_test.User)] UPDATE users SET name = 'Alice' WHERE id = 1 AND deleted IS NULL
+	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '', login_name = '' WHERE id = 1 AND deleted IS NULL
+	// [Delete(*mapper_test.User)] UPDATE users SET deleted = '0001-01-01 00:00:00 +0000 UTC' WHERE id = 1 AND deleted = NULL
 }
 
 func Example_complexSelect() {

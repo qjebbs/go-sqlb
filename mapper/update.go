@@ -33,7 +33,7 @@ func Update[T any](db QueryAble, value T, options ...Option) error {
 //
 // See Update() for more details.
 func Patch[T any](db QueryAble, value T, options ...Option) error {
-	return wrapErrWithDebugName("Update", value, update(db, value, false, options...))
+	return wrapErrWithDebugName("Patch", value, update(db, value, false, options...))
 }
 
 func update[T any](db QueryAble, value T, updateAll bool, options ...Option) error {
@@ -86,12 +86,12 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 		b.Update(updateInfo.table)
 	}
 	for _, coldata := range updateInfo.updateColumns {
-		b.Set(coldata.Indent, coldata.Value)
+		b.Set(coldata.Indent, coldata.Val.Value)
 	}
 
-	b.AppendWhere(eqOrIsNull(updateInfo.pk.Indent, updateInfo.pk.Value))
+	b.AppendWhere(eqOrIsNull(updateInfo.pk.Indent, updateInfo.pk.Val.Value))
 	for _, coldata := range updateInfo.matchColumns {
-		b.AppendWhere(eqOrIsNull(coldata.Indent, coldata.Value))
+		b.AppendWhere(eqOrIsNull(coldata.Indent, coldata.Val.Value))
 	}
 
 	query, args, err = b.BuildQuery(opt.style)
@@ -99,7 +99,11 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 		return "", nil, err
 	}
 	if opt.debug {
-		printDebugQuery("Update", value, query, args)
+		if updateAll {
+			printDebugQuery("Update", value, query, args)
+		} else {
+			printDebugQuery("Patch", value, query, args)
+		}
 	}
 	return query, args, nil
 }
@@ -122,8 +126,7 @@ type updateInfo struct {
 type fieldData struct {
 	Info   fieldInfo
 	Indent string
-	Value  any
-	IsZero bool
+	Val    valueInfo
 }
 
 func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll bool, opt *Options, value T) (*updateInfo, error) {
@@ -132,6 +135,7 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll b
 		valueVal = valueVal.Elem()
 	}
 	var r updateInfo
+	var seenSoftDelete bool
 	for _, col := range f.columns {
 		if col.Diving {
 			continue
@@ -144,15 +148,14 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll b
 			continue
 		}
 		colIndent := dialect.QuoteIdentifier(col.Column)
-		colValue, iszero, ok := getValueAtIndex(col.Index, valueVal)
+		colValue, ok := getValueAtIndex(col.Index, valueVal)
 		if !ok {
 			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
 		}
 		data := fieldData{
 			Info:   col,
 			Indent: colIndent,
-			Value:  colValue,
-			IsZero: iszero,
+			Val:    *colValue,
 		}
 		switch {
 		case col.PK:
@@ -162,7 +165,19 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll b
 			r.pk = data
 		case col.Match:
 			r.matchColumns = append(r.matchColumns, data)
-		case col.ReadOnly || (iszero && !updateAll):
+		case col.SoftDelete:
+			// soft delete column will be used in WHERE clause,
+			// since we should report error when updating a soft-deleted row.
+			if seenSoftDelete {
+				return nil, errors.New("multiple soft delete columns defined")
+			}
+			seenSoftDelete = true
+			if !data.Val.IsZero {
+				// WHERE <soft-delete col> <IS | => <zero>
+				data.Val.Value = reflect.Zero(colValue.Raw.Type()).Interface()
+			}
+			r.matchColumns = append(r.matchColumns, data)
+		case col.ReadOnly || (colValue.IsZero && !updateAll):
 			// skip
 		default:
 			r.updateColumns = append(r.updateColumns, data)

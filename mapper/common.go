@@ -57,16 +57,30 @@ func wrapErrWithDebugName(funcName string, value any, err error) error {
 	return fmt.Errorf("%s(%T): %w", funcName, value, err)
 }
 
-func getValueAtIndex(dest []int, v reflect.Value) (value any, iszero, ok bool) {
+type valueInfo struct {
+	// Raw reflect value
+	Raw reflect.Value
+	// Value of the field, no typed nil
+	Value any
+	// whether the value is zero value
+	IsZero bool
+}
+
+func getValueAtIndex(dest []int, v reflect.Value) (*valueInfo, bool) {
 	current, ok := getReflectValueAtIndex(dest, v)
 	if !ok {
-		return nil, false, false
+		return nil, false
+	}
+	r := &valueInfo{
+		Raw:    current,
+		Value:  current.Interface(),
+		IsZero: current.IsZero(),
 	}
 	if current.Kind() == reflect.Ptr && current.IsNil() {
 		// avoid typed nil
-		return nil, true, true
+		r.Value = nil
 	}
-	return current.Interface(), current.IsZero(), true
+	return r, true
 }
 
 func getReflectValueAtIndex(dest []int, v reflect.Value) (reflect.Value, bool) {

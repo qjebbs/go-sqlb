@@ -82,7 +82,7 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 
 	conds := make([]sqlf.Builder, len(loadInfo.wheres))
 	for i, col := range loadInfo.wheres {
-		conds[i] = eqOrIsNull(col.Indent, col.Value)
+		conds[i] = eqOrIsNull(col.Indent, col.Val.Value)
 	}
 
 	b := sqlb.NewSelectBuilder().
@@ -112,6 +112,7 @@ type loadInfo struct {
 	table   string
 	selects []fieldData
 	wheres  []fieldData
+	softDel fieldData
 }
 
 func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*loadInfo, error) {
@@ -129,6 +130,8 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 		unique      []fieldData
 		constraints []fieldData
 		match       []fieldData
+
+		softDel fieldData
 	)
 	for _, col := range f.columns {
 		if col.Diving {
@@ -142,15 +145,14 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 			continue
 		}
 		colIndent := dialect.QuoteIdentifier(col.Column)
-		colValue, iszero, ok := getValueAtIndex(col.Index, valueVal)
+		colValue, ok := getValueAtIndex(col.Index, valueVal)
 		if !ok {
 			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
 		}
 		colData := fieldData{
 			Info:   col,
 			Indent: colIndent,
-			Value:  colValue,
-			IsZero: iszero,
+			Val:    *colValue,
 		}
 
 		switch {
@@ -159,10 +161,24 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 				return nil, errors.New("multiple primary key columns defined")
 			}
 			pk = colData
-		case col.Unique && !iszero:
+		case col.Unique && !colValue.IsZero:
 			unique = append(unique, colData)
 		case col.ConflictOn:
 			constraints = append(constraints, colData)
+		case col.SoftDelete:
+			// soft delete column will be used in WHERE clause,
+			// since we should report error when loading a soft-deleted row.
+			if softDel.Indent != "" {
+				return nil, errors.New("multiple soft delete columns defined")
+			}
+			softDel = colData
+			// copy and set zero value to match condition:
+			// WHERE <soft-delete> = <zero>
+			cp := colData
+			if !cp.Val.IsZero {
+				cp.Val.Value = reflect.Zero(cp.Val.Raw.Type()).Interface()
+			}
+			match = append(match, cp)
 		case col.Match:
 			// allow match columns to be zero-valued, like deleted_at = NULL
 			match = append(match, colData)
@@ -173,7 +189,7 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 	if table == "" {
 		return nil, errors.New("no table defined ")
 	}
-	if pk.Indent != "" && !pk.IsZero {
+	if pk.Indent != "" && !pk.Val.IsZero {
 		whereColumns = append(whereColumns, pk)
 		selectColumns = append(selectColumns, unique...)
 		selectColumns = append(selectColumns, constraints...)
@@ -184,7 +200,7 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 	} else {
 		allNonZero := len(constraints) > 0
 		for _, v := range constraints {
-			if v.Value == nil {
+			if v.Val.Value == nil {
 				allNonZero = false
 				break
 			}
@@ -201,5 +217,6 @@ func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*lo
 		table:   table,
 		selects: selectColumns,
 		wheres:  whereColumns,
+		softDel: softDel,
 	}, nil
 }

@@ -2,10 +2,10 @@ package mapper
 
 import (
 	"database/sql"
+	"fmt"
+	"time"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/internal/util"
-	"github.com/qjebbs/go-sqlf/v4"
 )
 
 // Delete Deletes a struct T from the database.
@@ -19,80 +19,97 @@ import (
 //   - unique: The column could be used in WHERE clause to locate the row. There's no tag for "Composite Unique" fields, since any one of them is not unique alone.
 //   - conflict_on: Multiple of them form a composite unique constraint, which could be used in WHERE clause to locate the row.
 //   - match: The column will be always included in WHERE clause even if it is zero value.
+//   - soft_delete indicates this column is used for soft deletion. Supported types are *time.Time, sql.NullTime, and bool.
 //
 // If a struct has all `pk`, `unique`, or `conflict_on` fields zero-valued, the `Delete()` operation will return an error.
 // If all non-zero-valued, the priority for constructing the WHERE clause is `pk` > `unique` > `conflict_on`.
-func Delete[T any](db QueryAble, value T, options ...Option) (T, error) {
-	r, err := delete(db, value, options...)
+func Delete[T any](db QueryAble, value T, options ...Option) error {
+	err := delete(db, value, options...)
 	if err != nil {
 		var zero T
-		return zero, wrapErrWithDebugName("Delete", zero, err)
+		return wrapErrWithDebugName("Delete", zero, err)
 	}
-	return r, nil
+	return nil
 }
 
-func delete[T any](db QueryAble, value T, options ...Option) (T, error) {
-	var zero T
+func delete[T any](db QueryAble, value T, options ...Option) error {
 	if err := checkPtrStruct(value); err != nil {
-		return zero, err
+		return err
 	}
 	opt := mergeOptions(options...)
-	queryStr, args, dests, err := buildDeleteQueryForStruct(value, opt)
+	queryStr, args, err := buildDeleteQueryForStruct(value, opt)
 	if err != nil {
-		return zero, err
+		return err
 	}
 	if db == nil {
-		return zero, ErrNilDB
+		return ErrNilDB
 	}
-	agents := make([]*nullZeroAgent, 0)
-	r, err := scan(db, queryStr, args, func() (T, []any) {
-		dest, fields, ag := prepareScanDestinations(value, dests, opt)
-		agents = append(agents, ag...)
-		return dest, fields
-	})
-	if err != nil {
-		return zero, err
-	}
-	if len(r) == 0 {
-		return zero, sql.ErrNoRows
-	}
-	for _, agent := range agents {
-		agent.Apply()
-	}
-	return value, nil
+	_, err = db.Exec(queryStr, args...)
+	return err
 }
 
-func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
+func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
 	info, err := getStructInfo(value)
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, err
 	}
 	deleteInfo, err := buildLoadInfo(opt.dialect, info, value)
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, err
 	}
 
-	conds := make([]sqlf.Builder, len(deleteInfo.wheres))
-	for i, col := range deleteInfo.wheres {
-		conds[i] = eqOrIsNull(col.Indent, col.Value)
+	if deleteInfo.softDel.Indent != "" {
+		switch v := deleteInfo.softDel.Val.Raw.Interface().(type) {
+		case *time.Time:
+			// soft delete by setting current timestamp
+			if deleteInfo.softDel.Val.Value == nil {
+				now := time.Now()
+				deleteInfo.softDel.Val.Value = &now
+			}
+		case sql.NullTime:
+			if !v.Valid {
+				// soft delete by setting current timestamp
+				now := time.Now()
+				deleteInfo.softDel.Val.Value = sql.NullTime{Time: now, Valid: true}
+			}
+		case bool:
+			// soft delete by setting true
+			deleteInfo.softDel.Val.Value = true
+		default:
+			return "", nil, fmt.Errorf("unsupported soft delete column %q with type %T", deleteInfo.softDel.Info.Column, deleteInfo.softDel.Val)
+		}
+		// build UPDATE ... SET <soft-delete col> = ? WHERE ...
+		b := sqlb.NewUpdateBuilder().
+			Update(deleteInfo.table).
+			Set(deleteInfo.softDel.Indent, deleteInfo.softDel.Val.Value)
+		for _, col := range deleteInfo.wheres {
+			b.Where(eqOrIsNull(col.Indent, col.Val.Value))
+		}
+		query, args, err = b.BuildQuery(opt.style)
+		if err != nil {
+			return "", nil, err
+		}
+		if opt.debug {
+			printDebugQuery("Delete", value, query, args)
+		}
+		return query, args, nil
 	}
 
 	b := sqlb.NewDeleteBuilder().
-		DeleteFrom(deleteInfo.table).
-		Where(sqlf.Join(" AND ", conds...))
+		DeleteFrom(deleteInfo.table)
+	for _, col := range deleteInfo.wheres {
+		b.Where(eqOrIsNull(col.Indent, col.Val.Value))
+	}
 
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, err
 	}
 	if opt.debug {
 		printDebugQuery("Delete", value, query, args)
 	}
-	dests = util.Map(deleteInfo.selects, func(i fieldData) fieldInfo {
-		return i.Info
-	})
-	return query, args, dests, nil
+	return query, args, nil
 }

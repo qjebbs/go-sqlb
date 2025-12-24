@@ -14,7 +14,7 @@ var _ SelectLimitBuilder = (*sqlb.SelectBuilder)(nil)
 
 // SelectBuilder is the interface for builders that support Select method.
 type SelectBuilder interface {
-	sqlb.Builder
+	sqlf.Builder
 	SetSelect(columns ...sqlf.Builder)
 }
 
@@ -147,11 +147,12 @@ func buildSelectQueryForStruct[T any](b SelectBuilder, opt *Options) (query stri
 	}
 	columns, dests := buildSelectInfo(opt, info)
 	b.SetSelect(columns...)
-	query, args, err = b.BuildQuery(opt.style)
+	ctx := sqlf.NewContext(opt.style)
+	query, err = b.Build(ctx)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	return query, args, dests, nil
+	return query, ctx.Args(), dests, nil
 }
 
 func buildSelectInfo(opt *Options, f *structInfo) (columns []sqlf.Builder, dests []fieldInfo) {

@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -129,7 +128,7 @@ type fieldData struct {
 	Val    valueInfo
 }
 
-func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll bool, value T) (*updateInfo, error) {
+func buildUpdateInfo[T any](dialect sqlb.Dialect, f *structInfo, updateAll bool, value T) (*updateInfo, error) {
 	valueVal := reflect.ValueOf(value)
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()

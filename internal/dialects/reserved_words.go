@@ -14,7 +14,7 @@ var reservedWords map[Dialect]map[string]bool
 
 func init() {
 	reservedWords = make(map[Dialect]map[string]bool)
-	reservedWords[DialectPostgreSQL] = loadReservedWords("postgresql.txt")
+	reservedWords[DialectPostgres] = loadReservedWords("postgresql.txt")
 	reservedWords[DialectSQLite] = loadReservedWords("sqlite.txt")
 	reservedWords[DialectSQLServer] = loadReservedWords("sqlserver.txt")
 	reservedWords[DialectOracle] = loadReservedWords("oracle.txt")

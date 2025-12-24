@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/qjebbs/go-sqlb/internal/clauses"
-	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -67,7 +66,7 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	// UPDATE target
 	built = append(built, "UPDATE")
 	built = append(built, b.target)
-	if b.dialact == dialects.DialectMySQL {
+	if b.dialact == DialectMySQL {
 		// MySQL join goes first
 		joins, err := b.from.BuildRequired(ctx, b.joinBuilderMeta(), myDeps.queryDeps)
 		if err != nil {
@@ -87,7 +86,7 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	built = append(built, sets)
 
-	if b.dialact != dialects.DialectMySQL {
+	if b.dialact != DialectMySQL {
 		// FROM / JOINS
 		joins, err := b.from.BuildRequired(ctx, b.joinBuilderMeta(), myDeps.queryDeps)
 		if err != nil {

@@ -2,7 +2,6 @@ package sqlb
 
 import (
 	"github.com/qjebbs/go-sqlb/internal/clauses"
-	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -13,7 +12,7 @@ var _ Builder = (*UpdateBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type UpdateBuilder struct {
-	dialact dialects.Dialect
+	dialact Dialect
 	ctes    *clauses.With
 	from    *clauses.From
 
@@ -31,8 +30,8 @@ type UpdateBuilder struct {
 }
 
 // NewUpdateBuilder returns a new UpdateBuilder.
-func NewUpdateBuilder(dialect ...dialects.Dialect) *UpdateBuilder {
-	d := dialects.DialectPostgreSQL
+func NewUpdateBuilder(dialect ...Dialect) *UpdateBuilder {
+	d := DialectPostgres
 	if len(dialect) > 0 {
 		d = dialect[0]
 	}
@@ -48,7 +47,7 @@ func NewUpdateBuilder(dialect ...dialects.Dialect) *UpdateBuilder {
 
 // Update set the update target table.
 func (b *UpdateBuilder) Update(table string) *UpdateBuilder {
-	if b.dialact == dialects.DialectMySQL {
+	if b.dialact == DialectMySQL {
 		b.from.ImplicitedFrom(clauses.NewTable(table))
 	}
 	b.resetDepTablesCache()

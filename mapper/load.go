@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -115,7 +114,7 @@ type loadInfo struct {
 	softDel fieldData
 }
 
-func buildLoadInfo[T any](dialect dialects.Dialect, f *structInfo, value T) (*loadInfo, error) {
+func buildLoadInfo[T any](dialect sqlb.Dialect, f *structInfo, value T) (*loadInfo, error) {
 	valueVal := reflect.ValueOf(value)
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()

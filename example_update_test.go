@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -41,7 +40,7 @@ func ExampleUpdateBuilder_sqlServer() {
 		foo = sqlb.NewTable("foo")
 		bar = sqlb.NewTable("bar")
 	)
-	b := sqlb.NewUpdateBuilder(dialects.DialectSQLServer).
+	b := sqlb.NewUpdateBuilder(sqlb.DialectSQLServer).
 		Update(foo.Name).
 		Set("a", 1).
 		Set("baz", bar.Column("baz")).
@@ -64,7 +63,7 @@ func ExampleUpdateBuilder_mysql() {
 		foo = sqlb.NewTable("foo")
 		bar = sqlb.NewTable("bar", "z")
 	)
-	b := sqlb.NewUpdateBuilder(dialects.DialectMySQL).
+	b := sqlb.NewUpdateBuilder(sqlb.DialectMySQL).
 		Update(foo.Name).
 		Set("a", 1).
 		Set("baz", bar.Column("baz")).

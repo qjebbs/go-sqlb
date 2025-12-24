@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/qjebbs/go-sqlb/internal/clauses"
-	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	myutil "github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
@@ -87,7 +86,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		built = append(built, cols)
 	}
 	// returning clause
-	if len(b.returning) > 0 && b.dialact == dialects.DialectSQLServer {
+	if len(b.returning) > 0 && b.dialact == DialectSQLServer {
 		returning, err := sqlf.F("OUTPUT ?", sqlf.Join(
 			", ", util.Map(b.returning, func(r string) sqlf.Builder {
 				return sqlf.F("INSERTED." + r)
@@ -117,7 +116,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	// conflict handling
 	switch b.dialact {
-	case dialects.DialectPostgreSQL, dialects.DialectSQLite:
+	case DialectPostgres, DialectSQLite:
 		if len(b.conflictOn) > 0 {
 			conflictTarget := fmt.Sprintf("ON CONFLICT (%s)", strings.Join(b.conflictOn, ", "))
 			built = append(built, conflictTarget)
@@ -132,7 +131,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 				built = append(built, conflictActions)
 			}
 		}
-	case dialects.DialectMySQL:
+	case DialectMySQL:
 		if len(b.conflictDo) > 0 {
 			built = append(built, "ON DUPLICATE KEY UPDATE")
 			conflictActions, err := sqlf.Join(", ", b.conflictDo...).Build(ctx)
@@ -150,10 +149,10 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	// returning clause
 	if len(b.returning) > 0 {
 		switch b.dialact {
-		case dialects.DialectPostgreSQL, dialects.DialectSQLite:
+		case DialectPostgres, DialectSQLite:
 			returning := fmt.Sprintf("RETURNING %s", strings.Join(b.returning, ", "))
 			built = append(built, returning)
-		case dialects.DialectSQLServer:
+		case DialectSQLServer:
 			// already built
 		default:
 			return "", fmt.Errorf("returning is not supported for %s", b.dialact.String())

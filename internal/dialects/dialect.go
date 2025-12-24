@@ -9,7 +9,7 @@ type Dialect int
 const (
 	DialectUnknown Dialect = iota
 	DialectOracle
-	DialectPostgreSQL
+	DialectPostgres
 	DialectMySQL
 	DialectSQLite
 	DialectSQLServer
@@ -19,8 +19,8 @@ func (d Dialect) String() string {
 	switch d {
 	case DialectOracle:
 		return "Oracle"
-	case DialectPostgreSQL:
-		return "PostgreSQL"
+	case DialectPostgres:
+		return "Postgres"
 	case DialectMySQL:
 		return "MySQL"
 	case DialectSQLite:
@@ -38,7 +38,7 @@ func (d Dialect) QuoteIdentifier(identifier string) string {
 		return identifier
 	}
 	switch d {
-	case DialectPostgreSQL, DialectSQLite:
+	case DialectPostgres, DialectSQLite:
 		return `"` + identifier + `"`
 	case DialectMySQL:
 		return "`" + identifier + "`"

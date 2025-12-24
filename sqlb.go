@@ -9,6 +9,7 @@ package sqlb
 
 import (
 	"github.com/qjebbs/go-sqlb/internal/clauses"
+	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -45,4 +46,17 @@ const (
 	OrderDesc                 = clauses.OrderDesc
 	OrderDescNullsFirst       = clauses.OrderDescNullsFirst
 	OrderDescNullsLast        = clauses.OrderDescNullsLast
+)
+
+// Dialect represents SQL dialects.
+type Dialect = dialects.Dialect
+
+// SQL Dialects
+const (
+	DialectUnknown   = dialects.DialectUnknown
+	DialectOracle    = dialects.DialectOracle
+	DialectPostgres  = dialects.DialectPostgres
+	DialectMySQL     = dialects.DialectMySQL
+	DialectSQLite    = dialects.DialectSQLite
+	DialectSQLServer = dialects.DialectSQLServer
 )

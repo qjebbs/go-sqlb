@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/internal/dialects"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -45,7 +44,7 @@ func Insert[T any](db QueryAble, values []T, options ...Option) error {
 		return nil
 	}
 	opt := mergeOptions(options...)
-	if opt.dialect == dialects.DialectOracle {
+	if opt.dialect == sqlb.DialectOracle {
 		// Oracle does not support DEFAULT keyword in INSERT VALUES,
 		// so we have to insert one by one.
 		return wrapErrWithDebugName("Insert", values[0], insertOneByOne(db, values, opt))
@@ -153,7 +152,7 @@ type insertInfo struct {
 	returningFields  []fieldInfo
 }
 
-func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T) (insertInfo, error) {
+func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (insertInfo, error) {
 	var r insertInfo
 	reflectValues := util.Map(values, func(v T) reflect.Value {
 		rv := reflect.ValueOf(v)
@@ -191,9 +190,9 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 		}
 		if col.ConflictOn {
 			switch dialect {
-			case dialects.DialectPostgreSQL, dialects.DialectSQLite:
+			case sqlb.DialectPostgres, sqlb.DialectSQLite:
 				r.conflict = append(r.conflict, colIndent)
-			case dialects.DialectMySQL:
+			case sqlb.DialectMySQL:
 				// ignore, MySQL uses different syntax
 			default:
 				return r, fmt.Errorf("does not support 'conflict_on' tag for %s", dialect)
@@ -204,11 +203,11 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 			var setValue sqlf.Builder
 			if *col.ConflictSet == "" {
 				switch dialect {
-				case dialects.DialectPostgreSQL, dialects.DialectSQLite:
+				case sqlb.DialectPostgres, sqlb.DialectSQLite:
 					setValue = sqlf.F("EXCLUDED.?", colQuoted)
-				case dialects.DialectMySQL:
+				case sqlb.DialectMySQL:
 					setValue = sqlf.F("VALUES(?)", colQuoted)
-				case dialects.DialectSQLServer, dialects.DialectOracle:
+				case sqlb.DialectSQLServer, sqlb.DialectOracle:
 					return r, fmt.Errorf("'conflict_set' is not supported for %s", dialect)
 				default:
 					return r, fmt.Errorf("'conflict_set' without expression is not supported for %s", dialect)
@@ -216,9 +215,9 @@ func buildInsertInfo[T any](dialect dialects.Dialect, f *structInfo, values []T)
 			} else {
 				// user specified expression
 				switch dialect {
-				case dialects.DialectPostgreSQL, dialects.DialectSQLite, dialects.DialectMySQL:
+				case sqlb.DialectPostgres, sqlb.DialectSQLite, sqlb.DialectMySQL:
 					setValue = sqlf.F(*col.ConflictSet)
-				case dialects.DialectSQLServer, dialects.DialectOracle:
+				case sqlb.DialectSQLServer, sqlb.DialectOracle:
 					return r, fmt.Errorf("'conflict_set' is not supported for %s", dialect)
 				default:
 					return r, fmt.Errorf("'conflict_set' without expression is not supported for %s", dialect)

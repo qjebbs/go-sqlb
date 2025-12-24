@@ -60,9 +60,11 @@ func Example_cRUD() {
 	}
 
 	// Partial update: only non-zero fields will be updated.
+	// Here we located the record by unique Email field.
 	err = mapper.Patch(nil, &User{
-		Model: Model{ID: user.ID},
-		Name:  "Alice",
+		// Model: Model{ID: user.ID},
+		Email: "alice@example.org",
+		Name:  "Happy Alice",
 	}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
@@ -84,8 +86,8 @@ func Example_cRUD() {
 	// Output:
 	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, deleted = EXCLUDED.deleted, name = EXCLUDED.name RETURNING id
 	// [Load(*mapper_test.User)] SELECT created, updated, name, COALESCE(login_name,''), id FROM users WHERE email = 'alice@example.org' AND deleted IS NULL
-	// [Patch(*mapper_test.User)] UPDATE users SET name = 'Alice' WHERE id = 1 AND deleted IS NULL
-	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, email = 'alice@example.org', name = '', login_name = '' WHERE id = 1 AND deleted IS NULL
+	// [Patch(*mapper_test.User)] UPDATE users SET name = 'Happy Alice' WHERE email = 'alice@example.org' AND deleted IS NULL
+	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, name = '', login_name = '', email = 'alice@example.org' WHERE id = 1 AND deleted IS NULL
 	// [Delete(*mapper_test.User)] UPDATE users SET deleted = '0001-01-01 00:00:00 +0000 UTC' WHERE id = 1 AND deleted = NULL
 }
 

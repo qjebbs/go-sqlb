@@ -76,7 +76,7 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 	if err != nil {
 		return "", nil, err
 	}
-	updateInfo, err := buildUpdateInfo(opt.dialect, info, updateAll, opt, value)
+	updateInfo, err := buildUpdateInfo(opt.dialect, info, updateAll, value)
 	if err != nil {
 		return "", nil, err
 	}
@@ -89,7 +89,7 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 		b.Set(coldata.Indent, coldata.Val.Value)
 	}
 
-	b.AppendWhere(eqOrIsNull(updateInfo.pk.Indent, updateInfo.pk.Val.Value))
+	b.AppendWhere(eqOrIsNull(updateInfo.locatingColumn.Indent, updateInfo.locatingColumn.Val.Value))
 	for _, coldata := range updateInfo.matchColumns {
 		b.AppendWhere(eqOrIsNull(coldata.Indent, coldata.Val.Value))
 	}
@@ -118,9 +118,9 @@ func eqOrIsNull(column string, value any) sqlf.Builder {
 type updateInfo struct {
 	table string
 
-	pk            fieldData
-	updateColumns []fieldData
-	matchColumns  []fieldData
+	locatingColumn fieldData // from pk or unique
+	updateColumns  []fieldData
+	matchColumns   []fieldData // from match, soft-delete
 }
 
 type fieldData struct {
@@ -129,13 +129,18 @@ type fieldData struct {
 	Val    valueInfo
 }
 
-func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll bool, opt *Options, value T) (*updateInfo, error) {
+func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll bool, value T) (*updateInfo, error) {
 	valueVal := reflect.ValueOf(value)
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()
 	}
-	var r updateInfo
-	var seenSoftDelete bool
+	var (
+		r              updateInfo
+		seenPK         bool
+		pk             fieldData
+		seenSoftDelete bool
+		uniqueColumns  []fieldData
+	)
 	for _, col := range f.columns {
 		if col.Diving {
 			continue
@@ -159,10 +164,15 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll b
 		}
 		switch {
 		case col.PK:
-			if r.pk.Indent != "" {
+			if seenPK {
 				return nil, errors.New("multiple primary key columns defined for update")
 			}
-			r.pk = data
+			seenPK = true
+			if !data.Val.IsZero {
+				pk = data
+			}
+		case col.Unique && !colValue.IsZero:
+			uniqueColumns = append(uniqueColumns, data)
 		case col.Match:
 			r.matchColumns = append(r.matchColumns, data)
 		case col.SoftDelete:
@@ -183,8 +193,18 @@ func buildUpdateInfo[T any](dialect dialects.Dialect, f *structInfo, updateAll b
 			r.updateColumns = append(r.updateColumns, data)
 		}
 	}
-	if r.pk.Indent == "" {
-		return nil, errors.New("no primary key defined for update")
+	switch {
+	case pk.Info.Column != "":
+		// if pk is set, uniqueColumns are updatable
+		r.updateColumns = append(r.updateColumns, uniqueColumns...)
+		r.locatingColumn = pk
+	case len(uniqueColumns) == 1:
+		// use the only unique column as uniqueColumn
+		r.locatingColumn = uniqueColumns[0]
+	case len(uniqueColumns) == 0:
+		return nil, errors.New("no primary key or unique columns defined for update")
+	default:
+		return nil, errors.New("multiple unique columns with values defined for update, cannot locate the row")
 	}
 	if len(r.updateColumns) == 0 {
 		return nil, errors.New("no updatable columns found for update")

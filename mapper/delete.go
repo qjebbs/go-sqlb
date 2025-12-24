@@ -84,13 +84,12 @@ func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args
 		DeleteFrom(deleteInfo.table).
 		Where(sqlf.Join(" AND ", conds...))
 
-	if opt.debug {
-		b.Debug(debugName("Delete", value))
-	}
-
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, nil, err
+	}
+	if opt.debug {
+		printDebugQuery("Delete", value, query, args)
 	}
 	dests = util.Map(deleteInfo.selects, func(i fieldData) fieldInfo {
 		return i.Info

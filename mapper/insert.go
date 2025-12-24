@@ -129,13 +129,13 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	}
 	// no allow manual setting of returning columns, since we cannot map them back
 	b.Returning(insertInfo.returningColumns...)
-	if opt.debug {
-		b.Debug(debugName("Insert", values[0]))
-	}
 
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, nil, err
+	}
+	if opt.debug {
+		printDebugQuery("Insert", values[0], query, args)
 	}
 	return query, args, insertInfo.returningFields, nil
 }

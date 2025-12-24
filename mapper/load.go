@@ -95,13 +95,12 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 		From(sqlb.NewTable(loadInfo.table)).
 		Where(sqlf.Join(" AND ", conds...))
 
-	if opt.debug {
-		b.Debug(debugName("Load", value))
-	}
-
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, nil, err
+	}
+	if opt.debug {
+		printDebugQuery("Load", value, query, args)
 	}
 	dests = util.Map(loadInfo.selects, func(i fieldData) fieldInfo {
 		return i.Info

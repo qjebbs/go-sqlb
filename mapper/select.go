@@ -69,14 +69,12 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 		return nil, err
 	}
 	opt := mergeOptions(options...)
-	if opt.debug {
-		if b1, ok := b.(*sqlb.SelectBuilder); ok {
-			b1.Debug(debugName("Select", zero))
-		}
-	}
 	queryStr, args, dests, err := buildSelectQueryForStruct[T](b, opt)
 	if err != nil {
 		return nil, err
+	}
+	if opt.debug {
+		printDebugQuery("Select", zero, queryStr, args)
 	}
 	if db == nil {
 		return nil, ErrNilDB

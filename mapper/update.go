@@ -70,9 +70,6 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 		opt = newDefaultOptions()
 	}
 	b := sqlb.NewUpdateBuilder(opt.dialect)
-	if opt.debug {
-		b.Debug(debugName("Update", value))
-	}
 
 	var zero T
 	info, err := getStructInfo(zero)
@@ -100,6 +97,9 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, err
+	}
+	if opt.debug {
+		printDebugQuery("Update", value, query, args)
 	}
 	return query, args, nil
 }

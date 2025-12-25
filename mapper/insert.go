@@ -32,12 +32,15 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
 // The supported struct tags are:
-//   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
-//   - col: Specify the column associated with the field.
+//   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
+//   - col<:name>: Specify the column associated with the field.
+//   - pk: The column is primary key, which is excluded from INSERT statement.
+//   - unique: The column could be used with conflict_on to detect conflict.
+//   - unique_group[:name[,name]...]: The column is one of the "Composite Unique" fields, which could could be used with conflict_on to detect conflict. If there is only one unique_group in the struct, the group name can be omitted.
 //   - readonly: The field is excluded from INSERT statement.
 //   - insert_zero: Don't omit the field from INSERT statement even if it has zero value.
 //   - returning: Mark the field to be included in RETURNING clause.
-//   - conflict_on: If value is ommited, declare current unique column or current unique-group the conflict detection column(s). If there is any ambiguity, it must be explicitly specified, e.g. `unique_group:a,b,c;conflict_on:a`.
+//   - conflict_on[:unique_group name]: If value is ommited, declare current unique column or current unique-group the conflict detection column(s). If there is any ambiguity, it must be explicitly specified, e.g. `unique_group:a,b,c;conflict_on:a`.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
 func Insert[T any](db QueryAble, values []T, options ...Option) error {
 	if len(values) == 0 {

@@ -46,12 +46,12 @@ func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T,
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"col:id;from:u;"`
 //
 // The supported struct tags are:
-//   - table: [Inheritable]Declare base table for the current field and its sub-fields / subsequent sibling fields. It usually works with `WithNullZeroTables()` Option.
-//   - from: [Inheritable]Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`.
-//   - sel: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. `sel:COALESCE(?.name,”);from:u;`, which is required by dependency analysis.
-//   - sel_on: Scan the field only on any one of tags specified, comma-separated. e.g. `sel_on:full;`
-//   - col: If `sel` key is not specified, specify the column to select for this field. It's recommended to use `col` key for simple column selection, which can be shared usage in INSERT/UPDATE operations. e.g. `col:name;from:u;`
+//   - sel<:expr>: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. `sel:COALESCE(?.name,”);from:u;`, which is required by dependency analysis.
+//   - from<:name[,names]...>: [Inheritable]Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`.
+//   - sel_on<:tag,[,tags]...>: Scan the field only on any one of tags specified, comma-separated. e.g. `sel_on:full;`
+//   - col<:name>: If `sel` key is not specified, specify the column to select for this field. It's recommended to use `col` key for simple column selection, which can be shared usage in INSERT/UPDATE/DELETE operations. e.g. `col:name;from:u;`
 //   - dive: For struct fields, dive into scan its field. e.g. `dive;`
+//   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields. It usually works with `WithNullZeroTables()` Option.
 //
 // Applied-Table-Name: The name of the table that is effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
 func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {

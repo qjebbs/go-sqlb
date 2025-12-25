@@ -17,11 +17,11 @@ import (
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
 // The supported struct tags are:
-//   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
-//   - col: The column associated with the field.
-//   - pk: The column is primary key, which could be used in WHERE clause to locate the row.
-//   - unique: The column could be used in WHERE clause to locate the row.
-//   - unique_group: The column is one of the "Composite Unique" fields, which could be used in WHERE clause to locate the row, e.g. unique_group:group1
+//   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
+//   - col<:name>: The column in database associated with the field.
+//   - pk: The column is primary key.
+//   - unique: The column is unique.
+//   - unique_group[:name[,name]...]: The column is one of the "Composite Unique" groups. If there is only one unique_group in the struct, the group name can be omitted.
 //   - match: The column will be always included in WHERE clause even if it is zero value.
 //   - readonly: The field is excluded from UPDATE statement.
 //

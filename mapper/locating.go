@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/internal/util"
@@ -51,6 +52,8 @@ func buildLocatingInfo(dialect sqlb.Dialect, f *structInfo, value reflect.Value)
 		uniqueGroupColumns []fieldData
 		uniqueGroups       = make(map[string][]fieldData)
 		invalidGroups      = make(map[string]bool)
+
+		uniqueNames []string
 	)
 	for _, col := range f.columns {
 		if col.Diving {
@@ -75,9 +78,10 @@ func buildLocatingInfo(dialect sqlb.Dialect, f *structInfo, value reflect.Value)
 		}
 		if col.PK {
 			if seenPK {
-				return nil, errors.New("multiple primary key columns defined for update")
+				return nil, errors.New("multiple primary key columns defined")
 			}
 			seenPK = true
+			uniqueNames = append(uniqueNames, col.Name)
 			if !data.Val.IsZero {
 				pk = data
 			}
@@ -104,8 +108,11 @@ func buildLocatingInfo(dialect sqlb.Dialect, f *structInfo, value reflect.Value)
 			}
 			r.matchColumns = append(r.matchColumns, cp)
 		}
-		if col.Unique && !colValue.IsZero {
-			uniqueColumns = append(uniqueColumns, data)
+		if col.Unique {
+			if !colValue.IsZero {
+				uniqueColumns = append(uniqueColumns, data)
+			}
+			uniqueNames = append(uniqueNames, col.Name)
 		}
 		if len(col.UniqueGroups) > 0 {
 			uniqueGroupColumns = append(uniqueGroupColumns, data)
@@ -130,7 +137,7 @@ func buildLocatingInfo(dialect sqlb.Dialect, f *structInfo, value reflect.Value)
 		r.locatingColumn = []fieldData{pk}
 	case len(uniqueColumns) > 0:
 		if len(uniqueColumns) > 1 {
-			return nil, errors.New("multiple unique columns with values defined for update, cannot locate the row")
+			return nil, errors.New("multiple unique columns with values defined, cannot locate the row")
 		}
 		// use the only unique column as uniqueColumn
 		r.locatingColumn = []fieldData{uniqueColumns[0]}
@@ -142,13 +149,27 @@ func buildLocatingInfo(dialect sqlb.Dialect, f *structInfo, value reflect.Value)
 				continue
 			}
 			if found {
-				return nil, errors.New("multiple unique groups with values defined for update, cannot locate the row")
+				return nil, errors.New("multiple unique groups with values defined, cannot locate the row")
 			}
 			found = true
 			r.locatingColumn = append(r.locatingColumn, cols...)
 		}
 		if !found {
-			return nil, errors.New("no primary key / unique column / unique group columns defined for update")
+			sb := new(strings.Builder)
+			for i, name := range uniqueNames {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(name)
+			}
+			for _, g := range uniqueGroups {
+				if sb.Len() > 0 {
+					sb.WriteString(", ")
+				}
+				names := util.Map(g, func(f fieldData) string { return f.Info.Name })
+				sb.WriteString(strings.Join(names, "+"))
+			}
+			return nil, errors.New("require either of to locate a row: " + sb.String())
 		}
 	}
 	r.others = util.Filter(r.others, func(col fieldData) bool {

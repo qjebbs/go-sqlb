@@ -79,10 +79,10 @@ func Example_cRUD() {
 	}
 	// Output:
 	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, deleted = EXCLUDED.deleted, name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, email FROM users WHERE id = 1 AND deleted IS NULL
+	// [Load(*mapper_test.User)] SELECT created, updated, email, name FROM users WHERE id = 1 AND deleted IS NULL
 	// [Patch(*mapper_test.User)] UPDATE users SET name = 'Happy Alice' WHERE email = 'alice@example.org' AND deleted IS NULL
 	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, name = '' WHERE email = 'alice@example.org' AND deleted IS NULL
-	// [Delete(*mapper_test.User)] UPDATE users SET deleted = '0001-01-01 00:00:00 +0000 UTC' WHERE id = 1 AND deleted = NULL
+	// [Delete(*mapper_test.User)] UPDATE users SET deleted = '0001-01-01 00:00:00 +0000 UTC' WHERE id = 1 AND deleted IS NULL
 }
 
 func Example_complexSelect() {

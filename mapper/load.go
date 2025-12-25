@@ -3,7 +3,6 @@ package mapper
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -19,12 +18,11 @@ import (
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: The column associated with the field.
 //   - pk: The column is primary key, which could be used in WHERE clause to locate the row.
-//   - unique: The column could be used in WHERE clause to locate the row. There's no tag for "Composite Unique" fields, since any one of them is not unique alone.
-//   - conflict_on: Multiple of them form a composite unique constraint, which could be used in WHERE clause to locate the row.
+//   - unique: The column could be used in WHERE clause to locate the row.
+//   - unique_group: The column is one of the "Composite Unique" fields, which could be used in WHERE clause to locate the row, e.g. unique_group:group1
 //   - match: The column will be always included in WHERE clause even if it is zero value.
 //
-// If a struct has all `pk`, `unique`, or `conflict_on` fields zero-valued, the `Load()` operation will return an error.
-// If all non-zero-valued, the priority for constructing the WHERE clause is `pk` > `unique` > `conflict_on`.
+// To locate the loading row, it will use non-zero `pk`, `unique`, or `unique_group` fields in priority order.
 func Load[T any](db QueryAble, value T, options ...Option) (T, error) {
 	r, err := load(db, value, options...)
 	if err != nil {
@@ -77,18 +75,15 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 	if err != nil {
 		return "", nil, nil, err
 	}
-
-	conds := make([]sqlf.Builder, len(loadInfo.wheres))
-	for i, col := range loadInfo.wheres {
-		conds[i] = eqOrIsNull(col.Indent, col.Val.Value)
-	}
-
 	b := sqlb.NewSelectBuilder().
 		Select(util.Map(loadInfo.selects, func(c fieldData) sqlf.Builder {
 			return sqlf.F(c.Indent)
 		})...).
-		From(sqlb.NewTable(loadInfo.table)).
-		Where(sqlf.Join(" AND ", conds...))
+		From(sqlb.NewTable(loadInfo.table))
+
+	loadInfo.EachWhere(func(cond sqlf.Builder) {
+		b.Where(cond)
+	})
 
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
@@ -104,10 +99,8 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 }
 
 type loadInfo struct {
-	table   string
+	locatingInfo
 	selects []fieldData
-	wheres  []fieldData
-	softDel fieldData
 }
 
 func buildLoadInfo[T any](dialect sqlb.Dialect, f *structInfo, value T) (*loadInfo, error) {
@@ -115,103 +108,22 @@ func buildLoadInfo[T any](dialect sqlb.Dialect, f *structInfo, value T) (*loadIn
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()
 	}
-
-	var (
-		table         string
-		selectColumns []fieldData
-		whereColumns  []fieldData
-
-		pk          fieldData
-		unique      []fieldData
-		constraints []fieldData
-		match       []fieldData
-
-		softDel fieldData
-	)
-	for _, col := range f.columns {
-		if col.Diving {
+	locatingInfo, err := buildLocatingInfo(dialect, f, valueVal)
+	if err != nil {
+		return nil, err
+	}
+	if len(locatingInfo.others) == 0 {
+		return nil, errors.New("no columns to load")
+	}
+	selects := make([]fieldData, 0, len(locatingInfo.others))
+	for _, fd := range locatingInfo.others {
+		if fd.Info.SoftDelete {
 			continue
 		}
-		if table == "" && col.Table != "" {
-			// respect first non-diving column with table specified
-			table = col.Table
-		}
-		if col.Column == "" {
-			continue
-		}
-		colIndent := dialect.QuoteIdentifier(col.Column)
-		colValue, ok := getValueAtIndex(col.Index, valueVal)
-		if !ok {
-			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
-		}
-		colData := fieldData{
-			Info:   col,
-			Indent: colIndent,
-			Val:    *colValue,
-		}
-
-		switch {
-		case col.PK:
-			if pk.Indent != "" {
-				return nil, errors.New("multiple primary key columns defined")
-			}
-			pk = colData
-		case col.Unique && !colValue.IsZero:
-			unique = append(unique, colData)
-		case col.ConflictOn:
-			constraints = append(constraints, colData)
-		case col.SoftDelete:
-			// soft delete column will be used in WHERE clause,
-			// since we should report error when loading a soft-deleted row.
-			if softDel.Indent != "" {
-				return nil, errors.New("multiple soft delete columns defined")
-			}
-			softDel = colData
-			// copy and set zero value to match condition:
-			// WHERE <soft-delete> = <zero>
-			cp := colData
-			if !cp.Val.IsZero {
-				cp.Val.Value = reflect.Zero(cp.Val.Raw.Type()).Interface()
-			}
-			match = append(match, cp)
-		case col.Match:
-			// allow match columns to be zero-valued, like deleted_at = NULL
-			match = append(match, colData)
-		default:
-			selectColumns = append(selectColumns, colData)
-		}
+		selects = append(selects, fd)
 	}
-	if table == "" {
-		return nil, errors.New("no table defined ")
-	}
-	if pk.Indent != "" && !pk.Val.IsZero {
-		whereColumns = append(whereColumns, pk)
-		selectColumns = append(selectColumns, unique...)
-		selectColumns = append(selectColumns, constraints...)
-	} else if len(unique) > 0 {
-		whereColumns = append(whereColumns, unique...)
-		selectColumns = append(selectColumns, pk)
-		selectColumns = append(selectColumns, constraints...)
-	} else {
-		allNonZero := len(constraints) > 0
-		for _, v := range constraints {
-			if v.Val.Value == nil {
-				allNonZero = false
-				break
-			}
-		}
-		if !allNonZero {
-			return nil, errors.New("no primary field / unique field / conflict_on fields with non-zero values defined")
-		}
-		whereColumns = append(whereColumns, constraints...)
-		selectColumns = append(selectColumns, pk)
-		selectColumns = append(selectColumns, unique...)
-	}
-	whereColumns = append(whereColumns, match...)
 	return &loadInfo{
-		table:   table,
-		selects: selectColumns,
-		wheres:  whereColumns,
-		softDel: softDel,
+		locatingInfo: *locatingInfo,
+		selects:      selects,
 	}, nil
 }

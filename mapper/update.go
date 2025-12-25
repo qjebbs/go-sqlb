@@ -19,11 +19,14 @@ import (
 // The supported struct tags are:
 //   - table: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col: The column associated with the field.
-//   - pk: The column is primary key, which will be used in WHERE clause to locate the row.
+//   - pk: The column is primary key, which could be used in WHERE clause to locate the row.
+//   - unique: The column could be used in WHERE clause to locate the row.
+//   - unique_group: The column is one of the "Composite Unique" fields, which could be used in WHERE clause to locate the row, e.g. unique_group:group1
 //   - match: The column will be always included in WHERE clause even if it is zero value.
 //   - readonly: The field is excluded from UPDATE statement.
 //
-// If no `pk` field is defined, Update() will return an error to avoid accidental full-table update.
+// It will return an error if it cannot locating a row to avoid accidental full-table update.
+// To locate the row, it will use non-zero `pk`, `unique`, or `unique_group` fields in priority order.
 func Update[T any](db QueryAble, value T, options ...Option) error {
 	return wrapErrWithDebugName("Update", value, update(db, value, true, options...))
 }
@@ -88,10 +91,9 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 		b.Set(coldata.Indent, coldata.Val.Value)
 	}
 
-	b.AppendWhere(eqOrIsNull(updateInfo.locatingColumn.Indent, updateInfo.locatingColumn.Val.Value))
-	for _, coldata := range updateInfo.matchColumns {
-		b.AppendWhere(eqOrIsNull(coldata.Indent, coldata.Val.Value))
-	}
+	updateInfo.EachWhere(func(cond sqlf.Builder) {
+		b.Where(cond)
+	})
 
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
@@ -107,25 +109,9 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 	return query, args, nil
 }
 
-func eqOrIsNull(column string, value any) sqlf.Builder {
-	if value == nil {
-		return sqlf.F("? IS NULL", sqlf.F(column))
-	}
-	return sqlf.F("? = ?", sqlf.F(column), value)
-}
-
 type updateInfo struct {
-	table string
-
-	locatingColumn fieldData // from pk or unique
-	updateColumns  []fieldData
-	matchColumns   []fieldData // from match, soft-delete
-}
-
-type fieldData struct {
-	Info   fieldInfo
-	Indent string
-	Val    valueInfo
+	locatingInfo
+	updateColumns []fieldData
 }
 
 func buildUpdateInfo[T any](dialect sqlb.Dialect, f *structInfo, updateAll bool, value T) (*updateInfo, error) {
@@ -133,80 +119,23 @@ func buildUpdateInfo[T any](dialect sqlb.Dialect, f *structInfo, updateAll bool,
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()
 	}
-	var (
-		r              updateInfo
-		seenPK         bool
-		pk             fieldData
-		seenSoftDelete bool
-		uniqueColumns  []fieldData
-	)
-	for _, col := range f.columns {
-		if col.Diving {
+	locatingInfo, err := buildLocatingInfo(dialect, f, valueVal)
+	if err != nil {
+		return nil, err
+	}
+	var updateColumns []fieldData
+
+	for _, col := range locatingInfo.others {
+		if col.Info.PK || col.Info.ReadOnly || col.Info.SoftDelete || (col.Val.IsZero && !updateAll) {
 			continue
 		}
-		if r.table == "" && col.Table != "" {
-			// respect first column with table specified
-			r.table = col.Table
-		}
-		if col.Column == "" {
-			continue
-		}
-		colIndent := dialect.QuoteIdentifier(col.Column)
-		colValue, ok := getValueAtIndex(col.Index, valueVal)
-		if !ok {
-			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
-		}
-		data := fieldData{
-			Info:   col,
-			Indent: colIndent,
-			Val:    *colValue,
-		}
-		switch {
-		case col.PK:
-			if seenPK {
-				return nil, errors.New("multiple primary key columns defined for update")
-			}
-			seenPK = true
-			if !data.Val.IsZero {
-				pk = data
-			}
-		case col.Unique && !colValue.IsZero:
-			uniqueColumns = append(uniqueColumns, data)
-		case col.Match:
-			r.matchColumns = append(r.matchColumns, data)
-		case col.SoftDelete:
-			// soft delete column will be used in WHERE clause,
-			// since we should report error when updating a soft-deleted row.
-			if seenSoftDelete {
-				return nil, errors.New("multiple soft delete columns defined")
-			}
-			seenSoftDelete = true
-			if !data.Val.IsZero {
-				// WHERE <soft-delete col> <IS | => <zero>
-				data.Val.Value = reflect.Zero(colValue.Raw.Type()).Interface()
-			}
-			r.matchColumns = append(r.matchColumns, data)
-		case col.ReadOnly || (colValue.IsZero && !updateAll):
-			// skip
-		default:
-			r.updateColumns = append(r.updateColumns, data)
-		}
+		updateColumns = append(updateColumns, col)
 	}
-	switch {
-	case pk.Info.Column != "":
-		// if pk is set, uniqueColumns are updatable
-		r.updateColumns = append(r.updateColumns, uniqueColumns...)
-		r.locatingColumn = pk
-	case len(uniqueColumns) == 1:
-		// use the only unique column as uniqueColumn
-		r.locatingColumn = uniqueColumns[0]
-	case len(uniqueColumns) == 0:
-		return nil, errors.New("no primary key or unique columns defined for update")
-	default:
-		return nil, errors.New("multiple unique columns with values defined for update, cannot locate the row")
-	}
-	if len(r.updateColumns) == 0 {
+	if len(updateColumns) == 0 {
 		return nil, errors.New("no updatable columns found for update")
 	}
-	return &r, nil
+	return &updateInfo{
+		locatingInfo:  *locatingInfo,
+		updateColumns: updateColumns,
+	}, nil
 }

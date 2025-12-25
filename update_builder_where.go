@@ -12,17 +12,12 @@ import (
 //		foo.Column("id"), 1,
 //	))
 func (b *UpdateBuilder) Where(s sqlf.Builder) *UpdateBuilder {
-	b.AppendWhere(s)
-	return b
-}
-
-// AppendWhere appends raw where conditions to the sqlb.
-func (b *UpdateBuilder) AppendWhere(s sqlf.Builder) {
 	if s == nil {
-		return
+		return b
 	}
 	b.resetDepTablesCache()
 	b.where.Append(s)
+	return b
 }
 
 // WhereEquals is a helper func similar to Where(), which adds a simple equality condition. e.g.:

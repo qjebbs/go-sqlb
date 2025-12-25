@@ -21,11 +21,12 @@ type Info struct {
 	ReadOnly    bool    // ReadOnly indicates whether "readonly" key is present.
 	InsertZero  bool    // InsertZero indicates whether "insert_zero" key is present.
 	Returning   bool    // Returning indicates whether "returning" key is present.
-	ConflictOn  bool    // ConflictOn indicates whether "conflict_on" key is present.
+	ConflictOn  *string // ConflictOn indicates whether "conflict_on" key is present.
 	ConflictSet *string // ConflictSet is parsed from "conflict_set" key.
 
-	Unique bool // Unique indicates whether "unique" key is present.
-	Match  bool // Match indicates whether "match" key is present.
+	Unique       bool     // Unique indicates whether "unique" key is present.
+	UniqueGroups []string // UniqueGroup indicates whether "unique_group" key is present.
+	Match        bool     // Match indicates whether "match" key is present.
 
 	SoftDelete bool // SoftDelete indicates whether "soft_delete" key is present.
 }
@@ -173,6 +174,15 @@ func parseKeyValue(p *parser) (parseFn, error) {
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.Unique = v
 		})
+	case "unique_group":
+		return parseStringAndSet(p, func(v string) error {
+			names, err := parseNames(v)
+			if err != nil {
+				return err
+			}
+			p.c.UniqueGroups = names
+			return nil
+		})
 	case "match":
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.Match = v
@@ -194,8 +204,9 @@ func parseKeyValue(p *parser) (parseFn, error) {
 			p.c.Returning = v
 		})
 	case "conflict_on":
-		return parseBoolAndSet(p, func(v bool) {
+		return parseStringPtrAndSet(p, func(v *string) error {
 			p.c.ConflictOn = v
+			return nil
 		})
 	case "conflict_set":
 		return parseStringPtrAndSet(p, func(v *string) error {

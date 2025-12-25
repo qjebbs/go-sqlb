@@ -11,6 +11,17 @@ func Index[T comparable](s []T, v T) int {
 	return -1
 }
 
+// IndexFunc returns the index of the first element in s
+// that satisfies the predicate f, or -1 if none do.
+func IndexFunc[T any](s []T, f func(T) bool) int {
+	for i := range s {
+		if f(s[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
 // Concat concatenates multiple slices into one slice.
 func Concat[T any](slices ...[]T) []T {
 	totalLen := 0
@@ -43,4 +54,16 @@ func MapKeys[K comparable, V any](m map[K]V) []K {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// Filter filters a slice in-place based on a predicate function.
+func Filter[T any](list []T, f func(T) bool) []T {
+	pos := 0
+	for _, x := range list {
+		if f(x) {
+			list[pos] = x
+			pos++
+		}
+	}
+	return list[:pos]
 }

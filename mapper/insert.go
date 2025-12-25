@@ -3,6 +3,7 @@ package mapper
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/internal/util"
@@ -25,7 +26,6 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 // Insert omits zero-value fields by default. To include zero-value fields in the INSERT statement, use the `insert_zero` struct tag.
 //
 // Limitations:
-//   - Full tags support for PostgreSQL and SQLite
 //   - No 'returning' support for MySQL
 //   - No 'conflict_on' / 'conflict_set' support for SQL Server or Oracle
 //
@@ -37,7 +37,7 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 //   - readonly: The field is excluded from INSERT statement.
 //   - insert_zero: Don't omit the field from INSERT statement even if it has zero value.
 //   - returning: Mark the field to be included in RETURNING clause.
-//   - conflict_on: Declare current as one of conflict detection column.
+//   - conflict_on: If value is ommited, declare current unique column or current unique-group the conflict detection column(s). If there is any ambiguity, it must be explicitly specified, e.g. `unique_group:a,b,c;conflict_on:a`.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
 func Insert[T any](db QueryAble, values []T, options ...Option) error {
 	if len(values) == 0 {
@@ -161,6 +161,12 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 		}
 		return rv
 	})
+	var (
+		conflictColumns []fieldData
+		unique          []fieldData
+		uniqueGroups    = make(map[string][]fieldData)
+	)
+
 	// FIXME: Oracle does not support DEFAULT keyword in INSERT VALUES
 	var defaultBuilder sqlf.Builder = sqlf.F("DEFAULT")
 	for _, col := range f.columns {
@@ -172,6 +178,10 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 			continue
 		}
 		colIndent := dialect.QuoteIdentifier(col.Column)
+		fieldData := fieldData{
+			Info:   col,
+			Indent: colIndent,
+		}
 		allZero := true
 		colValues := util.Map(reflectValues, func(v reflect.Value) any {
 			field := v.FieldByIndex(col.Index)
@@ -188,10 +198,18 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 			r.returningColumns = append(r.returningColumns, colIndent)
 			r.returningFields = append(r.returningFields, col)
 		}
-		if col.ConflictOn {
+		if col.Unique {
+			unique = append(unique, fieldData)
+		}
+		if len(col.UniqueGroups) > 0 {
+			for _, group := range col.UniqueGroups {
+				uniqueGroups[group] = append(uniqueGroups[group], fieldData)
+			}
+		}
+		if col.ConflictOn != nil {
 			switch dialect {
 			case sqlb.DialectPostgres, sqlb.DialectSQLite:
-				r.conflict = append(r.conflict, colIndent)
+				conflictColumns = append(conflictColumns, fieldData)
 			case sqlb.DialectMySQL:
 				// ignore, MySQL uses different syntax
 			default:
@@ -233,5 +251,73 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 		r.insertIndices = append(r.insertIndices, col.Index)
 		r.insertValues = append(r.insertValues, colValues)
 	}
+	// check conflict columns
+	if len(conflictColumns) == 0 {
+		return r, nil
+	}
+	conflictFields := make([]string, 0)
+	conflictOnGroups := make(map[string]bool)
+	for _, conflict := range conflictColumns {
+		group, err := getConflictOnGroup(conflict)
+		if err != nil {
+			return r, err
+		}
+		if group != "" {
+			conflictOnGroups[group] = true
+		} else {
+			conflictFields = append(conflictFields, conflict.Indent)
+		}
+	}
+	nConflictOn := len(conflictFields) + len(conflictOnGroups)
+	switch {
+	case nConflictOn == 1:
+		if len(conflictFields) == 1 {
+			r.conflict = conflictFields
+		} else {
+			// use unique group
+			for group := range conflictOnGroups {
+				r.conflict = util.Map(uniqueGroups[group], func(f fieldData) string { return f.Indent })
+			}
+		}
+	case nConflictOn == 0:
+		// should not happen
+		return r, fmt.Errorf("has conflict_on fields but no conflict result")
+	case nConflictOn > 1:
+		if len(conflictFields) == 0 {
+			groups := strings.Join(util.MapKeys(conflictOnGroups), ",")
+			return r, fmt.Errorf("conflict on multiple unique_group %q", groups)
+		}
+		if len(conflictOnGroups) == 0 {
+			cols := strings.Join(conflictFields, ",")
+			return r, fmt.Errorf("conflict on multiple unique %q", cols)
+		}
+		cols := strings.Join(conflictFields, ",")
+		groups := strings.Join(util.MapKeys(conflictOnGroups), ",")
+		return r, fmt.Errorf("conflict on both unique %q and unique_group %q", cols, groups)
+	}
 	return r, nil
+}
+
+func getConflictOnGroup(field fieldData) (string, error) {
+	if field.Info.ConflictOn == nil {
+		// should not happen
+		return "", fmt.Errorf("call calcConflictOn() on non-conflict-on column")
+	}
+	// "conflict_on:group1" conflict on on group1
+	if *field.Info.ConflictOn != "" {
+		return *field.Info.ConflictOn, nil
+	}
+	// "unique;conflict_on" conflict on current unique column
+	if field.Info.Unique {
+		return "", nil
+	}
+	// "unique_group:group1,group2;conflict_on"
+	if len(field.Info.UniqueGroups) > 1 {
+		return "", fmt.Errorf("ambiguity 'conflict_on' to 'unique_group:%s', must specify a group name", strings.Join(field.Info.UniqueGroups, ","))
+	}
+	if len(field.Info.UniqueGroups) == 0 {
+		return "", fmt.Errorf("field %q is not unique or unique_group, cannot be used for conflict detection", field.Info.Column)
+	}
+	// "unique_group:group1;conflict_on" conflict on on group1
+	return field.Info.UniqueGroups[0], nil
 }

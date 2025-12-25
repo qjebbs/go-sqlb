@@ -175,7 +175,14 @@ func parseKeyValue(p *parser) (parseFn, error) {
 			p.c.Unique = v
 		})
 	case "unique_group":
-		return parseStringAndSet(p, func(v string) error {
+		return parseOptionalStringAndSet(p, func(v string) error {
+			if v == "" {
+				// unamed group
+				// use a special value to represent unamed group,
+				// user will not be able to write ';' suffixed group name
+				p.c.UniqueGroups = []string{"default;"}
+				return nil
+			}
 			names, err := parseNames(v)
 			if err != nil {
 				return err
@@ -204,13 +211,13 @@ func parseKeyValue(p *parser) (parseFn, error) {
 			p.c.Returning = v
 		})
 	case "conflict_on":
-		return parseStringPtrAndSet(p, func(v *string) error {
-			p.c.ConflictOn = v
+		return parseOptionalStringAndSet(p, func(v string) error {
+			p.c.ConflictOn = &v
 			return nil
 		})
 	case "conflict_set":
-		return parseStringPtrAndSet(p, func(v *string) error {
-			p.c.ConflictSet = v
+		return parseOptionalStringAndSet(p, func(v string) error {
+			p.c.ConflictSet = &v
 			return nil
 		})
 	default:
@@ -249,18 +256,18 @@ func parseStringAndSet(p *parser, set func(v string) error) (parseFn, error) {
 	return parse, nil
 }
 
-// parseStringPtrAndSet parses a string value or nil and sets it using the provided setter function.
+// parseOptionalStringAndSet parses an optional string value and sets it using the provided setter function.
 // Accepted syntax:
 //   - key:value;
-//   - key; (sets nil)
-func parseStringPtrAndSet(p *parser, set func(v *string) error) (parseFn, error) {
+//   - key; (valued as empty string)
+func parseOptionalStringAndSet(p *parser, set func(v string) error) (parseFn, error) {
 	if err := p.want(_Colon, _Semicolon, _EOF); err != nil {
 		return nil, err
 	}
 	if p.token.typ != _Colon {
 		// presence, set empty
 		empty := ""
-		if err := set(&empty); err != nil {
+		if err := set(empty); err != nil {
 			return nil, err
 		}
 		return parse, nil
@@ -269,7 +276,7 @@ func parseStringPtrAndSet(p *parser, set func(v *string) error) (parseFn, error)
 		return nil, err
 	}
 	value := p.token.lit
-	if err := set(&value); err != nil {
+	if err := set(value); err != nil {
 		return nil, err
 	}
 	if err := p.want(_Semicolon, _EOF); err != nil {

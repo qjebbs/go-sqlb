@@ -37,6 +37,7 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 //   - pk: The column is primary key, which is excluded from INSERT statement.
 //   - unique: The column could be used with conflict_on to detect conflict.
 //   - unique_group[:name[,name]...]: The column is one of the "Composite Unique" fields, which could could be used with conflict_on to detect conflict. If there is only one unique_group in the struct, the group name can be omitted.
+//   - required: The field is required to have non-zero value, otherwise Insert will return an error.
 //   - readonly: The field is excluded from INSERT statement.
 //   - insert_zero: Don't omit the field from INSERT statement even if it has zero value.
 //   - returning: Mark the field to be included in RETURNING clause.
@@ -186,9 +187,11 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 			Indent: colIndent,
 		}
 		allZero := true
+		noZero := true
 		colValues := util.Map(reflectValues, func(v reflect.Value) any {
 			field := v.FieldByIndex(col.Index)
 			if field.IsZero() {
+				noZero = false
 				if !col.InsertZero {
 					return defaultBuilder
 				}
@@ -247,6 +250,12 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 			r.actions = append(r.actions, sqlf.F("? = ?", colQuoted, setValue))
 		}
 
+		if !col.InsertZero && col.Info.Required && !noZero {
+			if len(values) == 1 {
+				return r, fmt.Errorf("%s is required", col.Name)
+			}
+			return r, fmt.Errorf("%s is required but missing in some of the inserted values", col.Name)
+		}
 		if col.PK || col.ReadOnly || !col.InsertZero && allZero {
 			continue
 		}

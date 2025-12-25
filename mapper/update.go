@@ -20,6 +20,7 @@ import (
 //   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col<:name>: The column in database associated with the field.
 //   - pk: The column is primary key.
+//   - required: The field is required to have non-zero value, otherwise Update (not Patch) will return an error.
 //   - unique: The column is unique.
 //   - unique_group[:name[,name]...]: The column is one of the "Composite Unique" groups. If there is only one unique_group in the struct, the group name can be omitted.
 //   - match: The column will be always included in WHERE clause even if it is zero value.
@@ -128,6 +129,9 @@ func buildUpdateInfo[T any](dialect sqlb.Dialect, f *structInfo, updateAll bool,
 	for _, col := range locatingInfo.others {
 		if col.Info.PK || col.Info.ReadOnly || col.Info.SoftDelete || (col.Val.IsZero && !updateAll) {
 			continue
+		}
+		if col.Info.Required && col.Val.IsZero {
+			return nil, fmt.Errorf("%s is required", col.Info.Name)
 		}
 		updateColumns = append(updateColumns, col)
 	}

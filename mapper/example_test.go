@@ -36,7 +36,7 @@ func Example_cRUD() {
 		Model `sqlb:"table:users"`
 		// unique indicates this column has a unique constraint, which can be used to locate records for Load / Delete operation.
 		// conflict_on indicates the column(s) to check for conflict during insert.
-		Email string `sqlb:"col:email;unique;conflict_on"`
+		Email string `sqlb:"col:email;required;unique;conflict_on"`
 		// conflict_set without value means to use excluded column value
 		Name string `sqlb:"col:name;conflict_set"`
 	}

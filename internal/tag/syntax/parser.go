@@ -18,6 +18,7 @@ type Info struct {
 	Dive     bool     // Dive indicates whether "dive" key is present.
 
 	PK          bool    // PK indicates whether "pk" key is present.
+	Required    bool    // Required indicates whether "required" key is present.
 	ReadOnly    bool    // ReadOnly indicates whether "readonly" key is present.
 	InsertZero  bool    // InsertZero indicates whether "insert_zero" key is present.
 	Returning   bool    // Returning indicates whether "returning" key is present.
@@ -197,6 +198,10 @@ func parseKeyValue(p *parser) (parseFn, error) {
 	case "soft_delete":
 		return parseBoolAndSet(p, func(v bool) {
 			p.c.SoftDelete = v
+		})
+	case "required":
+		return parseBoolAndSet(p, func(v bool) {
+			p.c.Required = v
 		})
 	case "readonly":
 		return parseBoolAndSet(p, func(v bool) {

@@ -76,6 +76,11 @@ See Also:
 
 sqlb provides declarative struct mapping via `mapper` package,
 
+To avoid unnecessary abstraction, all CRUD operation inputs must represent explicit objects, not arbitrary query conditions. Therefore:
+
+- Insert() supports batch insertion of multiple records, as each item is a concrete object to be inserted.
+- Load(), Update(), and Delete() only operate on a single record at a time. If you need to update or delete multiple records in bulk, please use the sqlb package to construct the corresponding SQL statements manually.
+
 ```go
 
 import (
@@ -114,7 +119,7 @@ func Example_cRUD() {
 		Model `sqlb:"table:users"`
 		// unique indicates this column has a unique constraint, which can be used to locate records for Load / Delete operation.
 		// conflict_on indicates the column(s) to check for conflict during insert.
-		Email string `sqlb:"col:email;unique;conflict_on"`
+		Email string `sqlb:"col:email;required;unique;conflict_on"`
 		// conflict_set without value means to use excluded column value
 		Name string `sqlb:"col:name;conflict_set"`
 	}
@@ -128,6 +133,10 @@ func Example_cRUD() {
 	}
 
 	_, err = mapper.Load(nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+	_, err = mapper.Exists(nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
@@ -157,9 +166,10 @@ func Example_cRUD() {
 	}
 	// Output:
 	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, deleted = EXCLUDED.deleted, name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, name, email FROM users WHERE id = 1 AND deleted IS NULL
+	// [Load(*mapper_test.User)] SELECT created, updated, email, name FROM users WHERE id = 1 AND deleted IS NULL
+	// [Exists(*mapper_test.User)] SELECT 1 FROM users WHERE id = 1 AND deleted IS NULL
 	// [Patch(*mapper_test.User)] UPDATE users SET name = 'Happy Alice' WHERE email = 'alice@example.org' AND deleted IS NULL
 	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, name = '' WHERE email = 'alice@example.org' AND deleted IS NULL
-	// [Delete(*mapper_test.User)] UPDATE users SET deleted = '0001-01-01 00:00:00 +0000 UTC' WHERE id = 1 AND deleted = NULL
+	// [Delete(*mapper_test.User)] UPDATE users SET deleted = '0001-01-01 00:00:00 +0000 UTC' WHERE id = 1 AND deleted IS NULL
 }
 ```

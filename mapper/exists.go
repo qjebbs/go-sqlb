@@ -1,0 +1,59 @@
+package mapper
+
+import (
+	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlf/v4"
+)
+
+// Exists checks whether a record exists in the database.
+//
+// See Load() for struct tag syntax and locating rules.
+func Exists[T any](db QueryAble, value T, options ...Option) (bool, error) {
+	if err := checkStruct(value); err != nil {
+		return false, err
+	}
+	opt := mergeOptions(options...)
+	queryStr, args, err := buildExistsQueryForStruct(value, opt)
+	if err != nil {
+		return false, err
+	}
+	if db == nil {
+		return false, ErrNilDB
+	}
+	var existsInt int
+	err = db.QueryRow(queryStr, args...).Scan(&existsInt)
+	if err != nil {
+		return false, err
+	}
+	return existsInt > 0, nil
+}
+
+func buildExistsQueryForStruct[T any](value T, opt *Options) (query string, args []any, err error) {
+	if opt == nil {
+		opt = newDefaultOptions()
+	}
+	info, err := getStructInfo(value)
+	if err != nil {
+		return "", nil, err
+	}
+	loadInfo, err := buildLoadInfo(opt.dialect, info, value)
+	if err != nil {
+		return "", nil, err
+	}
+	b := sqlb.NewSelectBuilder().
+		Select(sqlf.F("1")).
+		From(sqlb.NewTable(loadInfo.table))
+
+	loadInfo.EachWhere(func(cond sqlf.Builder) {
+		b.Where(cond)
+	})
+
+	query, args, err = b.BuildQuery(opt.style)
+	if err != nil {
+		return "", nil, err
+	}
+	if opt.debug {
+		printDebugQuery("Exists", value, query, args)
+	}
+	return query, args, nil
+}

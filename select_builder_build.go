@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/qjebbs/go-sqlf/v4"
-	"github.com/qjebbs/go-sqlf/v4/util"
 )
 
 // BuildQuery builds the query.
@@ -26,8 +25,7 @@ func (b *SelectBuilder) Build(ctx *sqlf.Context) (query string, err error) {
 
 // Debug enables debug mode which prints the interpolated query to stdout.
 func (b *SelectBuilder) Debug(name ...string) *SelectBuilder {
-	b.debug = true
-	b.debugName = strings.Replace(strings.Join(name, "_"), " ", "_", -1)
+	b.debugger.Debug(name...)
 	return b
 }
 
@@ -66,7 +64,7 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	built = append(built, sel)
 	from, err := b.from.BuildRequired(ctx, &fromBuilderMeta{
-		DebugName:  b.debugName,
+		DebugName:  b.name,
 		Distinct:   b.distinct,
 		HasGroupBy: !b.groupbys.Empty(),
 	}, myDeps.queryDeps)
@@ -118,22 +116,8 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		}
 		query = strings.TrimSpace(query + " " + union)
 	}
-	if b.debug {
-		printDebugQuery(b.debugName, query, ctx.Args())
-	}
+	b.debugger.printIfDebug(query, ctx.Args())
 	return query, nil
-}
-
-func printDebugQuery(name, query string, args []any) {
-	prefix := name
-	if prefix == "" {
-		prefix = "sqlb"
-	}
-	interpolated, err := util.Interpolate(query, args)
-	if err != nil {
-		fmt.Printf("[%s] interpolating: %s\n", prefix, err)
-	}
-	fmt.Printf("[%s] %s\n", prefix, interpolated)
 }
 
 func (b *SelectBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
@@ -164,7 +148,7 @@ func (b *SelectBuilder) collectDependencies() (*selectBuilderDependencies, error
 		return b.deps, nil
 	}
 	queryDeps, err := b.from.CollectDependencies(&fromBuilderMeta{
-		DebugName: b.debugName,
+		DebugName: b.name,
 		DependOnMe: []sqlf.Builder{
 			b.selects,
 			b.where,

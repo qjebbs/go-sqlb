@@ -14,9 +14,7 @@ var _ Builder = (*DeleteBuilder)(nil)
 type DeleteBuilder struct {
 	target string
 	where  *clauseList // where conditions, joined with AND.
-
-	debug     bool // debug mode
-	debugName string
+	debugger
 }
 
 // NewDeleteBuilder returns a new DeleteBuilder.

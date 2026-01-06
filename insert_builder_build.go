@@ -27,8 +27,7 @@ func (b *InsertBuilder) Build(ctx *sqlf.Context) (query string, err error) {
 
 // Debug enables debug mode which prints the interpolated query to stdout.
 func (b *InsertBuilder) Debug(name ...string) *InsertBuilder {
-	b.debug = true
-	b.debugName = strings.Replace(strings.Join(name, "_"), " ", "_", -1)
+	b.debugger.Debug(name...)
 	return b
 }
 
@@ -49,7 +48,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 
 	built := make([]string, 0)
 	if b.selects != nil && b.ctes.HasCTE() {
-		myDeps := newDependencies(b.debugName)
+		myDeps := newDependencies(b.name)
 		depCtx := contextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), myDeps)
 		_, err := b.selects.Build(depCtx)
 		if err != nil {
@@ -158,8 +157,6 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		}
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
-	if b.debug {
-		printDebugQuery(b.debugName, query, ctx.Args())
-	}
+	b.debugger.printIfDebug(query, ctx.Args())
 	return query, nil
 }

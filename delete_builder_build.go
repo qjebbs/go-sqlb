@@ -24,8 +24,7 @@ func (b *DeleteBuilder) Build(ctx *sqlf.Context) (query string, err error) {
 
 // Debug enables debug mode which prints the interpolated query to stdout.
 func (b *DeleteBuilder) Debug(name ...string) *DeleteBuilder {
-	b.debug = true
-	b.debugName = strings.Replace(strings.Join(name, "_"), " ", "_", -1)
+	b.debugger.Debug(name...)
 	return b
 }
 
@@ -46,8 +45,6 @@ func (b *DeleteBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		built = append(built, where)
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
-	if b.debug {
-		printDebugQuery(b.debugName, query, ctx.Args())
-	}
+	b.debugger.printIfDebug(query, ctx.Args())
 	return query, nil
 }

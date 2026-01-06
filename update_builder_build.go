@@ -25,8 +25,7 @@ func (b *UpdateBuilder) Build(ctx *sqlf.Context) (query string, err error) {
 
 // Debug enables debug mode which prints the interpolated query to stdout.
 func (b *UpdateBuilder) Debug(name ...string) *UpdateBuilder {
-	b.debug = true
-	b.debugName = strings.Replace(strings.Join(name, "_"), " ", "_", -1)
+	b.debugger.Debug(name...)
 	return b
 }
 
@@ -113,15 +112,13 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		built = append(built, fmt.Sprintf(`LIMIT %d`, b.limit))
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
-	if b.debug {
-		printDebugQuery(b.debugName, query, ctx.Args())
-	}
+	b.debugger.printIfDebug(query, ctx.Args())
 	return query, nil
 }
 
 func (b *UpdateBuilder) joinBuilderMeta() *fromBuilderMeta {
 	return &fromBuilderMeta{
-		DebugName: b.debugName,
+		DebugName: b.name,
 		DependOnMe: []sqlf.Builder{
 			b.sets,
 			b.where,

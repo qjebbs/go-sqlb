@@ -21,8 +21,7 @@ type UpdateBuilder struct {
 	order  *clauseOrderBy // order by columns, joined with comma.
 	limit  int64          // limit count
 
-	debug     bool // debug mode
-	debugName string
+	debugger
 
 	deps   *selectBuilderDependencies
 	errors []error

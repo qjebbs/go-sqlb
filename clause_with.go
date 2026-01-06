@@ -13,8 +13,7 @@ var _ sqlf.Builder = (*clauseWith)(nil)
 type clauseWith struct {
 	builder sqlf.Builder
 
-	debugName string
-
+	debugger
 	ctes     []*cte
 	ctesDict map[string]*cte // the actual cte names, not aliases
 
@@ -141,7 +140,7 @@ func (w *clauseWith) collectDependencies(ctx *sqlf.Context) (required map[string
 	if w.deps != nil {
 		return w.deps, w.unresolvedDeps, nil
 	}
-	deps := newDependencies(w.debugName)
+	deps := newDependencies(w.name)
 	ctx = contextWithDependencies(ctx, deps)
 	// collect dependencies from query builder
 	_, err = w.builder.Build(ctx)
@@ -209,7 +208,7 @@ func (w *clauseWith) collectDepsFromCTE(deps map[string]bool, cte *cte) error {
 	}
 	deps[key] = true
 
-	tables := newDependencies(w.debugName)
+	tables := newDependencies(w.name)
 	ctx := contextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), tables)
 	_, err := cte.Builder.Build(ctx)
 	if err != nil {
@@ -243,7 +242,7 @@ func (w *clauseWith) resetDepTablesCache() {
 
 // Debug enables debug mode which prints the interpolated query to stdout.
 func (w *clauseWith) Debug(name ...string) *clauseWith {
-	w.debugName = strings.Replace(strings.Join(name, "_"), " ", "_", -1)
+	w.debugger.Debug(name...)
 	return w
 }
 

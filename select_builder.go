@@ -26,8 +26,7 @@ type SelectBuilder struct {
 	unions   *clauseList // union queries
 	errors   []error     // errors during building
 
-	debug     bool // debug mode
-	debugName string
+	debugger
 
 	deps *selectBuilderDependencies
 }

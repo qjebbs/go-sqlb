@@ -24,8 +24,7 @@ type InsertBuilder struct {
 
 	errors []error // errors during building
 
-	debug     bool // debug mode
-	debugName string
+	debugger
 }
 
 // NewInsertBuilder returns a new InsertBuilder.

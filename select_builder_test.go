@@ -17,6 +17,7 @@ func TestSelectBuilderDistinctElimination(t *testing.T) {
 		bar   = sqlb.NewTable("bar", "b")
 	)
 	q := sqlb.NewSelectBuilder().
+		EnableElimination().
 		With(sqlb.NewTable("xxx", ""), sqlf.F("SELECT 1 AS whatever")). // should be ignored
 		With(locs, sqlf.F("SELECT user_id AS id, loc FROM user_locs WHERE country_code = ?", "cn")).
 		With(
@@ -60,6 +61,7 @@ func TestSelectBuilderGroupbyElimination(t *testing.T) {
 		baz = sqlb.NewTable("baz", "z")
 	)
 	q := sqlb.NewSelectBuilder().
+		EnableElimination().
 		With(
 			baz,
 			sqlf.F("SELECT * FROM baz WHERE type=$1", "user"),
@@ -102,6 +104,7 @@ func TestSelectBuilderComplexDeps(t *testing.T) {
 		baz        = sqlb.NewTable("baz", "z")
 	)
 	q := sqlb.NewSelectBuilder().
+		EnableElimination().
 		With(
 			foo,
 			sqlf.F(

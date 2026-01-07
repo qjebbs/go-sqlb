@@ -24,6 +24,7 @@ type InsertBuilder struct {
 
 	errors []error // errors during building
 
+	pruning bool
 	debugger
 }
 
@@ -74,12 +75,11 @@ func (b *InsertBuilder) Returning(columns ...string) *InsertBuilder {
 	return b
 }
 
-// With adds a CTE to the insert statement.
+// With adds a builder as common table expression.
 //
-// Example:
-//
-//	q := sqlb.NewSelectBuilder().Select(foo.Column("*")).From(foo)
-//	b.With(table, q)
+// The CTE will be automatically eliminated if all the conditions below are met:
+//   - Pruning is enabled by `b.EnableElimination()` or parent builders
+//   - The table is not referenced anywhere in the query
 func (b *InsertBuilder) With(name Table, builder sqlf.Builder) *InsertBuilder {
 	b.ctes.With(name, builder)
 	return b

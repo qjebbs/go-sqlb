@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/qjebbs/go-sqlb"
@@ -26,7 +27,7 @@ func SelectOneManual[T any](db QueryAble, b sqlb.Builder, style sqlf.BindStyle, 
 // SelectManual executes a query and scans the results using a provider function.
 // The provider fn is called for each row to get the destination value and scan fields.
 func SelectManual[T any](db QueryAble, b sqlb.Builder, style sqlf.BindStyle, fn func() (T, []any)) ([]T, error) {
-	query, args, err := b.BuildQuery(style)
+	query, args, err := b.BuildQueryContext(context.Background(), style)
 	if err != nil {
 		return nil, err
 	}

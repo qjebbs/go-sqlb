@@ -1,6 +1,7 @@
 package sqlb
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -11,12 +12,17 @@ import (
 
 // BuildQuery builds the query.
 func (b *InsertBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
-	ctx := sqlf.NewContext(style)
-	query, err = b.buildInternal(ctx)
+	return b.BuildQueryContext(context.Background(), style)
+}
+
+// BuildQueryContext builds the query with the given context.
+func (b *InsertBuilder) BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error) {
+	buildCtx := sqlf.NewContext(ctx, style)
+	query, err = b.buildInternal(buildCtx)
 	if err != nil {
 		return "", nil, err
 	}
-	args = ctx.Args()
+	args = buildCtx.Args()
 	return query, args, nil
 }
 
@@ -28,6 +34,20 @@ func (b *InsertBuilder) Build(ctx *sqlf.Context) (query string, err error) {
 // Debug enables debug mode which prints the interpolated query to stdout.
 func (b *InsertBuilder) Debug(name ...string) *InsertBuilder {
 	b.debugger.Debug(name...)
+	return b
+}
+
+// EnableElimination enables JOIN / CTE elimination based on dependency analysis.
+// To use elimination, make sure all table references are done via Table objects.
+//
+// For example,
+//
+//	t := sqlb.NewTable("foo", "f")
+//	b.Where(sqlf.F("? = ?", t.Column("id"), 1))
+//	// instead of
+//	b.Where(sqlf.F("f.id = ?", 1))
+func (b *InsertBuilder) EnableElimination() *InsertBuilder {
+	b.pruning = true
 	return b
 }
 
@@ -46,25 +66,27 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		return "", fmt.Errorf("cannot specify both select and values for insert")
 	}
 
+	ctx, pruning := decideContextPruning(ctx, b.pruning)
 	built := make([]string, 0)
 	if b.selects != nil && b.ctes.HasCTE() {
+		var err error
 		myDeps := newDependencies(b.name)
-		depCtx := contextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), myDeps)
-		_, err := b.selects.Build(depCtx)
-		if err != nil {
-			return "", err
-		}
-
-		if deps := dependenciesFromContext(ctx); deps != nil {
-			for t := range myDeps.OuterTables {
-				deps.OuterTables[t] = true
+		if pruning {
+			myDeps, err = b.collectDependencies(ctx)
+			if err != nil {
+				return "", err
 			}
-			for t := range myDeps.SourceNames {
-				deps.SourceNames[t] = true
+			if deps := dependenciesFromContext(ctx); deps != nil {
+				for t := range myDeps.OuterTables {
+					deps.OuterTables[t] = true
+				}
+				for t := range myDeps.SourceNames {
+					deps.SourceNames[t] = true
+				}
+				// collecting dependencies only,
+				// no need to build anything here
+				return "", nil
 			}
-			// collecting dependencies only,
-			// no need to build anything here
-			return "", nil
 		}
 		ctes := make(map[string]bool)
 		for cte := range myDeps.SourceNames {
@@ -159,4 +181,18 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	query := strings.TrimSpace(strings.Join(built, " "))
 	b.debugger.printIfDebug(query, ctx.Args())
 	return query, nil
+}
+
+// collectDependencies collects the dependencies of the tables.
+func (b *InsertBuilder) collectDependencies(ctx *sqlf.Context) (*dependencies, error) {
+	myDeps := newDependencies(b.name)
+
+	// use a separate context to avoid polluting args
+	ctx = sqlf.NewContext(ctx, sqlf.BindStyleQuestion)
+	depCtx := contextWithDependencies(ctx, myDeps)
+	_, err := b.selects.Build(depCtx)
+	if err != nil {
+		return nil, err
+	}
+	return myDeps, nil
 }

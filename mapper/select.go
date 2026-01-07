@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"context"
 	"database/sql"
 	"reflect"
 
@@ -145,7 +146,7 @@ func buildSelectQueryForStruct[T any](b SelectBuilder, opt *Options) (query stri
 	}
 	columns, dests := buildSelectInfo(opt, info)
 	b.SetSelect(columns...)
-	ctx := sqlf.NewContext(opt.style)
+	ctx := sqlf.NewContext(context.Background(), opt.style)
 	query, err = b.Build(ctx)
 	if err != nil {
 		return "", nil, nil, err

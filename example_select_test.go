@@ -14,6 +14,7 @@ func Example_elimination() {
 		baz = sqlb.NewTable("baz", "z")
 	)
 	b := sqlb.NewSelectBuilder().
+		EnableElimination().
 		// Will be eliminated since not required.
 		With(baz, sqlf.F("SELECT 1")).
 		Distinct().Select(foo.Column("*")).
@@ -53,6 +54,7 @@ func ExampleSelectBuilder_LeftJoinOptional() {
 		bar = sqlb.NewTable("bar", "b")
 	)
 	query, args, err := sqlb.NewSelectBuilder().
+		EnableElimination().
 		Distinct(). // *SelectBuilder eliminates optional joins when SELECT DISTINCT is used.
 		Select(foo.Column("*")).
 		From(foo).
@@ -82,6 +84,7 @@ func ExampleSelectBuilder_With() {
 	fooBuilder := sqlf.F("SELECT * FROM users WHERE active")
 	barBuilder := sqlf.F("SELECT * FROM ?", foo) // requires 'foo'
 	builder := sqlb.NewSelectBuilder().
+		EnableElimination().
 		With(foo, fooBuilder).
 		With(bar, barBuilder).
 		Select(bar.Column("*")). // requires 'bar'
@@ -143,6 +146,7 @@ func ExampleSelectBuilder_Debug() {
 		From(cte).
 		Union(q1)
 	q3 := sqlb.NewSelectBuilder().Debug("q3").
+		EnableElimination().
 		With(cte, cteBuilder).
 		Select(foo.Column("*")).
 		From(foo).

@@ -41,6 +41,7 @@ func (b *clauseFrom) BuildRequired(ctx *sqlf.Context, meta *fromBuilderMeta, dep
 	if len(b.tables) == 0 {
 		return "", nil
 	}
+	pruning := pruningFromContext(ctx)
 	tables := make([]string, 0, len(b.tables))
 	if b.explicitFrom {
 		c, err := b.tables[0].Build(ctx)
@@ -50,7 +51,7 @@ func (b *clauseFrom) BuildRequired(ctx *sqlf.Context, meta *fromBuilderMeta, dep
 		tables = append(tables, "FROM "+c)
 	}
 	for _, t := range b.tables[1:] {
-		if b.shouldEliminateTable(meta, t, deps) {
+		if pruning && b.shouldEliminateTable(meta, t, deps) {
 			continue
 		}
 		c, err := t.Builder.Build(ctx)
@@ -67,12 +68,12 @@ func (b *clauseFrom) BuildRequired(ctx *sqlf.Context, meta *fromBuilderMeta, dep
 }
 
 // CollectDependencies collects the table dependencies from FROM clause.
-func (b *clauseFrom) CollectDependencies(meta *fromBuilderMeta) (*dependencies, error) {
+func (b *clauseFrom) CollectDependencies(ctx *sqlf.Context, meta *fromBuilderMeta) (*dependencies, error) {
 	// extractTables gets all deps used in the builders,
 	// there are two types of table reporting:
 	// 1. *SelectBuilder only reports its unresolved deps (not defined in CTEs).
 	// 2. sqlf.Table in any other sqlf.Builder always reports itself.
-	deps, err := b.extractTables(meta.DebugName, meta.DependOnMe...)
+	deps, err := b.extractTables(ctx, meta.DebugName, meta.DependOnMe...)
 	if err != nil {
 		return nil, fmt.Errorf("collect dependencies: %w", err)
 	}
@@ -89,7 +90,7 @@ func (b *clauseFrom) CollectDependencies(meta *fromBuilderMeta) (*dependencies, 
 		// required by FROM / JOIN
 		deps.Tables[t.table] = true
 		// collect deps from FROM / JOIN ON clauses.
-		err := b.collectDepsFromTable(meta, depsOfTables, t.table)
+		err := b.collectDepsFromTable(ctx, meta, depsOfTables, t.table)
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +118,7 @@ func (b *clauseFrom) CollectDependencies(meta *fromBuilderMeta) (*dependencies, 
 	return deps, nil
 }
 
-func (b *clauseFrom) collectDepsFromTable(meta *fromBuilderMeta, dep *dependencies, t Table) error {
+func (b *clauseFrom) collectDepsFromTable(ctx *sqlf.Context, meta *fromBuilderMeta, dep *dependencies, t Table) error {
 	from, ok := b.tablesDict[t.AppliedName()]
 	if !ok {
 		if meta.DebugName != "" {
@@ -129,7 +130,7 @@ func (b *clauseFrom) collectDepsFromTable(meta *fromBuilderMeta, dep *dependenci
 		return nil
 	}
 	dep.Tables[t] = true
-	tables, err := b.extractTables(meta.DebugName, from)
+	tables, err := b.extractTables(ctx, meta.DebugName, from)
 	if err != nil {
 		return fmt.Errorf("collect dependencies of table %q: %w", from.table.Name, err)
 	}
@@ -137,7 +138,7 @@ func (b *clauseFrom) collectDepsFromTable(meta *fromBuilderMeta, dep *dependenci
 		if ft == t {
 			continue
 		}
-		err := b.collectDepsFromTable(meta, dep, ft)
+		err := b.collectDepsFromTable(ctx, meta, dep, ft)
 		if err != nil {
 			return err
 		}
@@ -145,17 +146,17 @@ func (b *clauseFrom) collectDepsFromTable(meta *fromBuilderMeta, dep *dependenci
 	return nil
 }
 
-func (b *clauseFrom) extractTables(debugName string, args ...sqlf.Builder) (*dependencies, error) {
+func (b *clauseFrom) extractTables(ctx *sqlf.Context, debugName string, args ...sqlf.Builder) (*dependencies, error) {
 	tables := newDependencies(debugName)
-	ctx := contextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), tables)
-	_, err := sqlf.Join(";", args...).Build(ctx)
+	depCtx := contextWithDependencies(ctx, tables)
+	_, err := sqlf.Join(";", args...).Build(depCtx)
 	if err != nil {
 		return nil, err
 	}
 	return tables, nil
 }
 func (b *clauseFrom) shouldEliminateTable(meta *fromBuilderMeta, t *fromTable, dep *dependencies) bool {
-	if !t.optional || dep.Tables[t.table] {
+	if !t.optional || dep == nil || dep.Tables == nil || dep.Tables[t.table] {
 		return false
 	}
 	// automatic elimination for LEFT JOIN tables

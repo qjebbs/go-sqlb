@@ -1,6 +1,7 @@
 package sqlb
 
 import (
+	"context"
 	"strings"
 
 	"github.com/qjebbs/go-sqlf/v4"
@@ -8,12 +9,17 @@ import (
 
 // BuildQuery builds the query.
 func (b *DeleteBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
-	ctx := sqlf.NewContext(style)
-	query, err = b.buildInternal(ctx)
+	return b.BuildQueryContext(context.Background(), style)
+}
+
+// BuildQueryContext builds the query with the given context.
+func (b *DeleteBuilder) BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error) {
+	buildCtx := sqlf.NewContext(ctx, style)
+	query, err = b.buildInternal(buildCtx)
 	if err != nil {
 		return "", nil, err
 	}
-	args = ctx.Args()
+	args = buildCtx.Args()
 	return query, args, nil
 }
 

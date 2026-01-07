@@ -1,6 +1,7 @@
 package sqlb
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -9,12 +10,17 @@ import (
 
 // BuildQuery builds the query.
 func (b *UpdateBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
-	ctx := sqlf.NewContext(style)
-	query, err = b.buildInternal(ctx)
+	return b.BuildQueryContext(context.Background(), style)
+}
+
+// BuildQueryContext builds the query with the given context.
+func (b *UpdateBuilder) BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error) {
+	buildCtx := sqlf.NewContext(ctx, style)
+	query, err = b.buildInternal(buildCtx)
 	if err != nil {
 		return "", nil, err
 	}
-	args = ctx.Args()
+	args = buildCtx.Args()
 	return query, args, nil
 }
 
@@ -29,6 +35,20 @@ func (b *UpdateBuilder) Debug(name ...string) *UpdateBuilder {
 	return b
 }
 
+// EnableElimination enables JOIN / CTE elimination based on dependency analysis.
+// To use elimination, make sure all table references are done via Table objects.
+//
+// For example,
+//
+//	t := sqlb.NewTable("foo", "f")
+//	b.Where(sqlf.F("? = ?", t.Column("id"), 1))
+//	// instead of
+//	b.Where(sqlf.F("f.id = ?", 1))
+func (b *UpdateBuilder) EnableElimination() *UpdateBuilder {
+	b.pruning = true
+	return b
+}
+
 // buildInternal builds the query with the selects.
 func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if err := b.anyError(); err != nil {
@@ -39,20 +59,26 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	built := make([]string, 0)
 
-	myDeps, err := b.collectDependencies()
-	if err != nil {
-		return "", err
-	}
-	if deps := dependenciesFromContext(ctx); deps != nil {
-		for t := range myDeps.unresolved.OuterTables {
-			deps.OuterTables[t] = true
+	ctx, pruning := decideContextPruning(ctx, b.pruning)
+
+	var err error
+	var myDeps = &selectBuilderDependencies{}
+	if pruning {
+		myDeps, err = b.collectDependencies(ctx)
+		if err != nil {
+			return "", err
 		}
-		for t := range myDeps.unresolved.SourceNames {
-			deps.SourceNames[t] = true
+		if deps := dependenciesFromContext(ctx); deps != nil {
+			for t := range myDeps.unresolved.OuterTables {
+				deps.OuterTables[t] = true
+			}
+			for t := range myDeps.unresolved.SourceNames {
+				deps.SourceNames[t] = true
+			}
+			// collecting dependencies only,
+			// no need to build anything here
+			return "", nil
 		}
-		// collecting dependencies only,
-		// no need to build anything here
-		return "", nil
 	}
 	with, err := b.ctes.BuildRequired(ctx, myDeps.cteDeps)
 	if err != nil {
@@ -130,15 +156,17 @@ func (b *UpdateBuilder) joinBuilderMeta() *fromBuilderMeta {
 }
 
 // collectDependencies collects the dependencies of the tables.
-func (b *UpdateBuilder) collectDependencies() (*selectBuilderDependencies, error) {
+func (b *UpdateBuilder) collectDependencies(ctx *sqlf.Context) (*selectBuilderDependencies, error) {
 	if b.deps != nil {
 		return b.deps, nil
 	}
-	queryDeps, err := b.from.CollectDependencies(b.joinBuilderMeta())
+	// use a separate context to avoid polluting args
+	ctx = sqlf.NewContext(ctx, sqlf.BindStyleQuestion)
+	queryDeps, err := b.from.CollectDependencies(ctx, b.joinBuilderMeta())
 	if err != nil {
 		return nil, err
 	}
-	cteRequired, cteUnresolved, err := b.ctes.CollectDependenciesForDeps(queryDeps)
+	cteRequired, cteUnresolved, err := b.ctes.CollectDependenciesForDeps(ctx, queryDeps)
 	if err != nil {
 		return nil, err
 	}

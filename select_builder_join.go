@@ -17,41 +17,26 @@ func (b *SelectBuilder) InnerJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
 	return b
 }
 
-// LeftJoin append / replace a left join table.
-// The query builder will remove LEFT JOIN if no columns from the joined table are referenced
-// and SELECT DISTINCT or GROUP BY is enabled.
-//
-// !!! To ensure dependencies are collected as expected, do not hard-code table names.
-// Always build tables using Table. For example:
-//
-//	// GOOD: The dependency of foo will be collected.
-//	foo := sqlb.NewTable("foo")
-//	b.SELECT(sqlf.F("?.id", foo))
-//
-//	// BAD: The dependency of foo will NOT be collected.
-//	b.SELECT(sqlf.F("foo.id"))
+// LeftJoin append / replace a left join table,
+// which will be automatically eliminated if all the conditions below are met:
+//   - Pruning is enabled by `b.EnableElimination()` or parent builders
+//   - SELECT DISTINCT or GROUP BY is enabled.
+//   - The table is not referenced anywhere in the query
 func (b *SelectBuilder) LeftJoin(t Table, on *sqlf.Fragment) *SelectBuilder {
 	b.from.Join("LEFT JOIN", t, on, true, false)
 	return b
 }
 
-// LeftJoinOptional append / replace a left join table, which is forced to be eliminated
-// if no columns from the joined table are referenced
-// in the query, no matter if SELECT DISTINCT or GROUP BY is enabled.
+// LeftJoinOptional append / replace a left join table,
+// which will be automatically eliminated if all the conditions below are met:
+//   - Pruning is enabled by `b.EnableElimination()` or parent builders
+//   - The table is not referenced anywhere in the query
 //
-// !!! It's users responsibility to ensure the elemination has no side effects,
+// !!! Unlike LeftJoin, a LeftJoinOptional table can be eliminated even when
+// SELECT DISTINCT or GROUP BY is not used.
+// It's users responsibility to ensure the elemination has no side effects,
 // In other words, it's safe only when the left table has one-to-one / one-to-zero
 // relationship with the joined right table.
-//
-// !!! To ensure dependencies are collected as expected, do not hard-code table names.
-// Always build tables using Table. For example:
-//
-//	// GOOD: The dependency of foo will be collected.
-//	foo := sqlb.NewTable("foo")
-//	b.SELECT(sqlf.F("?.id", foo))
-//
-//	// BAD: The dependency of foo will NOT be collected.
-//	b.SELECT(sqlf.F("foo.id"))
 func (b *SelectBuilder) LeftJoinOptional(t Table, on *sqlf.Fragment) *SelectBuilder {
 	b.from.Join("LEFT JOIN", t, on, true, true)
 	return b

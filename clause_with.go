@@ -1,6 +1,7 @@
 package sqlb
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,7 @@ import (
 )
 
 var _ sqlf.Builder = (*clauseWith)(nil)
+var _ Builder = (*clauseWith)(nil)
 
 // clauseWith represents a SQL WITH clause.
 type clauseWith struct {
@@ -17,6 +19,7 @@ type clauseWith struct {
 	ctes     []*cte
 	ctesDict map[string]*cte // the actual cte names, not aliases
 
+	pruning        bool
 	deps           map[string]bool
 	unresolvedDeps *dependencies
 }
@@ -33,7 +36,7 @@ func newWith() *clauseWith {
 	}
 }
 
-// With adds a fragment as common table expression,
+// With adds a builder as common table expression,
 func (w *clauseWith) With(table Table, builder sqlf.Builder) *clauseWith {
 	w.resetDepTablesCache()
 	t := table.WithAlias("")
@@ -55,15 +58,20 @@ func (w *clauseWith) For(builder sqlf.Builder) *clauseWith {
 
 // BuildQuery implements Builder
 func (w *clauseWith) BuildQuery(style sqlf.BindStyle) (string, []any, error) {
+	return w.BuildQueryContext(context.Background(), style)
+}
+
+// BuildQueryContext builds the query with the given context.
+func (w *clauseWith) BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error) {
 	if w == nil {
 		return "", nil, nil
 	}
-	ctx := sqlf.NewContext(style)
-	query, err := w.Build(ctx)
+	buildCtx := sqlf.NewContext(ctx, style)
+	query, err = w.Build(buildCtx)
 	if err != nil {
 		return "", nil, err
 	}
-	args := ctx.Args()
+	args = buildCtx.Args()
 	return query, args, nil
 }
 
@@ -71,6 +79,10 @@ func (w *clauseWith) BuildQuery(style sqlf.BindStyle) (string, []any, error) {
 func (w *clauseWith) Build(ctx *sqlf.Context) (string, error) {
 	if w == nil {
 		return "", nil
+	}
+	ctx, pruning := decideContextPruning(ctx, w.pruning)
+	if !pruning {
+		return w.BuildRequired(ctx, nil)
 	}
 	required, unresolved, err := w.collectDependencies(ctx)
 	if err != nil {
@@ -107,9 +119,10 @@ func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) 
 	if len(w.ctes) == 0 {
 		return query, nil
 	}
+	pruning := pruningFromContext(ctx)
 	cteClauses := make([]string, 0, len(w.ctes))
 	for _, cte := range w.ctes {
-		if !required[cte.table.Name] {
+		if pruning && (required == nil || !required[cte.table.Name]) {
 			continue
 		}
 		sq, err := cte.Build(ctx)
@@ -141,13 +154,15 @@ func (w *clauseWith) collectDependencies(ctx *sqlf.Context) (required map[string
 		return w.deps, w.unresolvedDeps, nil
 	}
 	deps := newDependencies(w.name)
+	// use a separate context to avoid polluting args
+	ctx = sqlf.NewContext(ctx, sqlf.BindStyleQuestion)
 	ctx = contextWithDependencies(ctx, deps)
 	// collect dependencies from query builder
 	_, err = w.builder.Build(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	required, unresolved, err = w.CollectDependenciesForDeps(deps)
+	required, unresolved, err = w.CollectDependenciesForDeps(ctx, deps)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -157,7 +172,7 @@ func (w *clauseWith) collectDependencies(ctx *sqlf.Context) (required map[string
 }
 
 // CollectDependenciesForDeps collects the table dependencies for specific deps
-func (w *clauseWith) CollectDependenciesForDeps(deps *dependencies) (required map[string]bool, unresolved *dependencies, err error) {
+func (w *clauseWith) CollectDependenciesForDeps(ctx *sqlf.Context, deps *dependencies) (required map[string]bool, unresolved *dependencies, err error) {
 	required = make(map[string]bool)
 	unresolved = newDependencies()
 	for t := range deps.SourceNames {
@@ -174,7 +189,7 @@ func (w *clauseWith) CollectDependenciesForDeps(deps *dependencies) (required ma
 		// w has no knowledge of outer tables, report as unresolved
 		unresolved.OuterTables[t] = true
 	}
-	w.collectDepsBetweenCTEs(required)
+	w.collectDepsBetweenCTEs(ctx, required)
 	for t := range required {
 		if _, ok := w.ctesDict[t]; !ok {
 			unresolved.SourceNames[t] = true
@@ -183,13 +198,13 @@ func (w *clauseWith) CollectDependenciesForDeps(deps *dependencies) (required ma
 	return required, unresolved, nil
 }
 
-func (w *clauseWith) collectDepsBetweenCTEs(required map[string]bool) error {
+func (w *clauseWith) collectDepsBetweenCTEs(ctx *sqlf.Context, required map[string]bool) error {
 	cetDeps := make(map[string]bool)
 	for _, cte := range w.ctes {
 		if !required[cte.table.Name] {
 			continue
 		}
-		err := w.collectDepsFromCTE(cetDeps, cte)
+		err := w.collectDepsFromCTE(ctx, cetDeps, cte)
 		if err != nil {
 			return err
 		}
@@ -201,7 +216,7 @@ func (w *clauseWith) collectDepsBetweenCTEs(required map[string]bool) error {
 	return nil
 }
 
-func (w *clauseWith) collectDepsFromCTE(deps map[string]bool, cte *cte) error {
+func (w *clauseWith) collectDepsFromCTE(ctx *sqlf.Context, deps map[string]bool, cte *cte) error {
 	key := cte.table.Name
 	if deps[key] {
 		return nil
@@ -209,15 +224,15 @@ func (w *clauseWith) collectDepsFromCTE(deps map[string]bool, cte *cte) error {
 	deps[key] = true
 
 	tables := newDependencies(w.name)
-	ctx := contextWithDependencies(sqlf.NewContext(sqlf.BindStyleDollar), tables)
-	_, err := cte.Builder.Build(ctx)
+	depCtx := contextWithDependencies(ctx, tables)
+	_, err := cte.Builder.Build(depCtx)
 	if err != nil {
 		return fmt.Errorf("collect dependencies of CTE %q: %w", cte.table, err)
 	}
 	// CTE can depend on other CTEs
 	for t := range tables.Tables {
 		if cte, ok := w.ctesDict[t.Name]; ok {
-			err := w.collectDepsFromCTE(deps, cte)
+			err := w.collectDepsFromCTE(ctx, deps, cte)
 			if err != nil {
 				return err
 			}
@@ -226,7 +241,7 @@ func (w *clauseWith) collectDepsFromCTE(deps map[string]bool, cte *cte) error {
 	// subquery of a CTE can depend on other CTEs
 	for t := range tables.SourceNames {
 		if cte, ok := w.ctesDict[t]; ok {
-			err := w.collectDepsFromCTE(deps, cte)
+			err := w.collectDepsFromCTE(ctx, deps, cte)
 			if err != nil {
 				return err
 			}
@@ -243,6 +258,20 @@ func (w *clauseWith) resetDepTablesCache() {
 // Debug enables debug mode which prints the interpolated query to stdout.
 func (w *clauseWith) Debug(name ...string) *clauseWith {
 	w.debugger.Debug(name...)
+	return w
+}
+
+// EnableElimination enables JOIN / CTE pruning based on dependency analysis.
+// To use pruning, make sure all table references are done via Table objects.
+//
+// For example,
+//
+//	t := sqlb.NewTable("foo", "f")
+//	b.Where(sqlf.F("? = ?", t.Column("id"), 1))
+//	// instead of
+//	b.Where(sqlf.F("f.id = ?", 1))
+func (w *clauseWith) EnableElimination() *clauseWith {
+	w.pruning = true
 	return w
 }
 

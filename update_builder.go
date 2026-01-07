@@ -23,8 +23,9 @@ type UpdateBuilder struct {
 
 	debugger
 
-	deps   *selectBuilderDependencies
-	errors []error
+	pruning bool
+	deps    *selectBuilderDependencies
+	errors  []error
 }
 
 // NewUpdateBuilder returns a new UpdateBuilder.

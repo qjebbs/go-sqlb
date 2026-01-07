@@ -81,23 +81,11 @@ func (b *UpdateBuilder) CrossJoin(t Table) *UpdateBuilder {
 	return b
 }
 
-// With adds a fragment as common table expression,
-// the built query of s should be a subquery.
+// With adds a builder as common table expression.
 //
-// !!! UpdateBuilder tracks dependencies of CTEs with the help of sqlb.Table.
-//
-// If the CTE builder depends on other CTEs,
-// make sure all the table references are built from sqlb.Table,
-// for example:
-//
-//	foo := sqlb.NewTable("foo")
-//	bar := sqlb.NewTable("bar")
-//	builderFoo := sqlf.F("SELECT * FROM users WHERE active")
-//	// the dependency is tracked only if the foo (of sqlb.Table) is used
-//	builderBar := sqlf.F("SELECT * FROM ?", foo)
-//	builder := sqlb.NewUpdateBuilder().
-//		With(foo, builderFoo).With(bar, builderBar).
-//		Update(bar.Column("*")).From(bar)
+// The CTE will be automatically eliminated if all the conditions below are met:
+//   - Pruning is enabled by `b.EnableElimination()` or parent builders
+//   - The table is not referenced anywhere in the query
 func (b *UpdateBuilder) With(name Table, builder sqlf.Builder) *UpdateBuilder {
 	b.resetDepTablesCache()
 	b.ctes.With(name, builder)

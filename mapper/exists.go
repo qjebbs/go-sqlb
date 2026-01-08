@@ -16,7 +16,7 @@ func Exists[T any](db QueryAble, value T, options ...Option) (bool, error) {
 
 	var debugger *debugger
 	if opt.debug {
-		debugger = newDebugger("Exists", value, opt.debugTime)
+		debugger = newDebugger("Exists", value, opt)
 		defer debugger.print()
 	}
 	queryStr, args, err := buildExistsQueryForStruct(value, opt)

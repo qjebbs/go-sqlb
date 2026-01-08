@@ -47,9 +47,9 @@ func update[T any](db QueryAble, value T, updateAll bool, options ...Option) err
 	var debugger *debugger
 	if opt.debug {
 		if updateAll {
-			debugger = newDebugger("Update", value, opt.debugTime)
+			debugger = newDebugger("Update", value, opt)
 		} else {
-			debugger = newDebugger("Patch", value, opt.debugTime)
+			debugger = newDebugger("Patch", value, opt)
 		}
 		defer debugger.print()
 	}

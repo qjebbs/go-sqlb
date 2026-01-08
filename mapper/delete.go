@@ -42,7 +42,7 @@ func delete[T any](db QueryAble, value T, options ...Option) error {
 
 	var debugger *debugger
 	if opt.debug {
-		debugger = newDebugger("Delete", value, opt.debugTime)
+		debugger = newDebugger("Delete", value, opt)
 		defer debugger.print()
 	}
 	queryStr, args, err := buildDeleteQueryForStruct(value, opt)

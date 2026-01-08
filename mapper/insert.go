@@ -71,7 +71,7 @@ func insert[T any](db QueryAble, values []T, opt *Options) error {
 	}
 	var debugger *debugger
 	if opt.debug {
-		debugger = newDebugger("Insert", values[0], opt.debugTime)
+		debugger = newDebugger("Insert", values[0], opt)
 		defer debugger.print()
 	}
 	queryStr, args, returningFields, err := buildInsertQueryForStruct(values, opt)

@@ -34,7 +34,7 @@ func selectManual[T any](name string, db QueryAble, b sqlb.Builder, fn func() (T
 	var debugger *debugger
 	if opt.debug {
 		value, _ := fn()
-		debugger = newDebugger(name, value, opt.debugTime)
+		debugger = newDebugger(name, value, opt)
 		defer debugger.print()
 	}
 	query, args, err := b.BuildQueryContext(context.Background(), opt.style)

@@ -42,7 +42,7 @@ func load[T any](db QueryAble, value T, options ...Option) (T, error) {
 
 	var debugger *debugger
 	if opt.debug {
-		debugger = newDebugger("Load", value, opt.debugTime)
+		debugger = newDebugger("Load", value, opt)
 		defer debugger.print()
 	}
 	query, args, dests, err := buildLoadQueryForStruct(value, opt)

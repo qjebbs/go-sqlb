@@ -4,7 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
+	"io"
+	"os"
 	"time"
 
 	"github.com/qjebbs/go-sqlf/v4/util"
@@ -13,6 +14,7 @@ import (
 type debugger struct {
 	name        string
 	measureTime bool
+	writer      io.Writer
 
 	query string
 	args  []any
@@ -21,10 +23,14 @@ type debugger struct {
 	start time.Time
 }
 
-func newDebugger(funcName string, value any, measureTime bool) *debugger {
+func newDebugger(funcName string, value any, opt *Options) *debugger {
+	if opt.debugWriter == nil {
+		opt.debugWriter = os.Stdout
+	}
 	return &debugger{
 		name:        fmt.Sprintf("%s(%T)", funcName, value),
-		measureTime: measureTime,
+		measureTime: opt.debugTime,
+		writer:      opt.debugWriter,
 		start:       time.Now(),
 	}
 }
@@ -37,16 +43,17 @@ func (d *debugger) print() {
 		))
 		query = fmt.Sprintf("%s; %v", d.query, d.args)
 	}
-	if len(d.msgs) == 0 {
-		fmt.Printf("[%s] %s\n", d.name, query)
-		return
+	d.writer.Write([]byte{'['})
+	d.writer.Write([]byte(d.name))
+	d.writer.Write([]byte{']', ' '})
+	if len(d.msgs) > 0 {
+		for _, msg := range d.msgs {
+			d.writer.Write([]byte(msg))
+			d.writer.Write([]byte{':', ' '})
+		}
 	}
-	fmt.Printf(
-		"[%s] %s: %s\n",
-		d.name,
-		strings.Join(d.msgs, ": "),
-		query,
-	)
+	d.writer.Write([]byte(query))
+	d.writer.Write([]byte{'\n'})
 }
 
 func (d *debugger) onQuery(query string, args []any) {

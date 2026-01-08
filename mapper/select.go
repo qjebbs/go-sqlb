@@ -72,7 +72,7 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 	opt := mergeOptions(options...)
 	var debugger *debugger
 	if opt.debug {
-		debugger = newDebugger("Select", zero, opt.debugTime)
+		debugger = newDebugger("Select", zero, opt)
 		defer debugger.print()
 	}
 	queryStr, args, dests, err := buildSelectQueryForStruct[T](b, opt)

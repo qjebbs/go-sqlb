@@ -1,6 +1,9 @@
 package mapper
 
 import (
+	"io"
+	"os"
+
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
@@ -8,8 +11,9 @@ import (
 
 // Options defines options for scanning.
 type Options struct {
-	debug     bool
-	debugTime bool
+	debug       bool
+	debugTime   bool
+	debugWriter io.Writer
 
 	style   sqlf.BindStyle
 	tags    []string
@@ -38,16 +42,26 @@ type Option func(*Options)
 
 // WithDebug enables debug logging with an optional name.
 // This option applies only to sqlb builders who print built queries in debug mode.
-func WithDebug() Option {
+func WithDebug(writer ...io.Writer) Option {
 	return func(o *Options) {
+		var w io.Writer
+		switch len(writer) {
+		case 0:
+			w = os.Stdout
+		case 1:
+			w = writer[0]
+		default:
+			w = io.MultiWriter(writer...)
+		}
 		o.debug = true
+		o.debugWriter = w
 	}
 }
 
 // WithDebugTime enables debug logging with time measurement.
-func WithDebugTime() Option {
+func WithDebugTime(writer ...io.Writer) Option {
 	return func(o *Options) {
-		o.debug = true
+		WithDebug(writer...)(o)
 		o.debugTime = true
 	}
 }
@@ -100,9 +114,10 @@ func WithNullZeroTables(tables ...sqlb.Table) Option {
 
 func newDefaultOptions() *Options {
 	return &Options{
-		dialect: sqlb.DialectPostgres,
-		style:   sqlf.BindStyleDollar,
-		tags:    nil,
+		dialect:     sqlb.DialectPostgres,
+		style:       sqlf.BindStyleDollar,
+		tags:        nil,
+		debugWriter: os.Stdout,
 	}
 }
 

@@ -5,14 +5,13 @@ import (
 	"database/sql"
 
 	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlf/v4"
 )
 
 // SelectOneManual executes a query and scans the results using a provider function.
 // The provider fn is called for each row to get the destination value and scan fields.
 // Unlike SelectOne, it doesn't limit the query to 1 row automatically.
-func SelectOneManual[T any](db QueryAble, b sqlb.Builder, style sqlf.BindStyle, fn func() (T, []any)) (T, error) {
-	r, err := SelectManual(db, b, style, fn)
+func SelectOneManual[T any](db QueryAble, b sqlb.Builder, fn func() (T, []any), options ...Option) (T, error) {
+	r, err := selectManual("SelectOneManual", db, b, fn, options...)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -26,15 +25,36 @@ func SelectOneManual[T any](db QueryAble, b sqlb.Builder, style sqlf.BindStyle, 
 
 // SelectManual executes a query and scans the results using a provider function.
 // The provider fn is called for each row to get the destination value and scan fields.
-func SelectManual[T any](db QueryAble, b sqlb.Builder, style sqlf.BindStyle, fn func() (T, []any)) ([]T, error) {
-	query, args, err := b.BuildQueryContext(context.Background(), style)
+func SelectManual[T any](db QueryAble, b sqlb.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
+	return selectManual("SelectManual", db, b, fn, options...)
+}
+
+func selectManual[T any](name string, db QueryAble, b sqlb.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
+	opt := mergeOptions(options...)
+	var debugger *debugger
+	if opt.debug {
+		value, _ := fn()
+		debugger = newDebugger(name, value, opt.debugTime)
+		defer debugger.print()
+	}
+	query, args, err := b.BuildQueryContext(context.Background(), opt.style)
 	if err != nil {
 		return nil, err
+	}
+	if debugger != nil {
+		debugger.onQuery(query, args)
 	}
 	if db == nil {
 		return nil, ErrNilDB
 	}
-	return scan(db, query, args, fn)
+	r, err := scan(db, query, args, fn)
+	if debugger != nil {
+		debugger.onExec(err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 // scan scans query rows with scanner

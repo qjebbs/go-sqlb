@@ -34,31 +34,47 @@ func Load[T any](db QueryAble, value T, options ...Option) (T, error) {
 
 func load[T any](db QueryAble, value T, options ...Option) (T, error) {
 	var zero T
-	if err := checkPtrStruct(value); err != nil {
+	err := checkPtrStruct(value)
+	if err != nil {
 		return zero, err
 	}
 	opt := mergeOptions(options...)
-	queryStr, args, dests, err := buildLoadQueryForStruct(value, opt)
+
+	var debugger *debugger
+	if opt.debug {
+		debugger = newDebugger("Load", value, opt.debugTime)
+		defer debugger.print()
+	}
+	query, args, dests, err := buildLoadQueryForStruct(value, opt)
 	if err != nil {
 		return zero, err
+	}
+	if debugger != nil {
+		debugger.onQuery(query, args)
 	}
 	if db == nil {
 		return zero, ErrNilDB
 	}
 	agents := make([]*nullZeroAgent, 0)
-	r, err := scan(db, queryStr, args, func() (T, []any) {
+	r, err := scan(db, query, args, func() (T, []any) {
 		dest, fields, ag := prepareScanDestinations(value, dests, opt)
 		agents = append(agents, ag...)
 		return dest, fields
 	})
+	if debugger != nil {
+		debugger.onExec(err)
+	}
 	if err != nil {
 		return zero, err
 	}
 	if len(r) == 0 {
 		return zero, sql.ErrNoRows
 	}
-	for _, agent := range agents {
-		agent.Apply()
+	if len(agents) > 0 {
+		for _, agent := range agents {
+			agent.Apply()
+		}
+		debugger.onPostExec(nil)
 	}
 	return value, nil
 }
@@ -88,9 +104,6 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, nil, err
-	}
-	if opt.debug {
-		printDebugQuery("Load", value, query, args)
 	}
 	dests = util.Map(loadInfo.selects, func(i fieldData) fieldInfo {
 		return i.Info

@@ -8,7 +8,9 @@ import (
 
 // Options defines options for scanning.
 type Options struct {
-	debug   bool
+	debug     bool
+	debugTime bool
+
 	style   sqlf.BindStyle
 	tags    []string
 	dialect sqlb.Dialect
@@ -39,6 +41,14 @@ type Option func(*Options)
 func WithDebug() Option {
 	return func(o *Options) {
 		o.debug = true
+	}
+}
+
+// WithDebugTime enables debug logging with time measurement.
+func WithDebugTime() Option {
+	return func(o *Options) {
+		o.debug = true
+		o.debugTime = true
 	}
 }
 

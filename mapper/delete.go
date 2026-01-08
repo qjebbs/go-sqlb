@@ -39,14 +39,26 @@ func delete[T any](db QueryAble, value T, options ...Option) error {
 		return err
 	}
 	opt := mergeOptions(options...)
+
+	var debugger *debugger
+	if opt.debug {
+		debugger = newDebugger("Delete", value, opt.debugTime)
+		defer debugger.print()
+	}
 	queryStr, args, err := buildDeleteQueryForStruct(value, opt)
 	if err != nil {
 		return err
+	}
+	if debugger != nil {
+		debugger.onQuery(queryStr, args)
 	}
 	if db == nil {
 		return ErrNilDB
 	}
 	_, err = db.Exec(queryStr, args...)
+	if debugger != nil {
+		debugger.onExec(err)
+	}
 	return err
 }
 
@@ -94,9 +106,6 @@ func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args
 		if err != nil {
 			return "", nil, err
 		}
-		if opt.debug {
-			printDebugQuery("Delete", value, query, args)
-		}
 		return query, args, nil
 	}
 
@@ -109,9 +118,6 @@ func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, err
-	}
-	if opt.debug {
-		printDebugQuery("Delete", value, query, args)
 	}
 	return query, args, nil
 }

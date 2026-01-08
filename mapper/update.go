@@ -44,9 +44,21 @@ func update[T any](db QueryAble, value T, updateAll bool, options ...Option) err
 		return err
 	}
 	opt := mergeOptions(options...)
+	var debugger *debugger
+	if opt.debug {
+		if updateAll {
+			debugger = newDebugger("Update", value, opt.debugTime)
+		} else {
+			debugger = newDebugger("Patch", value, opt.debugTime)
+		}
+		defer debugger.print()
+	}
 	queryStr, args, err := buildUpdateQueryForStruct(value, updateAll, opt)
 	if err != nil {
 		return err
+	}
+	if debugger != nil {
+		debugger.onQuery(queryStr, args)
 	}
 	if db == nil {
 		return ErrNilDB
@@ -54,6 +66,9 @@ func update[T any](db QueryAble, value T, updateAll bool, options ...Option) err
 	r, err := db.Exec(queryStr, args...)
 	if err != nil {
 		return err
+	}
+	if debugger != nil {
+		debugger.onExec(err)
 	}
 	rowsAffected, err := r.RowsAffected()
 	if err != nil {
@@ -99,13 +114,6 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, err
-	}
-	if opt.debug {
-		if updateAll {
-			printDebugQuery("Update", value, query, args)
-		} else {
-			printDebugQuery("Patch", value, query, args)
-		}
 	}
 	return query, args, nil
 }

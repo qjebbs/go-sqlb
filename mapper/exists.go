@@ -13,15 +13,27 @@ func Exists[T any](db QueryAble, value T, options ...Option) (bool, error) {
 		return false, err
 	}
 	opt := mergeOptions(options...)
+
+	var debugger *debugger
+	if opt.debug {
+		debugger = newDebugger("Exists", value, opt.debugTime)
+		defer debugger.print()
+	}
 	queryStr, args, err := buildExistsQueryForStruct(value, opt)
 	if err != nil {
 		return false, err
+	}
+	if debugger != nil {
+		debugger.onQuery(queryStr, args)
 	}
 	if db == nil {
 		return false, ErrNilDB
 	}
 	var existsInt int
 	err = db.QueryRow(queryStr, args...).Scan(&existsInt)
+	if debugger != nil {
+		debugger.onExec(err)
+	}
 	if err != nil {
 		return false, err
 	}
@@ -51,9 +63,6 @@ func buildExistsQueryForStruct[T any](value T, opt *Options) (query string, args
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, err
-	}
-	if opt.debug {
-		printDebugQuery("Exists", value, query, args)
 	}
 	return query, args, nil
 }

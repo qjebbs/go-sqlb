@@ -5,7 +5,6 @@ import (
 
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/mapper"
-	"github.com/qjebbs/go-sqlf/v4"
 )
 
 func Example_wrapping() {
@@ -40,7 +39,7 @@ func (b *UserSelectBuilder) WithIDs(ids []int64) *UserSelectBuilder {
 
 func (b *UserSelectBuilder) GetUsers() ([]*User, error) {
 	b.Select(Users.Columns("id", "name", "email")...)
-	return mapper.SelectManual(b.QueryAble, b.SelectBuilder, sqlf.BindStyleDollar, func() (*User, []any) {
+	return mapper.SelectManual(b.QueryAble, b.SelectBuilder, func() (*User, []any) {
 		r := &User{}
 		return r, []interface{}{
 			&r.ID, &r.Name, &r.Email,

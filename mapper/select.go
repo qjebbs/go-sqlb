@@ -70,12 +70,17 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 		return nil, err
 	}
 	opt := mergeOptions(options...)
+	var debugger *debugger
+	if opt.debug {
+		debugger = newDebugger("Select", zero, opt.debugTime)
+		defer debugger.print()
+	}
 	queryStr, args, dests, err := buildSelectQueryForStruct[T](b, opt)
 	if err != nil {
 		return nil, err
 	}
-	if opt.debug {
-		printDebugQuery("Select", zero, queryStr, args)
+	if debugger != nil {
+		debugger.onQuery(queryStr, args)
 	}
 	if db == nil {
 		return nil, ErrNilDB
@@ -87,11 +92,19 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 		agents = append(agents, ag...)
 		return dest, fields
 	})
+	if debugger != nil {
+		debugger.onExec(err)
+	}
 	if err != nil {
 		return nil, err
 	}
-	for _, agent := range agents {
-		agent.Apply()
+	if len(agents) > 0 {
+		for _, agent := range agents {
+			agent.Apply()
+		}
+		if debugger != nil {
+			debugger.onPostExec(nil)
+		}
 	}
 	return r, nil
 }

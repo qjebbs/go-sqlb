@@ -69,9 +69,17 @@ func insert[T any](db QueryAble, values []T, opt *Options) error {
 	if err := checkPtrStruct(values[0]); err != nil {
 		return err
 	}
+	var debugger *debugger
+	if opt.debug {
+		debugger = newDebugger("Insert", values[0], opt.debugTime)
+		defer debugger.print()
+	}
 	queryStr, args, returningFields, err := buildInsertQueryForStruct(values, opt)
 	if err != nil {
 		return err
+	}
+	if debugger != nil {
+		debugger.onQuery(queryStr, args)
 	}
 	if db == nil {
 		return ErrNilDB
@@ -89,11 +97,19 @@ func insert[T any](db QueryAble, values []T, opt *Options) error {
 		agents = append(agents, ag...)
 		return dest, fields
 	})
+	if debugger != nil {
+		debugger.onExec(err)
+	}
 	if err != nil {
 		return err
 	}
-	for _, agent := range agents {
-		agent.Apply()
+	if len(agents) > 0 {
+		for _, agent := range agents {
+			agent.Apply()
+		}
+		if debugger != nil {
+			debugger.onPostExec(nil)
+		}
 	}
 	return nil
 }
@@ -136,9 +152,6 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	query, args, err = b.BuildQuery(opt.style)
 	if err != nil {
 		return "", nil, nil, err
-	}
-	if opt.debug {
-		printDebugQuery("Insert", values[0], query, args)
 	}
 	return query, args, insertInfo.returningFields, nil
 }

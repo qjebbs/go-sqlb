@@ -5,6 +5,9 @@ import (
 	"reflect"
 )
 
+// Blackhole is a scanner that drops the scanned value.
+var Blackhole = &blackhole{}
+
 func checkPtrStruct(value any) error {
 	v := reflect.TypeOf(value)
 	if v.Kind() != reflect.Ptr {
@@ -68,3 +71,7 @@ func getReflectValueAtIndex(dest []int, v reflect.Value) (reflect.Value, bool) {
 	}
 	return current, true
 }
+
+type blackhole struct{}
+
+func (b *blackhole) Scan(_ any) error { return nil }

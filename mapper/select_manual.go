@@ -88,13 +88,8 @@ func scan[T any](db QueryAble, query string, args []any, debugger *debugger, fn 
 // 		return err
 // 	}
 // 	nBlacholes := len(cols) - len(dest)
-// 	bh := &blackhole{}
 // 	for i := 0; i < nBlacholes; i++ {
-// 		dest = append(dest, &bh)
+// 		dest = append(dest, Blackhole)
 // 	}
 // 	return rows.Scan(dest...)
 // }
-
-// type blackhole struct{}
-
-// func (b *blackhole) Scan(_ any) error { return nil }

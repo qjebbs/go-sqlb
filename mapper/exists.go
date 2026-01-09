@@ -24,7 +24,7 @@ func Exists[T any](db QueryAble, value T, options ...Option) (bool, error) {
 		return false, err
 	}
 	if debugger != nil {
-		debugger.onQuery(queryStr, args)
+		debugger.onBuilt(queryStr, args)
 	}
 	if db == nil {
 		return false, ErrNilDB

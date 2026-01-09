@@ -42,15 +42,12 @@ func selectManual[T any](name string, db QueryAble, b sqlb.Builder, fn func() (T
 		return nil, err
 	}
 	if debugger != nil {
-		debugger.onQuery(query, args)
+		debugger.onBuilt(query, args)
 	}
 	if db == nil {
 		return nil, ErrNilDB
 	}
-	r, err := scan(db, query, args, fn)
-	if debugger != nil {
-		debugger.onExec(err)
-	}
+	r, err := scan(db, query, args, debugger, fn)
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +55,11 @@ func selectManual[T any](name string, db QueryAble, b sqlb.Builder, fn func() (T
 }
 
 // scan scans query rows with scanner
-func scan[T any](db QueryAble, query string, args []any, fn func() (T, []any)) ([]T, error) {
+func scan[T any](db QueryAble, query string, args []any, debugger *debugger, fn func() (T, []any)) ([]T, error) {
 	rows, err := db.Query(query, args...)
+	if debugger != nil {
+		debugger.onExec(err)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +73,9 @@ func scan[T any](db QueryAble, query string, args []any, fn func() (T, []any)) (
 			return nil, err
 		}
 		results = append(results, dest)
+	}
+	if debugger != nil {
+		debugger.onScan(len(results), err)
 	}
 	return results, rows.Err()
 }

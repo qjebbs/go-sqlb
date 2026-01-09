@@ -56,7 +56,7 @@ func (d *debugger) print() {
 	d.writer.Write([]byte{'\n'})
 }
 
-func (d *debugger) onQuery(query string, args []any) {
+func (d *debugger) onBuilt(query string, args []any) {
 	d.query = query
 	d.args = args
 	if !d.measureTime {
@@ -86,10 +86,10 @@ func (d *debugger) onExec(err error) {
 	d.start = time.Now()
 }
 
-func (d *debugger) onPostExec(err error) {
+func (d *debugger) onScan(n int, err error) {
 	if err != nil {
 		d.msgs = append(d.msgs, fmt.Sprintf(
-			"post exec failed: %s", err,
+			"scan failed: %s", err,
 		))
 		return
 	}
@@ -98,7 +98,24 @@ func (d *debugger) onPostExec(err error) {
 	}
 	elapsed := time.Since(d.start)
 	d.msgs = append(d.msgs, fmt.Sprintf(
-		"post exec %s", elapsed,
+		"scan %d rows %s", n, elapsed,
+	))
+	d.start = time.Now()
+}
+
+func (d *debugger) onPostScan(err error) {
+	if err != nil {
+		d.msgs = append(d.msgs, fmt.Sprintf(
+			"post scan failed: %s", err,
+		))
+		return
+	}
+	if !d.measureTime {
+		return
+	}
+	elapsed := time.Since(d.start)
+	d.msgs = append(d.msgs, fmt.Sprintf(
+		"post scan %s", elapsed,
 	))
 	d.start = time.Now()
 }

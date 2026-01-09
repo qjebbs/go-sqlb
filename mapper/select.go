@@ -80,21 +80,18 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 		return nil, err
 	}
 	if debugger != nil {
-		debugger.onQuery(queryStr, args)
+		debugger.onBuilt(queryStr, args)
 	}
 	if db == nil {
 		return nil, ErrNilDB
 	}
 	agents := make([]*nullZeroAgent, 0)
-	r, err := scan(db, queryStr, args, func() (T, []any) {
+	r, err := scan(db, queryStr, args, debugger, func() (T, []any) {
 		var dest T
 		dest, fields, ag := prepareScanDestinations(dest, dests, opt)
 		agents = append(agents, ag...)
 		return dest, fields
 	})
-	if debugger != nil {
-		debugger.onExec(err)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +100,7 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 			agent.Apply()
 		}
 		if debugger != nil {
-			debugger.onPostExec(nil)
+			debugger.onPostScan(nil)
 		}
 	}
 	return r, nil

@@ -58,7 +58,7 @@ func update[T any](db QueryAble, value T, updateAll bool, options ...Option) err
 		return err
 	}
 	if debugger != nil {
-		debugger.onQuery(queryStr, args)
+		debugger.onBuilt(queryStr, args)
 	}
 	if db == nil {
 		return ErrNilDB

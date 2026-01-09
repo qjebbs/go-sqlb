@@ -50,7 +50,7 @@ func delete[T any](db QueryAble, value T, options ...Option) error {
 		return err
 	}
 	if debugger != nil {
-		debugger.onQuery(queryStr, args)
+		debugger.onBuilt(queryStr, args)
 	}
 	if db == nil {
 		return ErrNilDB

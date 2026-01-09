@@ -50,20 +50,17 @@ func load[T any](db QueryAble, value T, options ...Option) (T, error) {
 		return zero, err
 	}
 	if debugger != nil {
-		debugger.onQuery(query, args)
+		debugger.onBuilt(query, args)
 	}
 	if db == nil {
 		return zero, ErrNilDB
 	}
 	agents := make([]*nullZeroAgent, 0)
-	r, err := scan(db, query, args, func() (T, []any) {
+	r, err := scan(db, query, args, debugger, func() (T, []any) {
 		dest, fields, ag := prepareScanDestinations(value, dests, opt)
 		agents = append(agents, ag...)
 		return dest, fields
 	})
-	if debugger != nil {
-		debugger.onExec(err)
-	}
 	if err != nil {
 		return zero, err
 	}
@@ -74,7 +71,7 @@ func load[T any](db QueryAble, value T, options ...Option) (T, error) {
 		for _, agent := range agents {
 			agent.Apply()
 		}
-		debugger.onPostExec(nil)
+		debugger.onPostScan(nil)
 	}
 	return value, nil
 }

@@ -79,7 +79,7 @@ func insert[T any](db QueryAble, values []T, opt *Options) error {
 		return err
 	}
 	if debugger != nil {
-		debugger.onQuery(queryStr, args)
+		debugger.onBuilt(queryStr, args)
 	}
 	if db == nil {
 		return ErrNilDB
@@ -90,16 +90,13 @@ func insert[T any](db QueryAble, values []T, opt *Options) error {
 	}
 	index := 0
 	agents := make([]*nullZeroAgent, 0)
-	_, err = scan(db, queryStr, args, func() (T, []any) {
+	_, err = scan(db, queryStr, args, debugger, func() (T, []any) {
 		dest := values[index]
 		index++
 		dest, fields, ag := prepareScanDestinations(dest, returningFields, opt)
 		agents = append(agents, ag...)
 		return dest, fields
 	})
-	if debugger != nil {
-		debugger.onExec(err)
-	}
 	if err != nil {
 		return err
 	}
@@ -108,7 +105,7 @@ func insert[T any](db QueryAble, values []T, opt *Options) error {
 			agent.Apply()
 		}
 		if debugger != nil {
-			debugger.onPostExec(nil)
+			debugger.onPostScan(nil)
 		}
 	}
 	return nil

@@ -16,10 +16,10 @@ type UpdateBuilder struct {
 	from    *clauseFrom
 
 	target string
-	sets   *clauseList    // select columns and keep values in scanning.
-	where  *clauseList    // where conditions, joined with AND.
-	order  *clauseOrderBy // order by columns, joined with comma.
-	limit  int64          // limit count
+	sets   *clauseList // select columns and keep values in scanning.
+	where  *clauseList // where conditions, joined with AND.
+	order  *clauseList // order by columns, joined with comma.
+	limit  int64       // limit count
 
 	debugger
 
@@ -40,7 +40,7 @@ func NewUpdateBuilder(dialect ...Dialect) *UpdateBuilder {
 		from:    newFrom(),
 		sets:    newPrefixedList("SET", ", "),
 		where:   newPrefixedList("WHERE", " AND "),
-		order:   newOrderBy(),
+		order:   newPrefixedList("ORDER BY", ", "),
 	}
 }
 
@@ -66,6 +66,16 @@ func (b *UpdateBuilder) Update(table string) *UpdateBuilder {
 func (b *UpdateBuilder) Set(column string, value any) *UpdateBuilder {
 	b.resetDepTablesCache()
 	b.sets.Append(sqlf.F("? = ?", sqlf.F(column), value))
+	return b
+}
+
+// OrderBy set the sorting order.
+//
+//	foo := sqlb.NewTable("foo")
+//	b.OrderBy(sqlf.F("? DESC", foo.Column("bar")))
+func (b *UpdateBuilder) OrderBy(order ...sqlf.Builder) *UpdateBuilder {
+	b.resetDepTablesCache()
+	b.order.Append(order...)
 	return b
 }
 

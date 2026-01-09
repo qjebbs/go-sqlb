@@ -17,7 +17,7 @@ type SelectBuilder struct {
 
 	selects  *clauseList // select columns and keep values in scanning.
 	where    *clauseList
-	order    *clauseOrderBy
+	order    *clauseList // order by columns, joined with comma.
 	groupbys *clauseList // group by columns, joined with comma.
 	having   *clauseList // having conditions, joined with AND.
 	distinct bool        // select distinct
@@ -37,7 +37,7 @@ func NewSelectBuilder() *SelectBuilder {
 	return &SelectBuilder{
 		ctes:     newWith(),
 		from:     newFrom(),
-		order:    newOrderBy(),
+		order:    newPrefixedList("ORDER BY", ", "),
 		groupbys: newPrefixedList("GROUP BY", ", "),
 		having:   newPrefixedList("HAVING", " AND "),
 		selects:  newPrefixedList("SELECT", ", "),
@@ -97,15 +97,13 @@ func (b *SelectBuilder) Offset(offset int64) *SelectBuilder {
 	return b
 }
 
-// OrderBy set the sorting order. the order can be "ASC", "DESC", "ASC NULLS FIRST" or "DESC NULLS LAST"
-//
-// !!! Make sure the columns are built from sqlb.Table to have their dependencies tracked.
+// OrderBy set the sorting order.
 //
 //	foo := sqlb.NewTable("foo")
-//	b.OrderBy(foo.Column("bar"), sqlb.OrderAsc)
-func (b *SelectBuilder) OrderBy(column sqlf.Builder, order Order) *SelectBuilder {
+//	b.OrderBy(sqlf.F("? DESC", foo.Column("bar")))
+func (b *SelectBuilder) OrderBy(order ...sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
-	b.order.Add(column, order)
+	b.order.Append(order...)
 	return b
 }
 

@@ -59,3 +59,22 @@ func (b *SelectBuilder) CrossJoin(t Table) *SelectBuilder {
 	b.from.Join("CROSS JOIN", t, nil, false, false)
 	return b
 }
+
+// With adds a builder as common table expression.
+//
+// The CTE will be automatically eliminated if all the conditions below are met:
+//   - Pruning is enabled by `b.EnableElimination()` or parent builders
+//   - The table is not referenced anywhere in the query
+func (b *SelectBuilder) With(name Table, builder sqlf.Builder) *SelectBuilder {
+	b.resetDepTablesCache()
+	b.ctes.With(name, builder)
+	return b
+}
+
+// WithValues adds a VALUES common table expression.
+// Supported dialects: Postgres, SQLite.
+func (b *SelectBuilder) WithValues(name Table, columns, types []string, values [][]any) *SelectBuilder {
+	b.resetDepTablesCache()
+	b.ctes.WithValues(name, columns, types, values)
+	return b
+}

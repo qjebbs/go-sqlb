@@ -91,3 +91,11 @@ func (b *UpdateBuilder) With(name Table, builder sqlf.Builder) *UpdateBuilder {
 	b.ctes.With(name, builder)
 	return b
 }
+
+// WithValues adds a VALUES common table expression.
+// Supported dialects: Postgres, SQLite.
+func (b *UpdateBuilder) WithValues(name Table, columns, types []string, values [][]any) *UpdateBuilder {
+	b.resetDepTablesCache()
+	b.ctes.WithValues(name, columns, types, values)
+	return b
+}

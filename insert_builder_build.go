@@ -92,7 +92,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		for cte := range myDeps.SourceNames {
 			ctes[cte] = true
 		}
-		with, err := b.ctes.BuildRequired(ctx, ctes)
+		with, err := b.ctes.BuildRequired(ctx, ctes, b.dialact)
 		if err != nil {
 			return "", err
 		}

@@ -80,7 +80,7 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 			return "", nil
 		}
 	}
-	with, err := b.ctes.BuildRequired(ctx, myDeps.cteDeps)
+	with, err := b.ctes.BuildRequired(ctx, myDeps.cteDeps, b.dialact)
 	if err != nil {
 		return "", err
 	}

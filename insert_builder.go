@@ -85,6 +85,13 @@ func (b *InsertBuilder) With(name Table, builder sqlf.Builder) *InsertBuilder {
 	return b
 }
 
+// WithValues adds a VALUES common table expression.
+// Supported dialects: Postgres, SQLite.
+func (b *InsertBuilder) WithValues(name Table, columns, types []string, values [][]any) *InsertBuilder {
+	b.ctes.WithValues(name, columns, types, values)
+	return b
+}
+
 // OnConflict sets the conflict target for the insert statement.
 // The parameter actions are the actions to be taken on conflict,
 // which is built after "DO UPDATE SET", e.g., sqlf.F("col = EXCLUDED.col").

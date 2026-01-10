@@ -12,6 +12,8 @@ var _ Builder = (*SelectBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type SelectBuilder struct {
+	dialact Dialect
+
 	ctes *clauseWith
 	from *clauseFrom
 
@@ -33,8 +35,13 @@ type SelectBuilder struct {
 }
 
 // NewSelectBuilder returns a new SelectBuilder.
-func NewSelectBuilder() *SelectBuilder {
+func NewSelectBuilder(dialect ...Dialect) *SelectBuilder {
+	d := DialectPostgres
+	if len(dialect) > 0 {
+		d = dialect[0]
+	}
 	return &SelectBuilder{
+		dialact:  d,
 		ctes:     newWith(),
 		from:     newFrom(),
 		order:    newPrefixedList("ORDER BY", ", "),
@@ -116,17 +123,6 @@ func (b *SelectBuilder) OrderBy(order ...sqlf.Builder) *SelectBuilder {
 func (b *SelectBuilder) GroupBy(columns ...sqlf.Builder) *SelectBuilder {
 	b.resetDepTablesCache()
 	b.groupbys.Append(columns...)
-	return b
-}
-
-// With adds a builder as common table expression.
-//
-// The CTE will be automatically eliminated if all the conditions below are met:
-//   - Pruning is enabled by `b.EnableElimination()` or parent builders
-//   - The table is not referenced anywhere in the query
-func (b *SelectBuilder) With(name Table, builder sqlf.Builder) *SelectBuilder {
-	b.resetDepTablesCache()
-	b.ctes.With(name, builder)
 	return b
 }
 

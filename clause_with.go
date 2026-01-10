@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -20,7 +21,10 @@ type clauseWith struct {
 
 type cte struct {
 	sqlf.Builder
-	table Table
+	table   Table
+	columns []string
+	types   []string
+	values  [][]any
 }
 
 // newWith creates a new With instance.
@@ -43,23 +47,86 @@ func (w *clauseWith) With(table Table, builder sqlf.Builder) *clauseWith {
 	return w
 }
 
+// WithValues adds a VALUES common table expression.
+func (w *clauseWith) WithValues(table Table, columns []string, types []string, values [][]any) *clauseWith {
+	w.resetDepTablesCache()
+	t := table.WithAlias("")
+	cte := &cte{
+		table:   t,
+		columns: columns,
+		types:   types,
+		values:  values,
+	}
+	w.ctes = append(w.ctes, cte)
+	w.ctesDict[t.Name] = cte
+	return w
+}
+
 // BuildRequired builds the WITH clause including only the required CTEs.
-func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) (query string, err error) {
+func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool, dialect Dialect) (query string, err error) {
 	pruning := pruningFromContext(ctx)
 	cteClauses := make([]string, 0, len(w.ctes))
 	for _, cte := range w.ctes {
 		if pruning && (required == nil || !required[cte.table.Name]) {
 			continue
 		}
-		sq, err := cte.Build(ctx)
+		builder := cte.Builder
+		if builder == nil && len(cte.columns) > 0 {
+			if len(cte.values) == 0 {
+				return "", fmt.Errorf("WithValues(%s): values cannot be empty", cte.table.Name)
+			}
+			if len(cte.columns) != len(cte.values[0]) {
+				return "", fmt.Errorf("WithValues(%s): number of columns and values do not match", cte.table.Name)
+			}
+			sb := new(strings.Builder)
+			sb.WriteRune('(')
+			for i := range cte.columns {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				colType := ""
+				if i < len(cte.types) {
+					colType = cte.types[i]
+					switch dialect {
+					case DialectSQLite:
+						sb.WriteString("CAST(? AS " + colType + ")")
+					case DialectPostgres:
+						sb.WriteString("?::" + colType)
+					default:
+						return "", fmt.Errorf("WithValues: unsupported dialect %v", dialect)
+					}
+				} else {
+					sb.WriteString("?")
+				}
+			}
+			sb.WriteRune(')')
+			rowTmpl := sb.String()
+			builder = sqlf.Join(", ", util.Map(cte.values, func(i []any) sqlf.Builder {
+				return sqlf.F(rowTmpl, i...)
+			})...)
+			builder = sqlf.Prefix("VALUES", builder)
+		}
+		sq, err := builder.Build(ctx)
 		if err != nil {
 			return "", err
 		}
 		if sq != "" {
-			cteClauses = append(cteClauses, fmt.Sprintf(
-				"%s AS (%s)",
-				cte.table.Name, sq,
-			))
+			if len(cte.columns) == 0 {
+				cteClauses = append(cteClauses, fmt.Sprintf(
+					"%s AS (%s)",
+					cte.table.Name, sq,
+				))
+			} else {
+				cols := util.Map(cte.columns, func(c string) string {
+					return dialect.QuoteIdentifier(c)
+				})
+				cteClauses = append(cteClauses, fmt.Sprintf(
+					"%s (%s) AS (%s)",
+					cte.table.Name,
+					strings.Join(cols, ", "),
+					sq,
+				))
+			}
 		}
 	}
 	if len(cteClauses) == 0 {
@@ -121,6 +188,10 @@ func (w *clauseWith) collectDepsFromCTE(ctx *sqlf.Context, deps map[string]bool,
 	}
 	deps[key] = true
 
+	if cte.Builder == nil {
+		// WithValues has no dependencies
+		return nil
+	}
 	tables := newDependencies(w.name)
 	depCtx := contextWithDependencies(ctx, tables)
 	_, err := cte.Builder.Build(depCtx)

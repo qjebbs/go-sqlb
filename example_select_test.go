@@ -161,3 +161,28 @@ func ExampleSelectBuilder_Debug() {
 	// [q2] WITH cte AS (SELECT 1) SELECT c.id FROM cte AS c UNION SELECT c.id FROM cte AS c INNER JOIN bar AS b ON TRUE
 	// [q3] SELECT f.* FROM foo AS f WHERE f.id IN (WITH cte AS (SELECT 1) SELECT c.id FROM cte AS c UNION SELECT c.id FROM cte AS c INNER JOIN bar AS b ON TRUE)
 }
+
+func ExampleSelectBuilder_WithValues() {
+	virtual := sqlb.NewTable("virt", "v")
+	q := sqlb.NewSelectBuilder(sqlb.DialectPostgres).Debug().
+		WithValues(
+			virtual,
+			[]string{"id", "name", "order"},
+			[]string{"BIGINT", "TEXT", "INT"},
+			[][]any{
+				{1, "Alice", 2},
+				{2, "Bob", 1},
+				{3, "Charlie", 3},
+			},
+		).
+		Select(virtual.Column("*")).
+		From(virtual).
+		OrderBy(sqlf.F("? ASC", virtual.Column(`"order"`)))
+	_, _, err := q.BuildQuery(sqlf.BindStyleDollar)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// Output:
+	// [sqlb] WITH virt (id, name, "order") AS (VALUES (1::BIGINT, 'Alice'::TEXT, 2::INT), (2::BIGINT, 'Bob'::TEXT, 1::INT), (3::BIGINT, 'Charlie'::TEXT, 3::INT)) SELECT v.* FROM virt AS v ORDER BY v."order" ASC
+}

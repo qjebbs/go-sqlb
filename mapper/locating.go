@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -22,27 +21,27 @@ type locatingInfo struct {
 
 type fieldData struct {
 	Info   fieldInfo
-	Indent string
+	IndentBuilder sqlf.Builder
 	Val    valueInfo
 }
 
 func (i locatingInfo) EachWhere(fn func(cond sqlf.Builder)) {
 	for _, coldata := range i.locatingColumn {
-		fn(eqOrIsNull(coldata.Indent, coldata.Val.Value))
+		fn(eqOrIsNull(coldata.IndentBuilder, coldata.Val.Value))
 	}
 	for _, coldata := range i.matchColumns {
-		fn(eqOrIsNull(coldata.Indent, coldata.Val.Value))
+		fn(eqOrIsNull(coldata.IndentBuilder, coldata.Val.Value))
 	}
 }
 
-func eqOrIsNull(column string, value any) sqlf.Builder {
+func eqOrIsNull(column sqlf.Builder, value any) sqlf.Builder {
 	if value == nil {
-		return sqlf.F("? IS NULL", sqlf.F(column))
+		return sqlf.F("? IS NULL", column)
 	}
-	return sqlf.F("? = ?", sqlf.F(column), value)
+	return sqlf.F("? = ?", column, value)
 }
 
-func buildLocatingInfo(dialect sqlb.Dialect, f *structInfo, value reflect.Value) (*locatingInfo, error) {
+func buildLocatingInfo(f *structInfo, value reflect.Value) (*locatingInfo, error) {
 	var (
 		r                  locatingInfo
 		seenPK             bool
@@ -66,14 +65,14 @@ func buildLocatingInfo(dialect sqlb.Dialect, f *structInfo, value reflect.Value)
 		if col.Column == "" {
 			continue
 		}
-		colIndent := dialect.QuoteIdentifier(col.Column)
+		colIndent := sqlf.Identifier(col.Column)
 		colValue, ok := getValueAtIndex(col.Index, value)
 		if !ok {
 			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
 		}
 		data := fieldData{
 			Info:   col,
-			Indent: colIndent,
+			IndentBuilder: colIndent,
 			Val:    *colValue,
 		}
 		if col.PK {

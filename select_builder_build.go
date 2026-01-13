@@ -1,31 +1,20 @@
 package sqlb
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-// BuildQuery builds the query.
-func (b *SelectBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
-	return b.BuildQueryContext(context.Background(), style)
+// Build builds the query.
+func (b *SelectBuilder) Build(ctx *sqlf.Context) (query string, args []any, err error) {
+	buildCtx := NewContext(ctx)
+	return sqlf.Build(buildCtx, b)
 }
 
-// BuildQueryContext builds the query with the given context.
-func (b *SelectBuilder) BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error) {
-	buildCtx := sqlf.NewContext(ctx, style)
-	query, err = b.buildInternal(buildCtx)
-	if err != nil {
-		return "", nil, err
-	}
-	args = buildCtx.Args()
-	return query, args, nil
-}
-
-// Build implements sqlf.Builder
-func (b *SelectBuilder) Build(ctx *sqlf.Context) (query string, err error) {
+// BuildTo implements sqlf.Builder
+func (b *SelectBuilder) BuildTo(ctx *sqlf.Context) (query string, err error) {
 	return b.buildInternal(ctx)
 }
 
@@ -77,7 +66,7 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 			return "", nil
 		}
 	}
-	with, err := b.ctes.BuildRequired(ctx, myDeps.cteDeps, b.dialact)
+	with, err := b.ctes.BuildRequired(ctx, myDeps.cteDeps)
 	if err != nil {
 		return "", err
 	}
@@ -100,20 +89,20 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if from != "" {
 		built = append(built, from)
 	}
-	where, err := b.where.Build(ctx)
+	where, err := b.where.BuildTo(ctx)
 	if err != nil {
 		return "", err
 	}
 	if where != "" {
 		built = append(built, where)
 	}
-	groupby, err := b.groupbys.Build(ctx)
+	groupby, err := b.groupbys.BuildTo(ctx)
 	if err != nil {
 		return "", err
 	}
 	if groupby != "" {
 		built = append(built, groupby)
-		having, err := b.having.Build(ctx)
+		having, err := b.having.BuildTo(ctx)
 		if err != nil {
 			return "", err
 		}
@@ -121,7 +110,7 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 			built = append(built, having)
 		}
 	}
-	order, err := b.order.Build(ctx)
+	order, err := b.order.BuildTo(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -136,13 +125,13 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
 	if !b.unions.Empty() {
-		union, err := b.unions.Build(ctx)
+		union, err := b.unions.BuildTo(ctx)
 		if err != nil {
 			return "", err
 		}
 		query = strings.TrimSpace(query + " " + union)
 	}
-	b.debugger.printIfDebug(query, ctx.Args())
+	b.debugger.printIfDebug(ctx, query, ctx.Args())
 	return query, nil
 }
 
@@ -152,7 +141,7 @@ func (b *SelectBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
 	} else {
 		b.selects.SetPrefix("SELECT")
 	}
-	sel, err := b.selects.Build(ctx)
+	sel, err := b.selects.BuildTo(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -174,7 +163,7 @@ func (b *SelectBuilder) collectDependencies(ctx *sqlf.Context) (*selectBuilderDe
 		return b.deps, nil
 	}
 	// use a separate context to avoid polluting args
-	ctx = sqlf.NewContext(ctx, sqlf.BindStyleQuestion)
+	ctx = sqlf.ContextWithArgStore(ctx, ctx.Dialect().NewArgStore())
 	queryDeps, err := b.from.CollectDependencies(ctx, &fromBuilderMeta{
 		DebugName: b.name,
 		DependOnMe: []sqlf.Builder{

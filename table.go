@@ -4,13 +4,13 @@ import "github.com/qjebbs/go-sqlf/v4"
 
 var _ (sqlf.Builder) = Table{}
 
-// Build implements sqlf.Builder
-func (t Table) Build(ctx *sqlf.Context) (query string, err error) {
+// BuildTo implements sqlf.Builder
+func (t Table) BuildTo(ctx *sqlf.Context) (query string, err error) {
 	if deps := dependenciesFromContext(ctx); deps != nil {
 		// collecting
 		deps.Tables[t] = true
 	}
-	return t.AppliedName(), nil
+	return sqlf.Identifier(t.AppliedName()).BuildTo(ctx)
 }
 
 // Table is the table name with optional alias.
@@ -40,6 +40,11 @@ func NewTable(name string, alias ...string) Table {
 	}
 }
 
+// IsZero reports whether the table is zero.
+func (t Table) IsZero() bool {
+	return t.Name == "" && t.Alias == ""
+}
+
 // WithAlias returns a new Table with updated alias.
 func (t Table) WithAlias(alias string) Table {
 	return Table{
@@ -64,18 +69,37 @@ func (t Table) AppliedName() string {
 //	t := NewTable("table", "t")
 //	t.Column("id")  // "t.id"
 func (t Table) Column(name string) sqlf.Builder {
-	return sqlf.F("?."+name, t)
+	// TODO: build with proper quoting
+	return sqlf.F("?.?", t, sqlf.Identifier(name))
+}
+
+// AllColumns returns all columns of the table, e.g.: "t.*".
+//
+// For example:
+//
+//	t := NewTable("table", "t")
+//	t.AllColumns()  // "t.*"
+func (t Table) AllColumns() sqlf.Builder {
+	return sqlf.F("?.*", t)
 }
 
 // TableAs returns a new builder that builds t into fragment like `table AS t`
 func (t Table) TableAs() sqlf.Builder {
 	return sqlf.Func(func(ctx *sqlf.Context) (query string, err error) {
 		// report dependency
-		t.Build(ctx)
+		t.BuildTo(ctx)
 		if t.Alias == "" {
-			return string(t.Name), nil
+			r, err := sqlf.Identifier(t.Name).BuildTo(ctx)
+			if err != nil {
+				return "", err
+			}
+			return r, nil
 		}
-		return string(t.Name + " AS " + t.Alias), nil
+		return sqlf.F(
+			"? AS ?",
+			sqlf.Identifier(t.Name),
+			sqlf.Identifier(t.Alias),
+		).BuildTo(ctx)
 	})
 }
 

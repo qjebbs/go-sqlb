@@ -7,14 +7,10 @@
 // preserving both flexibility and transparency in your database interactions.
 package sqlb
 
-import (
-	"context"
-
-	"github.com/qjebbs/go-sqlf/v4"
-)
+import "github.com/qjebbs/go-sqlf/v4"
 
 // Builder is the interface for sql builders.
 type Builder interface {
-	// BuildQueryContext builds and returns the query and args with the given context.
-	BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error)
+	// Build builds and returns the query and args with the given context.
+	Build(ctx *sqlf.Context) (query string, args []any, err error)
 }

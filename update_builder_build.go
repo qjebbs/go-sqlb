@@ -1,31 +1,20 @@
 package sqlb
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-// BuildQuery builds the query.
-func (b *UpdateBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
-	return b.BuildQueryContext(context.Background(), style)
+// Build builds the query with the given context.
+func (b *UpdateBuilder) Build(ctx *sqlf.Context) (query string, args []any, err error) {
+	buildCtx := NewContext(ctx)
+	return sqlf.Build(buildCtx, b)
 }
 
-// BuildQueryContext builds the query with the given context.
-func (b *UpdateBuilder) BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error) {
-	buildCtx := sqlf.NewContext(ctx, style)
-	query, err = b.buildInternal(buildCtx)
-	if err != nil {
-		return "", nil, err
-	}
-	args = buildCtx.Args()
-	return query, args, nil
-}
-
-// Build implements sqlf.Builder
-func (b *UpdateBuilder) Build(ctx *sqlf.Context) (query string, err error) {
+// BuildTo implements sqlf.Builder
+func (b *UpdateBuilder) BuildTo(ctx *sqlf.Context) (query string, err error) {
 	return b.buildInternal(ctx)
 }
 
@@ -59,10 +48,15 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	built := make([]string, 0)
 
+	dialect, err := DialectFromContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	caps := dialect.Capabilities()
+
 	ctx, pruning := decideContextPruning(ctx, b.pruning)
 
-	var err error
-	var myDeps = &selectBuilderDependencies{}
+	myDeps := &selectBuilderDependencies{}
 	if pruning {
 		myDeps, err = b.collectDependencies(ctx)
 		if err != nil {
@@ -80,7 +74,7 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 			return "", nil
 		}
 	}
-	with, err := b.ctes.BuildRequired(ctx, myDeps.cteDeps, b.dialact)
+	with, err := b.ctes.BuildRequired(ctx, myDeps.cteDeps)
 	if err != nil {
 		return "", err
 	}
@@ -88,10 +82,15 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		built = append(built, with)
 	}
 	// UPDATE target
-	built = append(built, "UPDATE")
-	built = append(built, b.target)
-	if b.dialact == DialectMySQL {
+	r, err := sqlf.F("UPDATE ?", b.target).BuildTo(ctx)
+	if err != nil {
+		return "", err
+	}
+	built = append(built, r)
+
+	if caps.SupportsUpdateJoin {
 		// MySQL join goes first
+		b.from.ImplicitedFrom(b.target)
 		joins, err := b.from.BuildRequired(ctx, b.joinBuilderMeta(), myDeps.queryDeps)
 		if err != nil {
 			return "", err
@@ -101,7 +100,7 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		}
 	}
 	// SET sets
-	sets, err := b.sets.Build(ctx)
+	sets, err := b.sets.BuildTo(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -110,8 +109,11 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	built = append(built, sets)
 
-	if b.dialact != DialectMySQL {
+	if caps.SupportsUpdateFrom {
 		// FROM / JOINS
+		if b.fromTable.Name != "" {
+			b.from.From(b.fromTable)
+		}
 		joins, err := b.from.BuildRequired(ctx, b.joinBuilderMeta(), myDeps.queryDeps)
 		if err != nil {
 			return "", err
@@ -120,14 +122,14 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 			built = append(built, joins)
 		}
 	}
-	where, err := b.where.Build(ctx)
+	where, err := b.where.BuildTo(ctx)
 	if err != nil {
 		return "", err
 	}
 	if where != "" {
 		built = append(built, where)
 	}
-	order, err := b.order.Build(ctx)
+	order, err := b.order.BuildTo(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +140,7 @@ func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		built = append(built, fmt.Sprintf(`LIMIT %d`, b.limit))
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
-	b.debugger.printIfDebug(query, ctx.Args())
+	b.debugger.printIfDebug(ctx, query, ctx.Args())
 	return query, nil
 }
 
@@ -161,7 +163,7 @@ func (b *UpdateBuilder) collectDependencies(ctx *sqlf.Context) (*selectBuilderDe
 		return b.deps, nil
 	}
 	// use a separate context to avoid polluting args
-	ctx = sqlf.NewContext(ctx, sqlf.BindStyleQuestion)
+	ctx = sqlf.ContextWithArgStore(ctx, ctx.Dialect().NewArgStore())
 	queryDeps, err := b.from.CollectDependencies(ctx, b.joinBuilderMeta())
 	if err != nil {
 		return nil, err

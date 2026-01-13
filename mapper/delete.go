@@ -25,8 +25,8 @@ import (
 //
 // It will return an error if it cannot locating a row to avoid accidental full-table delete.
 // To locate the row, it will use non-zero `pk`, `unique`, or `unique_group` fields in priority order.
-func Delete[T any](db QueryAble, value T, options ...Option) error {
-	err := delete(db, value, options...)
+func Delete[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+	err := delete(ctx, db, value, options...)
 	if err != nil {
 		var zero T
 		return wrapErrWithDebugName("Delete", zero, err)
@@ -34,7 +34,7 @@ func Delete[T any](db QueryAble, value T, options ...Option) error {
 	return nil
 }
 
-func delete[T any](db QueryAble, value T, options ...Option) error {
+func delete[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
 	if err := checkPtrStruct(value); err != nil {
 		return err
 	}
@@ -43,9 +43,9 @@ func delete[T any](db QueryAble, value T, options ...Option) error {
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Delete", value, opt)
-		defer debugger.print()
+		defer debugger.print(ctx.Dialect())
 	}
-	queryStr, args, err := buildDeleteQueryForStruct(value, opt)
+	queryStr, args, err := buildDeleteQueryForStruct(ctx, value, opt)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func delete[T any](db QueryAble, value T, options ...Option) error {
 	return err
 }
 
-func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args []any, err error) {
+func buildDeleteQueryForStruct[T any](ctx *sqlf.Context, value T, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
@@ -70,12 +70,12 @@ func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args
 	if err != nil {
 		return "", nil, err
 	}
-	deleteInfo, err := buildDeleteInfo(opt.dialect, info, value)
+	deleteInfo, err := buildDeleteInfo(info, value)
 	if err != nil {
 		return "", nil, err
 	}
 
-	if deleteInfo.softDelete.Indent != "" {
+	if deleteInfo.softDelete.IndentBuilder != nil {
 		switch v := deleteInfo.softDelete.Val.Raw.Interface().(type) {
 		case *time.Time:
 			// soft delete by setting current timestamp
@@ -98,11 +98,11 @@ func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args
 		// build UPDATE ... SET <soft-delete col> = ? WHERE ...
 		b := sqlb.NewUpdateBuilder().
 			Update(deleteInfo.table).
-			Set(deleteInfo.softDelete.Indent, deleteInfo.softDelete.Val.Value)
+			Set(deleteInfo.softDelete.Info.Column, deleteInfo.softDelete.Val.Value)
 		deleteInfo.EachWhere(func(cond sqlf.Builder) {
 			b.Where(cond)
 		})
-		query, args, err = b.BuildQuery(opt.style)
+		query, args, err = b.Build(ctx)
 		if err != nil {
 			return "", nil, err
 		}
@@ -115,17 +115,17 @@ func buildDeleteQueryForStruct[T any](value T, opt *Options) (query string, args
 		b.Where(cond)
 	})
 
-	query, args, err = b.BuildQuery(opt.style)
+	query, args, err = b.Build(ctx)
 	if err != nil {
 		return "", nil, err
 	}
 	return query, args, nil
 }
 
-func buildDeleteInfo[T any](dialect sqlb.Dialect, f *structInfo, value T) (*locatingInfo, error) {
+func buildDeleteInfo[T any](f *structInfo, value T) (*locatingInfo, error) {
 	valueVal := reflect.ValueOf(value)
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()
 	}
-	return buildLocatingInfo(dialect, f, valueVal)
+	return buildLocatingInfo(f, valueVal)
 }

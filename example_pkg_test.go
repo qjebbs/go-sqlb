@@ -1,9 +1,11 @@
 package sqlb_test
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlb/mapper"
 )
 
@@ -11,7 +13,7 @@ func Example_wrapping() {
 	var db *sql.DB
 	q := NewUserSelectBuilder(db).
 		WithIDs([]int64{1, 2, 3})
-	q.GetUsers()
+	q.GetUsers(context.Background())
 }
 
 // Wrap with your own build to provide more friendly APIs.
@@ -37,9 +39,10 @@ func (b *UserSelectBuilder) WithIDs(ids []int64) *UserSelectBuilder {
 	return b
 }
 
-func (b *UserSelectBuilder) GetUsers() ([]*User, error) {
+func (b *UserSelectBuilder) GetUsers(ctx context.Context) ([]*User, error) {
 	b.Select(Users.Columns("id", "name", "email")...)
-	return mapper.SelectManual(b.QueryAble, b.SelectBuilder, func() (*User, []any) {
+	buildCtx := sqlb.ContextWithDialect(ctx, dialect.PostgreSQL{})
+	return mapper.SelectManual(buildCtx, b.QueryAble, b.SelectBuilder, func() (*User, []any) {
 		r := &User{}
 		return r, []interface{}{
 			&r.ID, &r.Name, &r.Email,

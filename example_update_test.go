@@ -1,9 +1,11 @@
 package sqlb_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -22,7 +24,8 @@ func ExampleUpdateBuilder_postgreSQL() {
 			"? = ?", bar.Column("id"), baz.Column("bar_id"),
 		)).
 		WhereEquals(foo.Column("id"), bar.Column("foo_id"))
-	query, args, err := b.BuildQuery(sqlf.BindStyleQuestion)
+	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -30,7 +33,7 @@ func ExampleUpdateBuilder_postgreSQL() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// UPDATE foo SET a = ?, baz = b.baz FROM bar AS b INNER JOIN baz AS z ON b.id = z.bar_id WHERE foo.id = b.foo_id
+	// UPDATE "foo" SET "a" = $1, "baz" = "b"."baz" FROM "bar" AS "b" INNER JOIN "baz" AS "z" ON "b"."id" = "z"."bar_id" WHERE "foo"."id" = "b"."foo_id"
 	// [1]
 }
 
@@ -40,13 +43,14 @@ func ExampleUpdateBuilder_sqlServer() {
 		foo = sqlb.NewTable("foo")
 		bar = sqlb.NewTable("bar")
 	)
-	b := sqlb.NewUpdateBuilder(sqlb.DialectSQLServer).
+	b := sqlb.NewUpdateBuilder().
 		Update(foo.Name).
 		Set("a", 1).
 		Set("baz", bar.Column("baz")).
 		From(foo).
 		InnerJoin(bar, sqlf.F("? = ?", foo.Column("id"), bar.Column("foo_id")))
-	query, args, err := b.BuildQuery(sqlf.BindStyleQuestion)
+	ctx := sqlb.ContextWithDialect(context.Background(), dialect.SQLServer{})
+	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -54,8 +58,8 @@ func ExampleUpdateBuilder_sqlServer() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// UPDATE foo SET a = ?, baz = bar.baz FROM foo INNER JOIN bar ON foo.id = bar.foo_id
-	// [1]
+	// UPDATE [foo] SET [a] = @p1, [baz] = [bar].[baz] FROM [foo] INNER JOIN [bar] ON [foo].[id] = [bar].[foo_id]
+	// [{{} p1 1}]
 }
 
 func ExampleUpdateBuilder_mysql() {
@@ -63,12 +67,13 @@ func ExampleUpdateBuilder_mysql() {
 		foo = sqlb.NewTable("foo")
 		bar = sqlb.NewTable("bar", "z")
 	)
-	b := sqlb.NewUpdateBuilder(sqlb.DialectMySQL).
+	b := sqlb.NewUpdateBuilder().
 		Update(foo.Name).
 		Set("a", 1).
 		Set("baz", bar.Column("baz")).
 		InnerJoin(bar, sqlf.F("? = ?", foo.Column("id"), bar.Column("foo_id")))
-	query, args, err := b.BuildQuery(sqlf.BindStyleQuestion)
+	ctx := sqlb.ContextWithDialect(context.Background(), dialect.MySQL{})
+	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -76,6 +81,6 @@ func ExampleUpdateBuilder_mysql() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// UPDATE foo INNER JOIN bar AS z ON foo.id = z.foo_id SET a = ?, baz = z.baz
+	// UPDATE `foo` INNER JOIN `bar` AS `z` ON `foo`.`id` = `z`.`foo_id` SET `a` = ?, `baz` = `z`.`baz`
 	// [1]
 }

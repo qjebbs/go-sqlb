@@ -23,8 +23,8 @@ import (
 //   - match: The column will be always included in WHERE clause even if it is zero value.
 //
 // To locate the loading row, it will use non-zero `pk`, `unique`, or `unique_group` fields in priority order.
-func Load[T any](db QueryAble, value T, options ...Option) (T, error) {
-	r, err := load(db, value, options...)
+func Load[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (T, error) {
+	r, err := load(ctx, db, value, options...)
 	if err != nil {
 		var zero T
 		return zero, wrapErrWithDebugName("Load", zero, err)
@@ -32,7 +32,7 @@ func Load[T any](db QueryAble, value T, options ...Option) (T, error) {
 	return r, nil
 }
 
-func load[T any](db QueryAble, value T, options ...Option) (T, error) {
+func load[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (T, error) {
 	var zero T
 	err := checkPtrStruct(value)
 	if err != nil {
@@ -43,9 +43,9 @@ func load[T any](db QueryAble, value T, options ...Option) (T, error) {
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Load", value, opt)
-		defer debugger.print()
+		defer debugger.print(ctx.Dialect())
 	}
-	query, args, dests, err := buildLoadQueryForStruct(value, opt)
+	query, args, dests, err := buildLoadQueryForStruct(ctx, value, opt)
 	if err != nil {
 		return zero, err
 	}
@@ -56,7 +56,7 @@ func load[T any](db QueryAble, value T, options ...Option) (T, error) {
 		return zero, ErrNilDB
 	}
 	agents := make([]*nullZeroAgent, 0)
-	r, err := scan(db, query, args, debugger, func() (T, []any) {
+	r, err := scan(ctx, db, query, args, debugger, func() (T, []any) {
 		dest, fields, ag := prepareScanDestinations(value, dests, opt)
 		agents = append(agents, ag...)
 		return dest, fields
@@ -76,7 +76,7 @@ func load[T any](db QueryAble, value T, options ...Option) (T, error) {
 	return value, nil
 }
 
-func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
+func buildLoadQueryForStruct[T any](ctx *sqlf.Context, value T, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
@@ -84,13 +84,13 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 	if err != nil {
 		return "", nil, nil, err
 	}
-	loadInfo, err := buildLoadInfo(opt.dialect, info, value)
+	loadInfo, err := buildLoadInfo(info, value)
 	if err != nil {
 		return "", nil, nil, err
 	}
 	b := sqlb.NewSelectBuilder().
 		Select(util.Map(loadInfo.selects, func(c fieldData) sqlf.Builder {
-			return sqlf.F(c.Indent)
+			return c.IndentBuilder
 		})...).
 		From(sqlb.NewTable(loadInfo.table))
 
@@ -98,7 +98,7 @@ func buildLoadQueryForStruct[T any](value T, opt *Options) (query string, args [
 		b.Where(cond)
 	})
 
-	query, args, err = b.BuildQuery(opt.style)
+	query, args, err = b.Build(ctx)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -113,12 +113,12 @@ type loadInfo struct {
 	selects []fieldData
 }
 
-func buildLoadInfo[T any](dialect sqlb.Dialect, f *structInfo, value T) (*loadInfo, error) {
+func buildLoadInfo[T any](f *structInfo, value T) (*loadInfo, error) {
 	valueVal := reflect.ValueOf(value)
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()
 	}
-	locatingInfo, err := buildLocatingInfo(dialect, f, valueVal)
+	locatingInfo, err := buildLocatingInfo(f, valueVal)
 	if err != nil {
 		return nil, err
 	}

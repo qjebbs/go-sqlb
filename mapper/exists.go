@@ -8,7 +8,7 @@ import (
 // Exists checks whether a record exists in the database.
 //
 // See Load() for struct tag syntax and locating rules.
-func Exists[T any](db QueryAble, value T, options ...Option) (bool, error) {
+func Exists[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (bool, error) {
 	if err := checkStruct(value); err != nil {
 		return false, err
 	}
@@ -17,9 +17,9 @@ func Exists[T any](db QueryAble, value T, options ...Option) (bool, error) {
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Exists", value, opt)
-		defer debugger.print()
+		defer debugger.print(ctx.Dialect())
 	}
-	queryStr, args, err := buildExistsQueryForStruct(value, opt)
+	queryStr, args, err := buildExistsQueryForStruct(ctx, value, opt)
 	if err != nil {
 		return false, err
 	}
@@ -40,7 +40,7 @@ func Exists[T any](db QueryAble, value T, options ...Option) (bool, error) {
 	return existsInt > 0, nil
 }
 
-func buildExistsQueryForStruct[T any](value T, opt *Options) (query string, args []any, err error) {
+func buildExistsQueryForStruct[T any](ctx *sqlf.Context, value T, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
@@ -48,7 +48,7 @@ func buildExistsQueryForStruct[T any](value T, opt *Options) (query string, args
 	if err != nil {
 		return "", nil, err
 	}
-	loadInfo, err := buildLoadInfo(opt.dialect, info, value)
+	loadInfo, err := buildLoadInfo(info, value)
 	if err != nil {
 		return "", nil, err
 	}
@@ -59,8 +59,7 @@ func buildExistsQueryForStruct[T any](value T, opt *Options) (query string, args
 	loadInfo.EachWhere(func(cond sqlf.Builder) {
 		b.Where(cond)
 	})
-
-	query, args, err = b.BuildQuery(opt.style)
+	query, args, err = b.Build(ctx)
 	if err != nil {
 		return "", nil, err
 	}

@@ -28,18 +28,18 @@ import (
 //
 // It will return an error if it cannot locating a row to avoid accidental full-table update.
 // To locate the row, it will use non-zero `pk`, `unique`, or `unique_group` fields in priority order.
-func Update[T any](db QueryAble, value T, options ...Option) error {
-	return wrapErrWithDebugName("Update", value, update(db, value, true, options...))
+func Update[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+	return wrapErrWithDebugName("Update", value, update(ctx, db, value, true, options...))
 }
 
 // Patch is similar to Update(), but it only updates non-zero fields of the struct.
 //
 // See Update() for more details.
-func Patch[T any](db QueryAble, value T, options ...Option) error {
-	return wrapErrWithDebugName("Patch", value, update(db, value, false, options...))
+func Patch[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+	return wrapErrWithDebugName("Patch", value, update(ctx, db, value, false, options...))
 }
 
-func update[T any](db QueryAble, value T, updateAll bool, options ...Option) error {
+func update[T any](ctx *sqlf.Context, db QueryAble, value T, updateAll bool, options ...Option) error {
 	if err := checkStruct(value); err != nil {
 		return err
 	}
@@ -51,9 +51,9 @@ func update[T any](db QueryAble, value T, updateAll bool, options ...Option) err
 		} else {
 			debugger = newDebugger("Patch", value, opt)
 		}
-		defer debugger.print()
+		defer debugger.print(ctx.Dialect())
 	}
-	queryStr, args, err := buildUpdateQueryForStruct(value, updateAll, opt)
+	queryStr, args, err := buildUpdateQueryForStruct(ctx, value, updateAll, opt)
 	if err != nil {
 		return err
 	}
@@ -83,18 +83,19 @@ func update[T any](db QueryAble, value T, updateAll bool, options ...Option) err
 	return err
 }
 
-func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (query string, args []any, err error) {
+func buildUpdateQueryForStruct[T any](ctx *sqlf.Context, value T, updateAll bool, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
-	b := sqlb.NewUpdateBuilder(opt.dialect)
+
+	b := sqlb.NewUpdateBuilder()
 
 	var zero T
 	info, err := getStructInfo(zero)
 	if err != nil {
 		return "", nil, err
 	}
-	updateInfo, err := buildUpdateInfo(opt.dialect, info, updateAll, value)
+	updateInfo, err := buildUpdateInfo(info, updateAll, value)
 	if err != nil {
 		return "", nil, err
 	}
@@ -104,14 +105,14 @@ func buildUpdateQueryForStruct[T any](value T, updateAll bool, opt *Options) (qu
 		b.Update(updateInfo.table)
 	}
 	for _, coldata := range updateInfo.updateColumns {
-		b.Set(coldata.Indent, coldata.Val.Value)
+		b.Set(coldata.Info.Column, coldata.Val.Value)
 	}
 
 	updateInfo.EachWhere(func(cond sqlf.Builder) {
 		b.Where(cond)
 	})
 
-	query, args, err = b.BuildQuery(opt.style)
+	query, args, err = b.Build(ctx)
 	if err != nil {
 		return "", nil, err
 	}
@@ -123,12 +124,12 @@ type updateInfo struct {
 	updateColumns []fieldData
 }
 
-func buildUpdateInfo[T any](dialect sqlb.Dialect, f *structInfo, updateAll bool, value T) (*updateInfo, error) {
+func buildUpdateInfo[T any](f *structInfo, updateAll bool, value T) (*updateInfo, error) {
 	valueVal := reflect.ValueOf(value)
 	if valueVal.Kind() == reflect.Ptr {
 		valueVal = valueVal.Elem()
 	}
-	locatingInfo, err := buildLocatingInfo(dialect, f, valueVal)
+	locatingInfo, err := buildLocatingInfo(f, valueVal)
 	if err != nil {
 		return nil, err
 	}

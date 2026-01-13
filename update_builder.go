@@ -11,11 +11,12 @@ var _ Builder = (*UpdateBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type UpdateBuilder struct {
-	dialact Dialect
-	ctes    *clauseWith
-	from    *clauseFrom
+	ctes *clauseWith
+	from *clauseFrom
 
-	target string
+	fromTable Table
+
+	target Table
 	sets   *clauseList // select columns and keep values in scanning.
 	where  *clauseList // where conditions, joined with AND.
 	order  *clauseList // order by columns, joined with comma.
@@ -29,28 +30,20 @@ type UpdateBuilder struct {
 }
 
 // NewUpdateBuilder returns a new UpdateBuilder.
-func NewUpdateBuilder(dialect ...Dialect) *UpdateBuilder {
-	d := DialectPostgres
-	if len(dialect) > 0 {
-		d = dialect[0]
-	}
+func NewUpdateBuilder() *UpdateBuilder {
 	return &UpdateBuilder{
-		dialact: d,
-		ctes:    newWith(),
-		from:    newFrom(),
-		sets:    newPrefixedList("SET", ", "),
-		where:   newPrefixedList("WHERE", " AND "),
-		order:   newPrefixedList("ORDER BY", ", "),
+		ctes:  newWith(),
+		from:  newFrom(),
+		sets:  newPrefixedList("SET", ", "),
+		where: newPrefixedList("WHERE", " AND "),
+		order: newPrefixedList("ORDER BY", ", "),
 	}
 }
 
 // Update set the update target table.
 func (b *UpdateBuilder) Update(table string) *UpdateBuilder {
-	if b.dialact == DialectMySQL {
-		b.from.ImplicitedFrom(NewTable(table))
-	}
 	b.resetDepTablesCache()
-	b.target = table
+	b.target = NewTable(table)
 	return b
 }
 
@@ -65,7 +58,7 @@ func (b *UpdateBuilder) Update(table string) *UpdateBuilder {
 //	b.Set("age", Users.Column("age")).From(Users).Where(...)
 func (b *UpdateBuilder) Set(column string, value any) *UpdateBuilder {
 	b.resetDepTablesCache()
-	b.sets.Append(sqlf.F("? = ?", sqlf.F(column), value))
+	b.sets.Append(sqlf.F("? = ?", sqlf.Identifier(column), value))
 	return b
 }
 

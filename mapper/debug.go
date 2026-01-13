@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/qjebbs/go-sqlf/v4/dialect"
 	"github.com/qjebbs/go-sqlf/v4/util"
 )
 
@@ -35,8 +36,8 @@ func newDebugger(funcName string, value any, opt *Options) *debugger {
 	}
 }
 
-func (d *debugger) print() {
-	query, err := util.Interpolate(d.query, d.args)
+func (d *debugger) print(dialect dialect.Dialect) {
+	query, err := util.Interpolate(dialect, d.query, d.args)
 	if err != nil {
 		d.msgs = append(d.msgs, fmt.Sprintf(
 			"interpolate fail: %s", err,

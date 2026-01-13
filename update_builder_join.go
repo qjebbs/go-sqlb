@@ -1,19 +1,13 @@
 package sqlb
 
 import (
-	"errors"
-
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
 // From set the from table.
 func (b *UpdateBuilder) From(t Table) *UpdateBuilder {
-	if b.dialact == DialectMySQL {
-		b.pushError(errors.New("MySQL does not support FROM clause in UPDATE statements"))
-		return b
-	}
 	b.resetDepTablesCache()
-	b.from.From(t)
+	b.fromTable = t
 	return b
 }
 

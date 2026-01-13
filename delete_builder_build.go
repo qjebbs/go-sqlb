@@ -1,30 +1,19 @@
 package sqlb
 
 import (
-	"context"
 	"strings"
 
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-// BuildQuery builds the query.
-func (b *DeleteBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
-	return b.BuildQueryContext(context.Background(), style)
+// Build builds the query.
+func (b *DeleteBuilder) Build(ctx *sqlf.Context) (query string, args []any, err error) {
+	buildCtx := NewContext(ctx)
+	return sqlf.Build(buildCtx, b)
 }
 
-// BuildQueryContext builds the query with the given context.
-func (b *DeleteBuilder) BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error) {
-	buildCtx := sqlf.NewContext(ctx, style)
-	query, err = b.buildInternal(buildCtx)
-	if err != nil {
-		return "", nil, err
-	}
-	args = buildCtx.Args()
-	return query, args, nil
-}
-
-// Build implements sqlf.Builder
-func (b *DeleteBuilder) Build(ctx *sqlf.Context) (query string, err error) {
+// BuildTo implements sqlf.Builder
+func (b *DeleteBuilder) BuildTo(ctx *sqlf.Context) (query string, err error) {
 	return b.buildInternal(ctx)
 }
 
@@ -41,9 +30,12 @@ func (b *DeleteBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	built := make([]string, 0)
 	// Delete target
-	built = append(built, "DELETE FROM")
-	built = append(built, b.target)
-	where, err := b.where.Build(ctx)
+	r, err := sqlf.F("DELETE FROM ? ", b.target).BuildTo(ctx)
+	if err != nil {
+		return "", err
+	}
+	built = append(built, r)
+	where, err := b.where.BuildTo(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -51,6 +43,6 @@ func (b *DeleteBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		built = append(built, where)
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
-	b.debugger.printIfDebug(query, ctx.Args())
+	b.debugger.printIfDebug(ctx, query, ctx.Args())
 	return query, nil
 }

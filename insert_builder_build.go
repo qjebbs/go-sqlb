@@ -1,33 +1,21 @@
 package sqlb
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	"github.com/qjebbs/go-sqlb/internal/util"
-	myutil "github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-// BuildQuery builds the query.
-func (b *InsertBuilder) BuildQuery(style sqlf.BindStyle) (query string, args []any, err error) {
-	return b.BuildQueryContext(context.Background(), style)
+// Build builds the query.
+func (b *InsertBuilder) Build(ctx *sqlf.Context) (query string, args []any, err error) {
+	buildCtx := NewContext(ctx)
+	return sqlf.Build(buildCtx, b)
 }
 
-// BuildQueryContext builds the query with the given context.
-func (b *InsertBuilder) BuildQueryContext(ctx context.Context, style sqlf.BindStyle) (query string, args []any, err error) {
-	buildCtx := sqlf.NewContext(ctx, style)
-	query, err = b.buildInternal(buildCtx)
-	if err != nil {
-		return "", nil, err
-	}
-	args = buildCtx.Args()
-	return query, args, nil
-}
-
-// Build implements sqlf.Builder
-func (b *InsertBuilder) Build(ctx *sqlf.Context) (query string, err error) {
+// BuildTo implements sqlf.Builder
+func (b *InsertBuilder) BuildTo(ctx *sqlf.Context) (query string, err error) {
 	return b.buildInternal(ctx)
 }
 
@@ -56,7 +44,13 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}
-	if b.target == "" {
+
+	dialect, err := DialectFromContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	caps := dialect.Capabilities()
+	if b.target.IsZero() {
 		return "", fmt.Errorf("no target table specified for insert")
 	}
 	if b.selects == nil && len(b.values) == 0 {
@@ -92,7 +86,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		for cte := range myDeps.SourceNames {
 			ctes[cte] = true
 		}
-		with, err := b.ctes.BuildRequired(ctx, ctes, b.dialact)
+		with, err := b.ctes.BuildRequired(ctx, ctes)
 		if err != nil {
 			return "", err
 		}
@@ -100,50 +94,61 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 			built = append(built, with)
 		}
 	}
-	built = append(built, fmt.Sprintf("INSERT INTO %s", b.target))
+	r, err := sqlf.F("INSERT INTO ?", b.target).BuildTo(ctx)
+	if err != nil {
+		return "", fmt.Errorf("build insert target: %w", err)
+	}
+	built = append(built, r)
 	if len(b.columns) > 0 {
-		cols := fmt.Sprintf("(%s)", strings.Join(b.columns, ", "))
+		cols, err := sqlf.F("(?)", sqlf.Join(", ", b.columns...)).BuildTo(ctx)
+		if err != nil {
+			return "", fmt.Errorf("build insert columns: %w", err)
+		}
 		built = append(built, cols)
 	}
 	// returning clause
-	if len(b.returning) > 0 && b.dialact == DialectSQLServer {
+	if len(b.returning) > 0 && caps.SupportsOutputInserted {
 		returning, err := sqlf.F("OUTPUT ?", sqlf.Join(
-			", ", util.Map(b.returning, func(r string) sqlf.Builder {
-				return sqlf.F("INSERTED." + r)
-			})...,
-		)).Build(ctx)
+			", ", b.returning...,
+		)).BuildTo(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build returning clause: %w", err)
 		}
 		built = append(built, returning)
 	}
 	if len(b.values) > 0 {
-		valueBuilders := sqlf.Join(", ", myutil.Map(b.values, func(values []any) sqlf.Builder {
+		valueBuilders := sqlf.Join(", ", util.Map(b.values, func(values []any) sqlf.Builder {
 			return sqlf.F("(?)", sqlf.JoinMixed(", ", values...))
 		})...)
-		valuesStr, err := sqlf.Prefix("VALUES", valueBuilders).Build(ctx)
+		valuesStr, err := sqlf.Prefix("VALUES", valueBuilders).BuildTo(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build insert values: %w", err)
 		}
 		built = append(built, valuesStr)
 	}
 	if b.selects != nil {
-		sel, err := b.selects.Build(ctx)
+		sel, err := b.selects.BuildTo(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build insert from select: %w", err)
 		}
 		built = append(built, sel)
 	}
 	// conflict handling
-	switch b.dialact {
-	case DialectPostgres, DialectSQLite:
+	switch {
+	case caps.SupportsOnConflict:
 		if len(b.conflictOn) > 0 {
-			conflictTarget := fmt.Sprintf("ON CONFLICT (%s)", strings.Join(b.conflictOn, ", "))
+			conflictTarget, err := sqlf.F(
+				"ON CONFLICT (?)",
+				sqlf.Join(", ", b.conflictOn...),
+			).BuildTo(ctx)
+			if err != nil {
+				return "", fmt.Errorf("build conflict target: %w", err)
+			}
 			built = append(built, conflictTarget)
 			if len(b.conflictDo) == 0 {
 				built = append(built, "DO NOTHING")
 			} else {
-				conflictActions, err := sqlf.Join(", ", b.conflictDo...).Build(ctx)
+				conflictActions, err := sqlf.Join(", ", b.conflictDo...).BuildTo(ctx)
 				if err != nil {
 					return "", fmt.Errorf("build conflict do actions: %w", err)
 				}
@@ -151,10 +156,10 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 				built = append(built, conflictActions)
 			}
 		}
-	case DialectMySQL:
+	case caps.SupportsOnDuplicateKeyUpdate:
 		if len(b.conflictDo) > 0 {
 			built = append(built, "ON DUPLICATE KEY UPDATE")
-			conflictActions, err := sqlf.Join(", ", b.conflictDo...).Build(ctx)
+			conflictActions, err := sqlf.Join(", ", b.conflictDo...).BuildTo(ctx)
 			if err != nil {
 				return "", fmt.Errorf("build conflict do actions: %w", err)
 			}
@@ -162,24 +167,27 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		}
 	default:
 		if len(b.conflictOn) > 0 || len(b.conflictDo) > 0 {
-			return "", fmt.Errorf("ON CONFLICT is not supported for %s", b.dialact.String())
+			return "", fmt.Errorf("ON CONFLICT / DUPLICATE KEY is not supported for dialact %t", dialect)
 		}
 	}
 
 	// returning clause
 	if len(b.returning) > 0 {
-		switch b.dialact {
-		case DialectPostgres, DialectSQLite:
-			returning := fmt.Sprintf("RETURNING %s", strings.Join(b.returning, ", "))
+		switch {
+		case caps.SupportsReturning:
+			returning, err := sqlf.F("RETURNING ?", sqlf.Join(", ", b.returning...)).BuildTo(ctx)
+			if err != nil {
+				return "", fmt.Errorf("build returning clause: %w", err)
+			}
 			built = append(built, returning)
-		case DialectSQLServer:
+		case caps.SupportsOutputInserted:
 			// already built
 		default:
-			return "", fmt.Errorf("returning is not supported for %s", b.dialact.String())
+			return "", fmt.Errorf("returning is not supported for dialact %T", dialect)
 		}
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
-	b.debugger.printIfDebug(query, ctx.Args())
+	b.debugger.printIfDebug(ctx, query, ctx.Args())
 	return query, nil
 }
 
@@ -188,9 +196,9 @@ func (b *InsertBuilder) collectDependencies(ctx *sqlf.Context) (*dependencies, e
 	myDeps := newDependencies(b.name)
 
 	// use a separate context to avoid polluting args
-	ctx = sqlf.NewContext(ctx, sqlf.BindStyleQuestion)
+	ctx = sqlf.ContextWithArgStore(ctx, ctx.Dialect().NewArgStore())
 	depCtx := contextWithDependencies(ctx, myDeps)
-	_, err := b.selects.Build(depCtx)
+	_, err := b.selects.BuildTo(depCtx)
 	if err != nil {
 		return nil, err
 	}

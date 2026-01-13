@@ -1,9 +1,11 @@
 package sqlb_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -16,12 +18,14 @@ func ExampleDeleteBuilder_postgreSQL() {
 	b := sqlb.NewDeleteBuilder().
 		DeleteFrom(foo.Name).
 		Where(sqlf.F(
-			"id NOT IN (?)",
+			"? NOT IN (?)",
+			sqlf.Identifier("id"),
 			sqlb.NewSelectBuilder().
 				Select(bar.Column("foo_id")).
 				From(bar),
 		))
-	query, args, err := b.BuildQuery(sqlf.BindStyleQuestion)
+	ctx := sqlb.ContextWithDialect(context.Background(), dialect.SQLite{})
+	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -29,6 +33,6 @@ func ExampleDeleteBuilder_postgreSQL() {
 	fmt.Println(query)
 	fmt.Println(args)
 	// Output:
-	// DELETE FROM foo WHERE id NOT IN (SELECT b.foo_id FROM bar AS b)
+	// DELETE FROM "foo" WHERE "id" NOT IN (SELECT "b"."foo_id" FROM "bar" AS "b")
 	// []
 }

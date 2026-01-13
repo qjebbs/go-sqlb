@@ -44,7 +44,7 @@ func (b *clauseFrom) BuildRequired(ctx *sqlf.Context, meta *fromBuilderMeta, dep
 	pruning := pruningFromContext(ctx)
 	tables := make([]string, 0, len(b.tables))
 	if b.explicitFrom {
-		c, err := b.tables[0].Build(ctx)
+		c, err := b.tables[0].BuildTo(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build FROM '%s': %w", b.tables[0].table, err)
 		}
@@ -54,7 +54,7 @@ func (b *clauseFrom) BuildRequired(ctx *sqlf.Context, meta *fromBuilderMeta, dep
 		if pruning && b.shouldEliminateTable(meta, t, deps) {
 			continue
 		}
-		c, err := t.Builder.Build(ctx)
+		c, err := t.Builder.BuildTo(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build FROM '%s': %w", t.table, err)
 		}
@@ -149,7 +149,7 @@ func (b *clauseFrom) collectDepsFromTable(ctx *sqlf.Context, meta *fromBuilderMe
 func (b *clauseFrom) extractTables(ctx *sqlf.Context, debugName string, args ...sqlf.Builder) (*dependencies, error) {
 	tables := newDependencies(debugName)
 	depCtx := contextWithDependencies(ctx, tables)
-	_, err := sqlf.Join(";", args...).Build(depCtx)
+	_, err := sqlf.Join(";", args...).BuildTo(depCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -176,9 +176,7 @@ func (b *clauseFrom) From(t Table) *clauseFrom {
 // but ignore it in the final query building (for UPDATE .. JOIN ..).
 // It has no effect if From() has been called before.
 func (b *clauseFrom) ImplicitedFrom(t Table) *clauseFrom {
-	if b.explicitFrom {
-		return b
-	}
+	b.explicitFrom = false
 	return b.from(t)
 }
 

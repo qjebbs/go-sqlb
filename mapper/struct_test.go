@@ -1,9 +1,11 @@
 package mapper
 
 import (
+	"context"
 	"testing"
 
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -29,12 +31,13 @@ func TestQueryStruct(t *testing.T) {
 		"?=?",
 		userTable.Column("id"), 1,
 	))
-	want := "SELECT u.id, u.name, u.email, 'str' FROM users AS u WHERE u.id=$1"
-	got, _, _, err := buildSelectQueryForStruct[User](b, nil)
+	want := `SELECT "u".id, "u"."name", "u"."email", 'str' FROM "users" AS "u" WHERE "u"."id"=$1`
+	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	got, _, _, err := buildSelectQueryForStruct[User](ctx, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != want {
-		t.Errorf("got %q, want %q", got, want)
+		t.Errorf("got %s, want %s", got, want)
 	}
 }

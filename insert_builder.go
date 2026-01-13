@@ -1,6 +1,7 @@
 package sqlb
 
 import (
+	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -11,16 +12,14 @@ var _ Builder = (*InsertBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type InsertBuilder struct {
-	dialact Dialect
-
 	ctes       *clauseWith
-	target     string         // target table for insertion
-	columns    []string       // select columns and keep values in scanning.
+	target     Table          // target table for insertion
+	columns    []sqlf.Builder // select columns and keep values in scanning.
 	values     [][]any        // values for insert/update
 	selects    sqlf.Builder   // select columns and keep values in scanning.
-	conflictOn []string       // conflict target
+	conflictOn []sqlf.Builder // conflict target
 	conflictDo []sqlf.Builder // conflict do action
-	returning  []string       // returning columns
+	returning  []sqlf.Builder // returning columns
 
 	errors []error // errors during building
 
@@ -29,26 +28,23 @@ type InsertBuilder struct {
 }
 
 // NewInsertBuilder returns a new InsertBuilder.
-func NewInsertBuilder(dialect ...Dialect) *InsertBuilder {
-	d := DialectPostgres
-	if len(dialect) > 0 {
-		d = dialect[0]
-	}
+func NewInsertBuilder() *InsertBuilder {
 	return &InsertBuilder{
-		dialact: d,
-		ctes:    newWith(),
+		ctes: newWith(),
 	}
 }
 
 // InsertInto sets the target table for insertion.
 func (b *InsertBuilder) InsertInto(t string) *InsertBuilder {
-	b.target = t
+	b.target = NewTable(t)
 	return b
 }
 
 // Columns sets the columns for insertion.
 func (b *InsertBuilder) Columns(cols ...string) *InsertBuilder {
-	b.columns = cols
+	b.columns = util.Map(cols, func(c string) sqlf.Builder {
+		return sqlf.Identifier(c)
+	})
 	return b
 }
 
@@ -71,7 +67,10 @@ func (b *InsertBuilder) From(s sqlf.Builder) *InsertBuilder {
 
 // Returning sets a RETURNING clause to the insert statement.
 func (b *InsertBuilder) Returning(columns ...string) *InsertBuilder {
-	b.returning = append(b.returning, columns...)
+	cols := util.Map(columns, func(c string) sqlf.Builder {
+		return sqlf.Identifier(c)
+	})
+	b.returning = append(b.returning, cols...)
 	return b
 }
 
@@ -103,7 +102,9 @@ func (b *InsertBuilder) WithValues(name Table, columns, types []string, values [
 //	b.OnConflict(columns, sqlf.F("c = EXCLUDED.c")) // ON CONFLICT (a, b) DO UPDATE SET c = EXCLUDED.c
 //	b.OnConflict(columns)                           // ON CONFLICT (a, b) DO NOTHING
 func (b *InsertBuilder) OnConflict(columns []string, actions ...sqlf.Builder) *InsertBuilder {
-	b.conflictOn = columns
+	b.conflictOn = util.Map(columns, func(c string) sqlf.Builder {
+		return sqlf.Identifier(c)
+	})
 	b.conflictDo = actions
 	return b
 }

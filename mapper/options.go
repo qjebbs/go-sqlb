@@ -6,7 +6,6 @@ import (
 
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/internal/util"
-	"github.com/qjebbs/go-sqlf/v4"
 )
 
 // Options defines options for scanning.
@@ -14,10 +13,7 @@ type Options struct {
 	debug       bool
 	debugTime   bool
 	debugWriter io.Writer
-
-	style   sqlf.BindStyle
-	tags    []string
-	dialect sqlb.Dialect
+	tags        []string
 
 	nullZeroTables []string
 }
@@ -66,20 +62,6 @@ func WithDebugTime(writer ...io.Writer) Option {
 	}
 }
 
-// WithDialect sets the SQL dialect for scanning.
-func WithDialect(dialect sqlb.Dialect) Option {
-	return func(o *Options) {
-		o.dialect = dialect
-	}
-}
-
-// WithBindStyle sets the bind style for scanning.
-func WithBindStyle(style sqlf.BindStyle) Option {
-	return func(o *Options) {
-		o.style = style
-	}
-}
-
 // WithTags sets the scan tags for scanning.
 func WithTags(tags ...string) Option {
 	return func(o *Options) {
@@ -114,9 +96,6 @@ func WithNullZeroTables(tables ...sqlb.Table) Option {
 
 func newDefaultOptions() *Options {
 	return &Options{
-		dialect:     sqlb.DialectPostgres,
-		style:       sqlf.BindStyleDollar,
-		tags:        nil,
 		debugWriter: os.Stdout,
 	}
 }

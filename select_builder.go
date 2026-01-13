@@ -12,8 +12,6 @@ var _ Builder = (*SelectBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type SelectBuilder struct {
-	dialact Dialect
-
 	ctes *clauseWith
 	from *clauseFrom
 
@@ -35,13 +33,8 @@ type SelectBuilder struct {
 }
 
 // NewSelectBuilder returns a new SelectBuilder.
-func NewSelectBuilder(dialect ...Dialect) *SelectBuilder {
-	d := DialectPostgres
-	if len(dialect) > 0 {
-		d = dialect[0]
-	}
+func NewSelectBuilder() *SelectBuilder {
 	return &SelectBuilder{
-		dialact:  d,
 		ctes:     newWith(),
 		from:     newFrom(),
 		order:    newPrefixedList("ORDER BY", ", "),

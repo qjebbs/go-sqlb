@@ -12,8 +12,8 @@ var _ Builder = (*DeleteBuilder)(nil)
 // It's recommended to wrap it with your struct to provide a
 // more friendly API and improve fragment reusability.
 type DeleteBuilder struct {
-	target string
-	where  *clauseList // where conditions, joined with AND.
+	target sqlf.Builder // target table to delete from.
+	where  *clauseList  // where conditions, joined with AND.
 	debugger
 }
 
@@ -26,7 +26,7 @@ func NewDeleteBuilder() *DeleteBuilder {
 
 // DeleteFrom set the Delete target table.
 func (b *DeleteBuilder) DeleteFrom(table string) *DeleteBuilder {
-	b.target = table
+	b.target = NewTable(table)
 	return b
 }
 

@@ -4,14 +4,14 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlf/v4"
 )
 
 // SelectOneManual executes a query and scans the results using a provider function.
 // The provider fn is called for each row to get the destination value and scan fields.
 // Unlike SelectOne, it doesn't limit the query to 1 row automatically.
-func SelectOneManual[T any](db QueryAble, b sqlb.Builder, fn func() (T, []any), options ...Option) (T, error) {
-	r, err := selectManual("SelectOneManual", db, b, fn, options...)
+func SelectOneManual[T any](ctx *sqlf.Context, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) (T, error) {
+	r, err := selectManual(ctx, "SelectOneManual", db, b, fn, options...)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -25,19 +25,19 @@ func SelectOneManual[T any](db QueryAble, b sqlb.Builder, fn func() (T, []any), 
 
 // SelectManual executes a query and scans the results using a provider function.
 // The provider fn is called for each row to get the destination value and scan fields.
-func SelectManual[T any](db QueryAble, b sqlb.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
-	return selectManual("SelectManual", db, b, fn, options...)
+func SelectManual[T any](ctx *sqlf.Context, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
+	return selectManual(ctx, "SelectManual", db, b, fn, options...)
 }
 
-func selectManual[T any](name string, db QueryAble, b sqlb.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
+func selectManual[T any](ctx *sqlf.Context, name string, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
 	opt := mergeOptions(options...)
 	var debugger *debugger
 	if opt.debug {
 		value, _ := fn()
 		debugger = newDebugger(name, value, opt)
-		defer debugger.print()
+		defer debugger.print(ctx.Dialect())
 	}
-	query, args, err := b.BuildQueryContext(context.Background(), opt.style)
+	query, args, err := sqlf.Build(ctx, b)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func selectManual[T any](name string, db QueryAble, b sqlb.Builder, fn func() (T
 	if db == nil {
 		return nil, ErrNilDB
 	}
-	r, err := scan(db, query, args, debugger, fn)
+	r, err := scan(ctx, db, query, args, debugger, fn)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func selectManual[T any](name string, db QueryAble, b sqlb.Builder, fn func() (T
 }
 
 // scan scans query rows with scanner
-func scan[T any](db QueryAble, query string, args []any, debugger *debugger, fn func() (T, []any)) ([]T, error) {
+func scan[T any](ctx context.Context, db QueryAble, query string, args []any, debugger *debugger, fn func() (T, []any)) ([]T, error) {
 	rows, err := db.Query(query, args...)
 	if debugger != nil {
 		debugger.onExec(err)
@@ -67,6 +67,11 @@ func scan[T any](db QueryAble, query string, args []any, debugger *debugger, fn 
 
 	var results []T
 	for rows.Next() {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
 		dest, fields := fn()
 		err = rows.Scan(fields...)
 		if err != nil {

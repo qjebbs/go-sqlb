@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -15,8 +16,8 @@ import (
 // If no returning columns are specified, it only executes the insert query.
 //
 // See Insert() for supported struct tags.
-func InsertOne[T any](db QueryAble, value T, options ...Option) error {
-	return Insert(db, []T{value}, options...)
+func InsertOne[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+	return Insert(ctx, db, []T{value}, options...)
 }
 
 // Insert inserts multiple structs into the database.
@@ -43,38 +44,42 @@ func InsertOne[T any](db QueryAble, value T, options ...Option) error {
 //   - returning: Mark the field to be included in RETURNING clause.
 //   - conflict_on[:unique_group name]: If value is ommited, declare current unique column or current unique-group the conflict detection column(s). If there is any ambiguity, it must be explicitly specified, e.g. `unique_group:a,b,c;conflict_on:a`.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
-func Insert[T any](db QueryAble, values []T, options ...Option) error {
+func Insert[T any](ctx *sqlf.Context, db QueryAble, values []T, options ...Option) error {
 	if len(values) == 0 {
 		return nil
 	}
 	opt := mergeOptions(options...)
-	if opt.dialect == sqlb.DialectOracle {
+	dialect, err := sqlb.DialectFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if !dialect.Capabilities().SupportsInsertDefault {
 		// Oracle does not support DEFAULT keyword in INSERT VALUES,
 		// so we have to insert one by one.
-		return wrapErrWithDebugName("Insert", values[0], insertOneByOne(db, values, opt))
+		return wrapErrWithDebugName("Insert", values[0], insertOneByOne(ctx, db, values, opt))
 	}
-	return wrapErrWithDebugName("Insert", values[0], insert(db, values, opt))
+	return wrapErrWithDebugName("Insert", values[0], insert(ctx, db, values, opt))
 }
 
-func insertOneByOne[T any](db QueryAble, values []T, opt *Options) error {
+func insertOneByOne[T any](ctx *sqlf.Context, db QueryAble, values []T, opt *Options) error {
 	for _, v := range values {
-		if err := insert(db, []T{v}, opt); err != nil {
+		if err := insert(ctx, db, []T{v}, opt); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func insert[T any](db QueryAble, values []T, opt *Options) error {
+func insert[T any](ctx *sqlf.Context, db QueryAble, values []T, opt *Options) error {
 	if err := checkPtrStruct(values[0]); err != nil {
 		return err
 	}
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Insert", values[0], opt)
-		defer debugger.print()
+		defer debugger.print(ctx.Dialect())
 	}
-	queryStr, args, returningFields, err := buildInsertQueryForStruct(values, opt)
+	queryStr, args, returningFields, err := buildInsertQueryForStruct(ctx, values, opt)
 	if err != nil {
 		return err
 	}
@@ -90,7 +95,7 @@ func insert[T any](db QueryAble, values []T, opt *Options) error {
 	}
 	index := 0
 	agents := make([]*nullZeroAgent, 0)
-	_, err = scan(db, queryStr, args, debugger, func() (T, []any) {
+	_, err = scan(ctx, db, queryStr, args, debugger, func() (T, []any) {
 		dest := values[index]
 		index++
 		dest, fields, ag := prepareScanDestinations(dest, returningFields, opt)
@@ -111,7 +116,7 @@ func insert[T any](db QueryAble, values []T, opt *Options) error {
 	return nil
 }
 
-func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, args []any, returningFields []fieldInfo, err error) {
+func buildInsertQueryForStruct[T any](ctx *sqlf.Context, values []T, opt *Options) (query string, args []any, returningFields []fieldInfo, err error) {
 	if len(values) == 0 {
 		return "", nil, nil, fmt.Errorf("no values to insert")
 	}
@@ -123,11 +128,15 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	if err != nil {
 		return "", nil, nil, err
 	}
-	insertInfo, err := buildInsertInfo(opt.dialect, info, values)
+	dialect, err := sqlb.DialectFromContext(ctx)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	b := sqlb.NewInsertBuilder(opt.dialect).
+	insertInfo, err := buildInsertInfo(dialect, info, values)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	b := sqlb.NewInsertBuilder().
 		InsertInto(insertInfo.table).
 		Columns(insertInfo.insertColumns...)
 
@@ -146,7 +155,7 @@ func buildInsertQueryForStruct[T any](values []T, opt *Options) (query string, a
 	// no allow manual setting of returning columns, since we cannot map them back
 	b.Returning(insertInfo.returningColumns...)
 
-	query, args, err = b.BuildQuery(opt.style)
+	query, args, err = b.Build(ctx)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -166,7 +175,7 @@ type insertInfo struct {
 	returningFields  []fieldInfo
 }
 
-func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (insertInfo, error) {
+func buildInsertInfo[T any](dialect dialect.Dialect, f *structInfo, values []T) (insertInfo, error) {
 	var r insertInfo
 	reflectValues := util.Map(values, func(v T) reflect.Value {
 		rv := reflect.ValueOf(v)
@@ -191,10 +200,10 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 		if col.Column == "" {
 			continue
 		}
-		colIndent := dialect.QuoteIdentifier(col.Column)
+		colIndent := sqlf.Identifier(col.Column)
 		fieldData := fieldData{
-			Info:   col,
-			Indent: colIndent,
+			Info:          col,
+			IndentBuilder: colIndent,
 		}
 		allZero := true
 		noZero := true
@@ -211,7 +220,7 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 			return field.Interface()
 		})
 		if col.Returning {
-			r.returningColumns = append(r.returningColumns, colIndent)
+			r.returningColumns = append(r.returningColumns, col.Column)
 			r.returningFields = append(r.returningFields, col)
 		}
 		if col.Unique {
@@ -222,42 +231,35 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 				uniqueGroups[group] = append(uniqueGroups[group], fieldData)
 			}
 		}
+		caps := dialect.Capabilities()
 		if col.ConflictOn != nil {
-			switch dialect {
-			case sqlb.DialectPostgres, sqlb.DialectSQLite:
-				conflictColumns = append(conflictColumns, fieldData)
-			case sqlb.DialectMySQL:
-				// ignore, MySQL uses different syntax
-			default:
-				return r, fmt.Errorf("does not support 'conflict_on' tag for %s", dialect)
+			if !caps.SupportsOnConflict {
+
+				return r, fmt.Errorf("does not support 'conflict_on' tag for dialect %T", dialect)
 			}
+			conflictColumns = append(conflictColumns, fieldData)
 		}
 		if col.ConflictSet != nil {
-			colQuoted := sqlf.F(colIndent)
 			var setValue sqlf.Builder
 			if *col.ConflictSet == "" {
-				switch dialect {
-				case sqlb.DialectPostgres, sqlb.DialectSQLite:
-					setValue = sqlf.F("EXCLUDED.?", colQuoted)
-				case sqlb.DialectMySQL:
-					setValue = sqlf.F("VALUES(?)", colQuoted)
-				case sqlb.DialectSQLServer, sqlb.DialectOracle:
-					return r, fmt.Errorf("'conflict_set' is not supported for %s", dialect)
+				switch {
+				case caps.SupportsOnConflictSetExcluded:
+					setValue = sqlf.F("EXCLUDED.?", colIndent)
+				case caps.SupportsOnDuplicateKeyUpdate:
+					setValue = sqlf.F("VALUES(?)", colIndent)
 				default:
-					return r, fmt.Errorf("'conflict_set' without expression is not supported for %s", dialect)
+					return r, fmt.Errorf("'conflict_set' without expression is not supported for dialect %T", dialect)
 				}
 			} else {
 				// user specified expression
-				switch dialect {
-				case sqlb.DialectPostgres, sqlb.DialectSQLite, sqlb.DialectMySQL:
+				switch {
+				case caps.SupportsOnConflictSetExcluded || caps.SupportsOnDuplicateKeyUpdate:
 					setValue = sqlf.F(*col.ConflictSet)
-				case sqlb.DialectSQLServer, sqlb.DialectOracle:
-					return r, fmt.Errorf("'conflict_set' is not supported for %s", dialect)
 				default:
-					return r, fmt.Errorf("'conflict_set' without expression is not supported for %s", dialect)
+					return r, fmt.Errorf("'conflict_set' without expression is not supported for dialect %T", dialect)
 				}
 			}
-			r.actions = append(r.actions, sqlf.F("? = ?", colQuoted, setValue))
+			r.actions = append(r.actions, sqlf.F("? = ?", colIndent, setValue))
 		}
 
 		if !col.InsertZero && col.Info.Required && !noZero {
@@ -269,7 +271,7 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 		if col.PK || col.ReadOnly || !col.InsertZero && allZero {
 			continue
 		}
-		r.insertColumns = append(r.insertColumns, colIndent)
+		r.insertColumns = append(r.insertColumns, col.Column)
 		r.insertIndices = append(r.insertIndices, col.Index)
 		r.insertValues = append(r.insertValues, colValues)
 	}
@@ -287,7 +289,7 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 		if group != "" {
 			conflictOnGroups[group] = true
 		} else {
-			conflictFields = append(conflictFields, conflict.Indent)
+			conflictFields = append(conflictFields, conflict.Info.Column)
 		}
 	}
 	nConflictOn := len(conflictFields) + len(conflictOnGroups)
@@ -298,7 +300,7 @@ func buildInsertInfo[T any](dialect sqlb.Dialect, f *structInfo, values []T) (in
 		} else {
 			// use unique group
 			for group := range conflictOnGroups {
-				r.conflict = util.Map(uniqueGroups[group], func(f fieldData) string { return f.Indent })
+				r.conflict = util.Map(uniqueGroups[group], func(f fieldData) string { return f.Info.Column })
 			}
 		}
 	case nConflictOn == 0:

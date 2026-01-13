@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlb/internal/util"
 	"github.com/qjebbs/go-sqlf/v4"
 )
@@ -28,9 +29,9 @@ type SelectLimitBuilder interface {
 // SelectOne executes the query and scans the result into a struct T.
 //
 // See Select() for supported struct tags.
-func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T, error) {
+func SelectOne[T any](ctx *sqlf.Context, db QueryAble, b SelectLimitBuilder, options ...Option) (T, error) {
 	b.SetLimit(1)
-	r, err := Select[T](db, b, options...)
+	r, err := Select[T](ctx, db, b, options...)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -55,8 +56,8 @@ func SelectOne[T any](db QueryAble, b SelectLimitBuilder, options ...Option) (T,
 //   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields. It usually works with `WithNullZeroTables()` Option.
 //
 // Applied-Table-Name: The name of the table that is effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
-func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
-	r, err := _select[T](db, b, options...)
+func Select[T any](ctx *sqlf.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
+	r, err := _select[T](ctx, db, b, options...)
 	if err != nil {
 		var zero T
 		return nil, wrapErrWithDebugName("Select", zero, err)
@@ -64,7 +65,7 @@ func Select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error
 	return r, nil
 }
 
-func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
+func _select[T any](ctx *sqlf.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	var zero T
 	if err := checkPtrStruct(zero); err != nil {
 		return nil, err
@@ -73,9 +74,9 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Select", zero, opt)
-		defer debugger.print()
+		defer debugger.print(ctx.Dialect())
 	}
-	queryStr, args, dests, err := buildSelectQueryForStruct[T](b, opt)
+	queryStr, args, dests, err := buildSelectQueryForStruct[T](ctx, b, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func _select[T any](db QueryAble, b SelectBuilder, options ...Option) ([]T, erro
 		return nil, ErrNilDB
 	}
 	agents := make([]*nullZeroAgent, 0)
-	r, err := scan(db, queryStr, args, debugger, func() (T, []any) {
+	r, err := scan(ctx, db, queryStr, args, debugger, func() (T, []any) {
 		var dest T
 		dest, fields, ag := prepareScanDestinations(dest, dests, opt)
 		agents = append(agents, ag...)
@@ -145,26 +146,27 @@ func prepareScanDestinations[T any](dest T, dests []fieldInfo, opt *Options) (T,
 	return dest, fields, agents
 }
 
-func buildSelectQueryForStruct[T any](b SelectBuilder, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
+func buildSelectQueryForStruct[T any](ctx context.Context, b SelectBuilder, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
+	dialect, err := sqlb.DialectFromContext(ctx)
 	var zero T
 	info, err := getStructInfo(zero)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	columns, dests := buildSelectInfo(opt, info)
+	columns, dests := buildSelectInfo(dialect, opt, info)
 	b.SetSelect(columns...)
-	ctx := sqlf.NewContext(context.Background(), opt.style)
-	query, err = b.Build(ctx)
+	buildCtx := sqlb.NewContext(ctx)
+	query, args, err = sqlf.Build(buildCtx, b)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	return query, ctx.Args(), dests, nil
+	return query, args, dests, nil
 }
 
-func buildSelectInfo(opt *Options, f *structInfo) (columns []sqlf.Builder, dests []fieldInfo) {
+func buildSelectInfo(dialect dialect.Dialect, opt *Options, f *structInfo) (columns []sqlf.Builder, dests []fieldInfo) {
 	for _, col := range f.columns {
 		included := opt.matchTag(col.SelectOn)
 		if !included {
@@ -175,7 +177,7 @@ func buildSelectInfo(opt *Options, f *structInfo) (columns []sqlf.Builder, dests
 		expr := col.Select
 		if expr == "" && col.Column != "" {
 			checkUsage = false
-			expr = "?." + opt.dialect.QuoteIdentifier(col.Column)
+			expr = "?." + dialect.QuoteIdentifier(col.Column)
 		}
 		column := sqlf.F(expr, util.Map(col.From, func(t string) any {
 			return sqlb.NewTable("", t)

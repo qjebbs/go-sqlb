@@ -1,10 +1,12 @@
 package sqlb_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlf/v4"
 	"github.com/qjebbs/go-sqlf/v4/util"
 )
@@ -40,11 +42,12 @@ func TestSelectBuilderDistinctElimination(t *testing.T) {
 			bar.Column("user_id"),
 			users.Column("id"),
 		))
-	gotQuery, gotArgs, err := q.BuildQuery(sqlf.BindStyleDollar)
+	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	gotQuery, gotArgs, err := q.Build(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantQuery := "WITH locs AS (SELECT user_id AS id, loc FROM user_locs WHERE country_code = $1), users AS (SELECT * FROM users AS u INNER JOIN locs AS l ON u.id=l.id) SELECT DISTINCT f.id, f.name FROM users AS u LEFT JOIN foo AS f ON f.user_id=u.id"
+	wantQuery := `WITH "locs" AS (SELECT user_id AS id, loc FROM user_locs WHERE country_code = $1), "users" AS (SELECT * FROM "users" AS "u" INNER JOIN "locs" AS "l" ON "u"."id"="l"."id") SELECT DISTINCT "f"."id", "f"."name" FROM "users" AS "u" LEFT JOIN "foo" AS "f" ON "f"."user_id"="u"."id"`
 	wantArgs := []any{"cn"}
 	if wantQuery != gotQuery {
 		t.Errorf("got:\n%s\nwant:\n%s", gotQuery, wantQuery)
@@ -80,11 +83,12 @@ func TestSelectBuilderGroupbyElimination(t *testing.T) {
 		)).
 		WhereEquals(foo.Column("id"), 1).
 		GroupBy(foo.Column("id"))
-	gotQuery, gotArgs, err := q.BuildQuery(sqlf.BindStyleDollar)
+	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	gotQuery, gotArgs, err := q.Build(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantQuery := "SELECT f.id, f.bar FROM foo AS f WHERE f.id = $1 GROUP BY f.id"
+	wantQuery := `SELECT "f"."id", "f"."bar" FROM "foo" AS "f" WHERE "f"."id" = $1 GROUP BY "f"."id"`
 	wantArgs := []any{1}
 	if wantQuery != gotQuery {
 		t.Errorf("got:\n%s\nwant:\n%s", gotQuery, wantQuery)
@@ -126,7 +130,7 @@ func TestSelectBuilderComplexDeps(t *testing.T) {
 			baz,
 			sqlf.F("SELECT 1"), // not referenced, should be eliminated
 		).
-		Distinct().Select(baseTable.Column("*")).
+		Distinct().Select(baseTable.AllColumns()).
 		From(baseTable).
 		LeftJoinOptional(baseTable3, sqlf.F( // required by outer table of subquery
 			"? = ?",
@@ -151,15 +155,16 @@ func TestSelectBuilderComplexDeps(t *testing.T) {
 					"%something%",
 				)),
 		))
-	query, args, err := q.BuildQuery(sqlf.BindStyleDollar)
+	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	query, args, err := q.Build(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	query, err = util.Interpolate(query, args)
+	query, err = util.Interpolate(ctx.Dialect(), query, args)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantQuery := "WITH foo AS (SELECT * FROM base_table2 AS b2 WHERE b2.id = 1), bar AS (SELECT * FROM foo AS f WHERE f.active = TRUE) SELECT DISTINCT b.* FROM base_table AS b LEFT JOIN base_table3 AS b3 ON b3.b_id = b.id WHERE EXISTS (SELECT 1 FROM bar AS r WHERE r.base_id = b3.id AND r.name LIKE '%something%')"
+	wantQuery := `WITH "foo" AS (SELECT * FROM "base_table2" AS "b2" WHERE "b2"."id" = 1), "bar" AS (SELECT * FROM "foo" AS "f" WHERE "f"."active" = TRUE) SELECT DISTINCT "b".* FROM "base_table" AS "b" LEFT JOIN "base_table3" AS "b3" ON "b3"."b_id" = "b"."id" WHERE EXISTS (SELECT 1 FROM "bar" AS "r" WHERE "r"."base_id" = "b3"."id" AND "r"."name" LIKE '%something%')`
 	if query != wantQuery {
 		t.Errorf("got:\n%s\nwant:\n%s", query, wantQuery)
 	}

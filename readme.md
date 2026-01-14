@@ -58,12 +58,13 @@ func Example_complexSelect() {
 		)).
 		WhereEquals(Orgs.Column("id"), 1).
 		WhereIsNull(Users.Column("deleted_at"))
-	_, err := mapper.Select[*userListItem](nil, b, mapper.WithDebug())
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
+	_, err := mapper.Select[*userListItem](ctx, nil, b, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Select(*mapper_test.userListItem)] SELECT u.id, u.created, u.updated, u.deleted, u.name, COALESCE(o.name,'') FROM users AS u LEFT JOIN orgs AS o ON u.org_id = o.id WHERE o.id = 1 AND u.deleted_at IS NULL
+	// [Select(*mapper_test.userListItem)] SELECT "u"."id", "u"."created", "u"."updated", "u"."deleted", "u"."name", COALESCE("o".name,'') FROM "users" AS "u" LEFT JOIN "orgs" AS "o" ON "u"."org_id" = "o"."id" WHERE "o"."id" = 1 AND "u"."deleted_at" IS NULL
 }
 ```
 
@@ -124,7 +125,8 @@ func Example_cRUD() {
 		Name string `sqlb:"col:name;conflict_set"`
 	}
 
-	err := mapper.Insert(nil, []*User{
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
+	err := mapper.Insert(ctx, nil, []*User{
 		{Email: "alice@example.org", Name: "Alice"},
 		{Email: "bob@example.org", Name: ""},
 	}, mapper.WithDebug())
@@ -132,18 +134,18 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 
-	_, err = mapper.Load(nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
+	_, err = mapper.Load(ctx, nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
-	_, err = mapper.Exists(nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
+	_, err = mapper.Exists(ctx, nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 
 	// Partial update: only non-zero fields will be updated.
 	// Here we located the record by unique Email field.
-	err = mapper.Patch(nil, &User{
+	err = mapper.Patch(ctx, nil, &User{
 		Email: "alice@example.org",
 		Name:  "Happy Alice",
 	}, mapper.WithDebug())
@@ -151,7 +153,7 @@ func Example_cRUD() {
 		fmt.Println(err)
 	}
 
-	err = mapper.Update(nil, &User{Email: "alice@example.org"}, mapper.WithDebug())
+	err = mapper.Update(ctx, nil, &User{Email: "alice@example.org"}, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
@@ -160,16 +162,16 @@ func Example_cRUD() {
 	// But here we set it to a fixed value to make the example output deterministic.
 	user := &User{Model: Model{ID: 1}}
 	user.Deleted = &time.Time{}
-	err = mapper.Delete(nil, user, mapper.WithDebug())
+	err = mapper.Delete(ctx, nil, user, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Insert(*mapper_test.User)] INSERT INTO users (email, name) VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT (email) DO UPDATE SET updated = EXCLUDED.updated, deleted = EXCLUDED.deleted, name = EXCLUDED.name RETURNING id
-	// [Load(*mapper_test.User)] SELECT created, updated, email, name FROM users WHERE id = 1 AND deleted IS NULL
-	// [Exists(*mapper_test.User)] SELECT 1 FROM users WHERE id = 1 AND deleted IS NULL
-	// [Patch(*mapper_test.User)] UPDATE users SET name = 'Happy Alice' WHERE email = 'alice@example.org' AND deleted IS NULL
-	// [Update(*mapper_test.User)] UPDATE users SET updated = NULL, name = '' WHERE email = 'alice@example.org' AND deleted IS NULL
-	// [Delete(*mapper_test.User)] UPDATE users SET deleted = '0001-01-01 00:00:00 +0000 UTC' WHERE id = 1 AND deleted IS NULL
+	// [Insert(*mapper_test.User)] INSERT INTO "users" ("email", "name") VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT ("email") DO UPDATE SET "updated" = EXCLUDED."updated", "deleted" = EXCLUDED."deleted", "name" = EXCLUDED."name" RETURNING "id"
+	// [Load(*mapper_test.User)] SELECT "created", "updated", "email", "name" FROM "users" WHERE "id" = 1 AND "deleted" IS NULL
+	// [Exists(*mapper_test.User)] SELECT 1 FROM "users" WHERE "id" = 1 AND "deleted" IS NULL
+	// [Patch(*mapper_test.User)] UPDATE "users" SET "name" = 'Happy Alice' WHERE "email" = 'alice@example.org' AND "deleted" IS NULL
+	// [Update(*mapper_test.User)] UPDATE "users" SET "updated" = NULL, "name" = '' WHERE "email" = 'alice@example.org' AND "deleted" IS NULL
+	// [Delete(*mapper_test.User)] UPDATE "users" SET "deleted" = '0001-01-01 00:00:00 +0000 UTC' WHERE "id" = 1 AND "deleted" IS NULL
 }
 ```

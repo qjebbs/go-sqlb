@@ -54,19 +54,31 @@ func Upgrade(d dialect.Dialect) (Dialect, bool) {
 	if dialect, ok := d.(Dialect); ok {
 		return dialect, true
 	}
-	switch d.(type) {
+	switch v := d.(type) {
 	case dialect.PostgreSQL:
-		return PostgreSQL{}, true
+		return PostgreSQL{
+			PostgreSQL: v,
+		}, true
 	case dialect.SQLite:
-		return SQLite{}, true
+		return SQLite{
+			SQLite: v,
+		}, true
 	case dialect.Oracle:
-		return Oracle{}, true
+		return Oracle{
+			Oracle: v,
+		}, true
 	case dialect.SQLServer:
-		return SQLServer{}, true
+		return SQLServer{
+			SQLServer: v,
+		}, true
 	case dialect.AnsiSQL:
-		return AnsiSQL{}, true
+		return AnsiSQL{
+			AnsiSQL: v,
+		}, true
 	case dialect.MySQL:
-		return MySQL{}, true
+		return MySQL{
+			MySQL: v,
+		}, true
 	}
 	return nil, false
 }

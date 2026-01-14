@@ -16,7 +16,7 @@ func ExampleInsertBuilder() {
 		Values(1, 2, 3).
 		Values(4, 5, 6).
 		Returning("id")
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.SQLite{})
+	ctx := sqlb.NewContext(context.Background(), dialect.SQLite{})
 	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -45,7 +45,7 @@ func ExampleInsertBuilder_complex() {
 		).
 		OnConflict([]string{"a"}, sqlf.F("$1 = EXCLUDED.$1", sqlf.Identifier("b"))).
 		Returning("id")
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)

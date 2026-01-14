@@ -43,8 +43,7 @@ func Example_cRUD() {
 		Name string `sqlb:"col:name;conflict_set"`
 	}
 
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
-
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	err := mapper.Insert(ctx, nil, []*User{
 		{Email: "alice@example.org", Name: "Alice"},
 		{Email: "bob@example.org", Name: ""},
@@ -137,7 +136,7 @@ func Example_complexSelect() {
 		)).
 		WhereEquals(Orgs.Column("id"), 1).
 		WhereIsNull(Users.Column("deleted_at"))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	_, err := mapper.Select[*userListItem](ctx, nil, b, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)

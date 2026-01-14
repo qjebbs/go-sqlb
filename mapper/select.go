@@ -1,7 +1,6 @@
 package mapper
 
 import (
-	"context"
 	"database/sql"
 	"reflect"
 
@@ -146,7 +145,7 @@ func prepareScanDestinations[T any](dest T, dests []fieldInfo, opt *Options) (T,
 	return dest, fields, agents
 }
 
-func buildSelectQueryForStruct[T any](ctx context.Context, b SelectBuilder, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
+func buildSelectQueryForStruct[T any](ctx *sqlf.Context, b SelectBuilder, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
@@ -158,8 +157,7 @@ func buildSelectQueryForStruct[T any](ctx context.Context, b SelectBuilder, opt 
 	}
 	columns, dests := buildSelectInfo(dialect, opt, info)
 	b.SetSelect(columns...)
-	buildCtx := sqlb.NewContext(ctx)
-	query, args, err = sqlf.Build(buildCtx, b)
+	query, args, err = sqlf.Build(ctx, b)
 	if err != nil {
 		return "", nil, nil, err
 	}

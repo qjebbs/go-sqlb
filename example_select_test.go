@@ -38,7 +38,7 @@ func Example_elimination() {
 		)).
 		WhereEquals(bar.Column("c"), 2)
 
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.SQLite{})
+	ctx := sqlb.NewContext(context.Background(), dialect.SQLite{})
 	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -56,7 +56,7 @@ func ExampleSelectBuilder_LeftJoinOptional() {
 		foo = sqlb.NewTable("foo", "f")
 		bar = sqlb.NewTable("bar", "b")
 	)
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	query, args, err := sqlb.NewSelectBuilder().
 		EnableElimination().
 		Distinct(). // *SelectBuilder eliminates optional joins when SELECT DISTINCT is used.
@@ -98,7 +98,7 @@ func ExampleSelectBuilder_With() {
 	// - SELECT / FROM requires 'bar',
 	// - 'bar' requires 'foo',
 	// so both CTEs are included.
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	query, _, err := builder.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -112,7 +112,7 @@ func ExampleSelectBuilder_With() {
 func ExampleSelectBuilder_Union() {
 	var foo = sqlb.NewTable("foo", "f")
 	column := foo.AllColumns()
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	query, args, err := sqlb.NewSelectBuilder().
 		Select(column).
 		From(foo).
@@ -157,7 +157,7 @@ func ExampleSelectBuilder_Debug() {
 		Select(foo.AllColumns()).
 		From(foo).
 		Where(sqlf.F("? IN (?)", fooID, q2))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	_, _, err := q3.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -185,7 +185,7 @@ func ExampleSelectBuilder_WithValues() {
 		Select(virtual.AllColumns()).
 		From(virtual).
 		OrderBy(sqlf.F("? ASC", virtual.Column("order")))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	_, _, err := q.Build(ctx)
 	if err != nil {
 		fmt.Println(err)

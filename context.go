@@ -7,6 +7,7 @@ import (
 
 	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlf/v4"
+	"github.com/qjebbs/go-sqlf/v4/argstore"
 )
 
 // errors
@@ -15,11 +16,10 @@ var (
 	ErrInvalidDialect     = errors.New("dialect in the context does not implement sqlb/dialect.Dialect")
 )
 
-var defaultDialect dialect.Dialect = dialect.PostgreSQL{}
-
-// NewContext creates a new context with the default dialect.
-func NewContext(parent context.Context) *sqlf.Context {
-	return sqlf.EnsureContextValues(parent, defaultDialect)
+// NewContext returns a new Context with an argument store for the given dialect.
+// If no store is provided, a new one is created using the dialect's NewArgStore method.
+func NewContext(parent context.Context, dialect dialect.Dialect, store ...argstore.Store) *sqlf.Context {
+	return sqlf.NewContext(parent, dialect, store...)
 }
 
 // ContextWithDialect returns a new context with the given dialect.

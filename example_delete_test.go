@@ -24,7 +24,7 @@ func ExampleDeleteBuilder_postgreSQL() {
 				Select(bar.Column("foo_id")).
 				From(bar),
 		))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.SQLite{})
+	ctx := sqlb.NewContext(context.Background(), dialect.SQLite{})
 	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)

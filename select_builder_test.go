@@ -42,7 +42,7 @@ func TestSelectBuilderDistinctElimination(t *testing.T) {
 			bar.Column("user_id"),
 			users.Column("id"),
 		))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	gotQuery, gotArgs, err := q.Build(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -83,7 +83,7 @@ func TestSelectBuilderGroupbyElimination(t *testing.T) {
 		)).
 		WhereEquals(foo.Column("id"), 1).
 		GroupBy(foo.Column("id"))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	gotQuery, gotArgs, err := q.Build(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestSelectBuilderComplexDeps(t *testing.T) {
 					"%something%",
 				)),
 		))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	query, args, err := q.Build(ctx)
 	if err != nil {
 		t.Fatal(err)

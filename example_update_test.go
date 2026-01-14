@@ -24,7 +24,7 @@ func ExampleUpdateBuilder_postgreSQL() {
 			"? = ?", bar.Column("id"), baz.Column("bar_id"),
 		)).
 		WhereEquals(foo.Column("id"), bar.Column("foo_id"))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -49,7 +49,7 @@ func ExampleUpdateBuilder_sqlServer() {
 		Set("baz", bar.Column("baz")).
 		From(foo).
 		InnerJoin(bar, sqlf.F("? = ?", foo.Column("id"), bar.Column("foo_id")))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.SQLServer{})
+	ctx := sqlb.NewContext(context.Background(), dialect.SQLServer{})
 	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -72,7 +72,7 @@ func ExampleUpdateBuilder_mysql() {
 		Set("a", 1).
 		Set("baz", bar.Column("baz")).
 		InnerJoin(bar, sqlf.F("? = ?", foo.Column("id"), bar.Column("foo_id")))
-	ctx := sqlb.ContextWithDialect(context.Background(), dialect.MySQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.MySQL{})
 	query, args, err := b.Build(ctx)
 	if err != nil {
 		fmt.Println(err)

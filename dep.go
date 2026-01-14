@@ -2,17 +2,17 @@ package sqlb
 
 import "github.com/qjebbs/go-sqlf/v4"
 
-type depAnalysisKey struct{}
+type pruningKey struct{}
 type dependenciesKey struct{}
 
 // contextWithPruning returns a new context with JOIN / CTE pruning enabled.
 func contextWithPruning(ctx *sqlf.Context) *sqlf.Context {
-	return sqlf.ContextWithValue(ctx, depAnalysisKey{}, struct{}{})
+	return sqlf.ContextWithValue(ctx, pruningKey{}, struct{}{})
 }
 
 // pruningFromContext extracts JOIN / CTE pruning flag from context.
 func pruningFromContext(ctx *sqlf.Context) bool {
-	v := ctx.Value(depAnalysisKey{})
+	v := ctx.Value(pruningKey{})
 	if v != nil {
 		return true
 	}

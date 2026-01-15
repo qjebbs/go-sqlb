@@ -7,7 +7,6 @@ import (
 
 	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlf/v4"
-	"github.com/qjebbs/go-sqlf/v4/argstore"
 )
 
 // errors
@@ -18,8 +17,8 @@ var (
 
 // NewContext returns a new Context with an argument store for the given dialect.
 // If no store is provided, a new one is created using the dialect's NewArgStore method.
-func NewContext(parent context.Context, dialect dialect.Dialect, store ...argstore.Store) *sqlf.Context {
-	return sqlf.NewContext(parent, dialect, store...)
+func NewContext(parent context.Context, dialect dialect.Dialect) *sqlf.Context {
+	return sqlf.NewContext(parent, dialect)
 }
 
 // ContextWithDialect returns a new context with the given dialect.

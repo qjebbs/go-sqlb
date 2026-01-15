@@ -32,9 +32,11 @@ func (b *debugger) printIfDebug(ctx *sqlf.Context, query string, args []any) {
 	if prefix == "" {
 		prefix = "sqlb"
 	}
-	interpolated, err := util.Interpolate(ctx.Dialect(), query, args)
-	if err != nil {
-		fmt.Printf("[%s] interpolating: %s\n", prefix, err)
+	interpolated, ok := util.Interpolate(ctx.Dialect(), query, args)
+	if ok {
+		fmt.Printf("[%s] %s\n", prefix, interpolated)
+	} else {
+		fmt.Printf("[%s] %s; %v\n", prefix, query, args)
+		fmt.Printf("[%s] %s\n", prefix, interpolated)
 	}
-	fmt.Printf("[%s] %s\n", prefix, interpolated)
 }

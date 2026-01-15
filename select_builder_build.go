@@ -162,7 +162,7 @@ func (b *SelectBuilder) collectDependencies(ctx *sqlf.Context) (*selectBuilderDe
 		return b.deps, nil
 	}
 	// use a separate context to avoid polluting args
-	ctx = sqlf.ContextWithArgStore(ctx, ctx.Dialect().NewArgStore())
+	ctx = sqlf.ContextWithNewArgStore(ctx)
 	queryDeps, err := b.from.CollectDependencies(ctx, &fromBuilderMeta{
 		DebugName: b.name,
 		DependOnMe: []sqlf.Builder{

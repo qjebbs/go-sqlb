@@ -185,12 +185,12 @@ func ExampleSelectBuilder_WithValues() {
 		Select(virtual.AllColumns()).
 		From(virtual).
 		OrderBy(sqlf.F("? ASC", virtual.Column("order")))
-	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
+	ctx := sqlb.NewContext(context.Background(), dialect.SQLite{})
 	_, _, err := q.Build(ctx)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	// Output:
-	// [sqlb] WITH "virt" ("id", "name", "order") AS (VALUES (1::BIGINT, 'Alice'::TEXT, 2::INT), (2::BIGINT, 'Bob'::TEXT, 1::INT), (3::BIGINT, 'Charlie'::TEXT, 3::INT)) SELECT "v".* FROM "virt" AS "v" ORDER BY "v"."order" ASC
+	// [sqlb] WITH "virt" ("id", "name", "order") AS (VALUES (CAST(1 AS BIGINT), CAST('Alice' AS TEXT), CAST(2 AS INT)), (CAST(2 AS BIGINT), CAST('Bob' AS TEXT), CAST(1 AS INT)), (CAST(3 AS BIGINT), CAST('Charlie' AS TEXT), CAST(3 AS INT))) SELECT "v".* FROM "virt" AS "v" ORDER BY "v"."order" ASC
 }

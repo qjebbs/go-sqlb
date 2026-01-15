@@ -37,11 +37,8 @@ func newDebugger(funcName string, value any, opt *Options) *debugger {
 }
 
 func (d *debugger) print(dialect dialect.Dialect) {
-	query, err := util.Interpolate(dialect, d.query, d.args)
-	if err != nil {
-		d.msgs = append(d.msgs, fmt.Sprintf(
-			"interpolate fail: %s", err,
-		))
+	query, ok := util.Interpolate(d.query, d.args, dialect)
+	if !ok {
 		query = fmt.Sprintf("%s; %v", d.query, d.args)
 	}
 	d.writer.Write([]byte{'['})

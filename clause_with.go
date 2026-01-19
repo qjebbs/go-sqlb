@@ -68,7 +68,6 @@ func (w *clauseWith) WithValues(table Table, columns []string, types []string, v
 func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) (query string, err error) {
 	pruning := pruningFromContext(ctx)
 	cteClauses := make([]sqlf.Builder, 0, len(w.ctes))
-	dialect, err := DialectFromContext(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -93,10 +92,7 @@ func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) 
 				colType := ""
 				if i < len(cte.types) {
 					colType = cte.types[i]
-					expr := dialect.CastType(colType)
-					if expr == "" {
-						return "", fmt.Errorf("WithValues: unsupported dialect %T for type casting", dialect)
-					}
+					expr := fmt.Sprintf("CAST(? AS %s)", colType)
 					sb.WriteString(expr)
 				} else {
 					sb.WriteString("?")

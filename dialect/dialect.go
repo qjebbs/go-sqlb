@@ -10,15 +10,6 @@ type Dialect interface {
 
 	// Capabilities returns the SQL capabilities of the dialect.
 	Capabilities() Capabilities
-
-	// CastType casts the given type to the dialect-specific type.
-	// Exactly one placeholder "?" is expected in the returned string,
-	// which will be replaced with the value to be casted.
-	//
-	// For example,
-	//   PostgreSQL.CastType("TEXT") // "?::TEXT"
-	//   SQLite.CastType("TEXT")     // "CAST(? AS TEXT)"
-	CastType(typ string) string
 }
 
 // Capabilities represents the SQL capabilities of a dialect.

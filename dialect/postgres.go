@@ -1,8 +1,6 @@
 package dialect
 
 import (
-	"fmt"
-
 	"github.com/qjebbs/go-sqlf/v4/dialect"
 )
 
@@ -27,9 +25,4 @@ func (PostgreSQL) Capabilities() Capabilities {
 		SupportsUpdateFrom: true,
 		SupportsUpdateJoin: false,
 	}
-}
-
-// CastType casts the given type to the dialect-specific type.
-func (PostgreSQL) CastType(typ string) string {
-	return fmt.Sprintf("?::%s", typ)
 }

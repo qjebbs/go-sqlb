@@ -1,8 +1,6 @@
 package dialect
 
 import (
-	"fmt"
-
 	"github.com/qjebbs/go-sqlf/v4/dialect"
 )
 
@@ -26,9 +24,4 @@ func (SQLite) Capabilities() Capabilities {
 
 		SupportsUpdateFrom: true,
 	}
-}
-
-// CastType casts the given type to the dialect-specific type.
-func (SQLite) CastType(typ string) string {
-	return fmt.Sprintf("CAST(? AS %s)", typ)
 }

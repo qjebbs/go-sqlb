@@ -1,8 +1,6 @@
 package dialect
 
 import (
-	"fmt"
-
 	"github.com/qjebbs/go-sqlf/v4/dialect"
 )
 
@@ -27,9 +25,4 @@ func (SQLServer) Capabilities() Capabilities {
 		SupportsUpdateFrom: true,
 		SupportsUpdateJoin: false,
 	}
-}
-
-// CastType casts the given type to the dialect-specific type.
-func (SQLServer) CastType(typ string) string {
-	return fmt.Sprintf("CAST(? AS %s)", typ)
 }

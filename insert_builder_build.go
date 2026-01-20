@@ -99,7 +99,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	}
 	built = append(built, r)
 	if len(b.columns) > 0 {
-		cols, err := sqlf.F("(?)", sqlf.Join(", ", b.columns...)).BuildTo(ctx)
+		cols, err := sqlf.F("(?)", sqlf.Join(b.columns, ", ")).BuildTo(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build insert columns: %w", err)
 		}
@@ -108,7 +108,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	// returning clause
 	if len(b.returning) > 0 && caps.SupportsOutputInserted {
 		returning, err := sqlf.F("OUTPUT ?", sqlf.Join(
-			", ", b.returning...,
+			b.returning, ", ",
 		)).BuildTo(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build returning clause: %w", err)
@@ -116,9 +116,9 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		built = append(built, returning)
 	}
 	if len(b.values) > 0 {
-		valueBuilders := sqlf.Join(", ", util.Map(b.values, func(values []any) sqlf.Builder {
-			return sqlf.F("(?)", sqlf.JoinMixed(", ", values...))
-		})...)
+		valueBuilders := sqlf.Join(util.Map(b.values, func(values []any) sqlf.Builder {
+			return sqlf.F("(?)", sqlf.JoinMixed(values, ", "))
+		}), ", ")
 		valuesStr, err := sqlf.Prefix("VALUES", valueBuilders).BuildTo(ctx)
 		if err != nil {
 			return "", fmt.Errorf("build insert values: %w", err)
@@ -138,7 +138,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		if len(b.conflictOn) > 0 {
 			conflictTarget, err := sqlf.F(
 				"ON CONFLICT (?)",
-				sqlf.Join(", ", b.conflictOn...),
+				sqlf.Join(b.conflictOn, ", "),
 			).BuildTo(ctx)
 			if err != nil {
 				return "", fmt.Errorf("build conflict target: %w", err)
@@ -147,7 +147,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 			if len(b.conflictDo) == 0 {
 				built = append(built, "DO NOTHING")
 			} else {
-				conflictActions, err := sqlf.Join(", ", b.conflictDo...).BuildTo(ctx)
+				conflictActions, err := sqlf.Join(b.conflictDo, ", ").BuildTo(ctx)
 				if err != nil {
 					return "", fmt.Errorf("build conflict do actions: %w", err)
 				}
@@ -158,7 +158,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	case caps.SupportsOnDuplicateKeyUpdate:
 		if len(b.conflictDo) > 0 {
 			built = append(built, "ON DUPLICATE KEY UPDATE")
-			conflictActions, err := sqlf.Join(", ", b.conflictDo...).BuildTo(ctx)
+			conflictActions, err := sqlf.Join(b.conflictDo, ", ").BuildTo(ctx)
 			if err != nil {
 				return "", fmt.Errorf("build conflict do actions: %w", err)
 			}
@@ -174,7 +174,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	if len(b.returning) > 0 {
 		switch {
 		case caps.SupportsReturning:
-			returning, err := sqlf.F("RETURNING ?", sqlf.Join(", ", b.returning...)).BuildTo(ctx)
+			returning, err := sqlf.F("RETURNING ?", sqlf.Join(b.returning, ", ")).BuildTo(ctx)
 			if err != nil {
 				return "", fmt.Errorf("build returning clause: %w", err)
 			}

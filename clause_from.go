@@ -149,7 +149,7 @@ func (b *clauseFrom) collectDepsFromTable(ctx *sqlf.Context, meta *fromBuilderMe
 func (b *clauseFrom) extractTables(ctx *sqlf.Context, debugName string, args ...sqlf.Builder) (*dependencies, error) {
 	tables := newDependencies(debugName)
 	depCtx := contextWithDependencies(ctx, tables)
-	_, err := sqlf.Join(";", args...).BuildTo(depCtx)
+	_, err := sqlf.Join(args, ";").BuildTo(depCtx)
 	if err != nil {
 		return nil, err
 	}

@@ -59,10 +59,10 @@ func (b *clauseList) BuildTo(ctx *sqlf.Context) (string, error) {
 		return "", nil
 	}
 	if b.prefix == "" {
-		return sqlf.Join(b.separator, b.elements...).BuildTo(ctx)
+		return sqlf.Join(b.elements, b.separator).BuildTo(ctx)
 	}
 	return sqlf.Prefix(
 		b.prefix,
-		sqlf.Join(b.separator, b.elements...),
+		sqlf.Join(b.elements, b.separator),
 	).BuildTo(ctx)
 }

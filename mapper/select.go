@@ -175,7 +175,7 @@ func buildSelectInfo(dialect dialect.Dialect, opt *Options, f *structInfo) (colu
 		expr := col.Select
 		if expr == "" && col.Column != "" {
 			checkUsage = false
-			expr = "?." + dialect.QuoteIdentifier(col.Column)
+			expr = "?." + dialect.QuoteStyle().QuoteIdentifier(col.Column)
 		}
 		column := sqlf.F(expr, util.Map(col.From, func(t string) any {
 			return sqlb.NewTable("", t)

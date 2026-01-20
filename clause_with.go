@@ -100,9 +100,9 @@ func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) 
 			}
 			sb.WriteRune(')')
 			rowTmpl := sb.String()
-			builder = sqlf.Join(", ", util.Map(cte.values, func(i []any) sqlf.Builder {
+			builder = sqlf.Join(util.Map(cte.values, func(i []any) sqlf.Builder {
 				return sqlf.F(rowTmpl, i...)
-			})...)
+			}), ", ")
 			builder = sqlf.Prefix("VALUES", builder)
 		}
 		if len(cte.columns) == 0 {
@@ -114,7 +114,7 @@ func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) 
 			cteClauses = append(cteClauses, sqlf.F(
 				"? (?) AS (?)",
 				sqlf.Identifier(cte.table.Name),
-				sqlf.Join(", ", cte.columns...),
+				sqlf.Join(cte.columns, ", "),
 				builder,
 			))
 		}
@@ -122,7 +122,7 @@ func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) 
 	if len(cteClauses) == 0 {
 		return "", nil
 	}
-	return sqlf.Prefix("WITH", sqlf.Join(", ", cteClauses...)).BuildTo(ctx)
+	return sqlf.Prefix("WITH", sqlf.Join(cteClauses, ", ")).BuildTo(ctx)
 }
 
 // CollectDependenciesForDeps collects the table dependencies for specific deps

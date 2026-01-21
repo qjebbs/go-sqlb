@@ -93,7 +93,7 @@ func (b *SelectBuilder) WhereIn(column sqlf.Builder, list any) *SelectBuilder {
 		sqlf.F(
 			"? IN (?)",
 			column,
-			sqlf.JoinArgs(", ", util.FlattenArgs(list)...),
+			sqlf.JoinArgs(util.FlattenArgs(list), ", "),
 		),
 	)
 }
@@ -104,7 +104,7 @@ func (b *SelectBuilder) WhereNotIn(column sqlf.Builder, list any) *SelectBuilder
 		sqlf.F(
 			"? NOT IN (?)",
 			column,
-			sqlf.JoinArgs(", ", util.FlattenArgs(list)...),
+			sqlf.JoinArgs(util.FlattenArgs(list), ", "),
 		),
 	)
 }

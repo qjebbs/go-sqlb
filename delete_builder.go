@@ -120,7 +120,7 @@ func (b *DeleteBuilder) WhereIn(column sqlf.Builder, list any) *DeleteBuilder {
 		sqlf.F(
 			"? IN (?)",
 			column,
-			sqlf.JoinArgs(", ", util.FlattenArgs(list)...),
+			sqlf.JoinArgs(util.FlattenArgs(list), ", "),
 		),
 	)
 }
@@ -131,7 +131,7 @@ func (b *DeleteBuilder) WhereNotIn(column sqlf.Builder, list any) *DeleteBuilder
 		sqlf.F(
 			"? NOT IN (?)",
 			column,
-			sqlf.JoinArgs(", ", util.FlattenArgs(list)...),
+			sqlf.JoinArgs(util.FlattenArgs(list), ", "),
 		),
 	)
 }

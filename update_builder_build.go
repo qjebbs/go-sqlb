@@ -39,9 +39,6 @@ func (b *UpdateBuilder) EnableElimination() *UpdateBuilder {
 
 // buildInternal builds the query with the selects.
 func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
-	if err := b.anyError(); err != nil {
-		return "", b.anyError()
-	}
 	if b == nil {
 		return "", nil
 	}

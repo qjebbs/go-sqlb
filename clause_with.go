@@ -68,9 +68,6 @@ func (w *clauseWith) WithValues(table Table, columns []string, types []string, v
 func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) (query string, err error) {
 	pruning := pruningFromContext(ctx)
 	cteClauses := make([]sqlf.Builder, 0, len(w.ctes))
-	if err != nil {
-		return "", err
-	}
 	for _, cte := range w.ctes {
 		if pruning && (required == nil || !required[cte.table.Name]) {
 			continue

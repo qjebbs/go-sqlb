@@ -1,6 +1,8 @@
 package sqlb
 
-import "github.com/qjebbs/go-sqlf/v4"
+import (
+	"github.com/qjebbs/go-sqlf/v4"
+)
 
 var _ (sqlf.Builder) = Table{}
 
@@ -89,11 +91,7 @@ func (t Table) TableAs() sqlf.Builder {
 		// report dependency
 		t.BuildTo(ctx)
 		if t.Alias == "" {
-			r, err := sqlf.Identifier(t.Name).BuildTo(ctx)
-			if err != nil {
-				return "", err
-			}
-			return r, nil
+			return sqlf.Identifier(t.Name).BuildTo(ctx)
 		}
 		return sqlf.F(
 			"? AS ?",

@@ -28,7 +28,7 @@ type SelectLimitBuilder interface {
 // SelectOne executes the query and scans the result into a struct T.
 //
 // See Select() for supported struct tags.
-func SelectOne[T any](ctx *sqlf.Context, db QueryAble, b SelectLimitBuilder, options ...Option) (T, error) {
+func SelectOne[T any](ctx sqlb.Context, db QueryAble, b SelectLimitBuilder, options ...Option) (T, error) {
 	b.SetLimit(1)
 	r, err := Select[T](ctx, db, b, options...)
 	if err != nil {
@@ -55,7 +55,7 @@ func SelectOne[T any](ctx *sqlf.Context, db QueryAble, b SelectLimitBuilder, opt
 //   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields. It usually works with `WithNullZeroTables()` Option.
 //
 // Applied-Table-Name: The name of the table that is effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
-func Select[T any](ctx *sqlf.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
+func Select[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	r, err := _select[T](ctx, db, b, options...)
 	if err != nil {
 		var zero T
@@ -64,7 +64,7 @@ func Select[T any](ctx *sqlf.Context, db QueryAble, b SelectBuilder, options ...
 	return r, nil
 }
 
-func _select[T any](ctx *sqlf.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
+func _select[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	var zero T
 	if err := checkPtrStruct(zero); err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func _select[T any](ctx *sqlf.Context, db QueryAble, b SelectBuilder, options ..
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Select", zero, opt)
-		defer debugger.print(ctx.Dialect())
+		defer debugger.print(ctx.BaseDialect())
 	}
 	queryStr, args, dests, err := buildSelectQueryForStruct[T](ctx, b, opt)
 	if err != nil {
@@ -145,19 +145,18 @@ func prepareScanDestinations[T any](dest T, dests []fieldInfo, opt *Options) (T,
 	return dest, fields, agents
 }
 
-func buildSelectQueryForStruct[T any](ctx *sqlf.Context, b SelectBuilder, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
+func buildSelectQueryForStruct[T any](ctx sqlb.Context, b SelectBuilder, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
-	dialect, err := sqlb.DialectFromContext(ctx)
 	var zero T
 	info, err := getStructInfo(zero)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	columns, dests := buildSelectInfo(dialect, opt, info)
+	columns, dests := buildSelectInfo(ctx.Dialect(), opt, info)
 	b.SetSelect(columns...)
-	query, args, err = sqlf.Build(ctx, b)
+	query, args, err = sqlb.Build(ctx, b)
 	if err != nil {
 		return "", nil, nil, err
 	}

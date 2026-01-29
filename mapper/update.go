@@ -28,18 +28,18 @@ import (
 //
 // It will return an error if it cannot locating a row to avoid accidental full-table update.
 // To locate the row, it will use non-zero `pk`, `unique`, or `unique_group` fields in priority order.
-func Update[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+func Update[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) error {
 	return wrapErrWithDebugName("Update", value, update(ctx, db, value, true, options...))
 }
 
 // Patch is similar to Update(), but it only updates non-zero fields of the struct.
 //
 // See Update() for more details.
-func Patch[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+func Patch[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) error {
 	return wrapErrWithDebugName("Patch", value, update(ctx, db, value, false, options...))
 }
 
-func update[T any](ctx *sqlf.Context, db QueryAble, value T, updateAll bool, options ...Option) error {
+func update[T any](ctx sqlb.Context, db QueryAble, value T, updateAll bool, options ...Option) error {
 	if err := checkStruct(value); err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func update[T any](ctx *sqlf.Context, db QueryAble, value T, updateAll bool, opt
 		} else {
 			debugger = newDebugger("Patch", value, opt)
 		}
-		defer debugger.print(ctx.Dialect())
+		defer debugger.print(ctx.BaseDialect())
 	}
 	queryStr, args, err := buildUpdateQueryForStruct(ctx, value, updateAll, opt)
 	if err != nil {
@@ -83,7 +83,7 @@ func update[T any](ctx *sqlf.Context, db QueryAble, value T, updateAll bool, opt
 	return err
 }
 
-func buildUpdateQueryForStruct[T any](ctx *sqlf.Context, value T, updateAll bool, opt *Options) (query string, args []any, err error) {
+func buildUpdateQueryForStruct[T any](ctx sqlb.Context, value T, updateAll bool, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}

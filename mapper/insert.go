@@ -16,7 +16,7 @@ import (
 // If no returning columns are specified, it only executes the insert query.
 //
 // See Insert() for supported struct tags.
-func InsertOne[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+func InsertOne[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) error {
 	return Insert(ctx, db, []T{value}, options...)
 }
 
@@ -44,16 +44,12 @@ func InsertOne[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Optio
 //   - returning: Mark the field to be included in RETURNING clause.
 //   - conflict_on[:unique_group name]: If value is ommited, declare current unique column or current unique-group the conflict detection column(s). If there is any ambiguity, it must be explicitly specified, e.g. `unique_group:a,b,c;conflict_on:a`.
 //   - conflict_set: Update the field on conflict. It's equivalent to `SET <column>=EXCLUDED.<column>` in ON CONFLICT clause if not specified with value, and can be specified with expression, e.g. `conflict_set:NULL`, which is equivalent to `SET <column>=NULL`.
-func Insert[T any](ctx *sqlf.Context, db QueryAble, values []T, options ...Option) error {
+func Insert[T any](ctx sqlb.Context, db QueryAble, values []T, options ...Option) error {
 	if len(values) == 0 {
 		return nil
 	}
 	opt := mergeOptions(options...)
-	dialect, err := sqlb.DialectFromContext(ctx)
-	if err != nil {
-		return err
-	}
-	if !dialect.Capabilities().SupportsInsertDefault {
+	if !ctx.Dialect().Capabilities().SupportsInsertDefault {
 		// Oracle does not support DEFAULT keyword in INSERT VALUES,
 		// so we have to insert one by one.
 		return wrapErrWithDebugName("Insert", values[0], insertOneByOne(ctx, db, values, opt))
@@ -61,7 +57,7 @@ func Insert[T any](ctx *sqlf.Context, db QueryAble, values []T, options ...Optio
 	return wrapErrWithDebugName("Insert", values[0], insert(ctx, db, values, opt))
 }
 
-func insertOneByOne[T any](ctx *sqlf.Context, db QueryAble, values []T, opt *Options) error {
+func insertOneByOne[T any](ctx sqlb.Context, db QueryAble, values []T, opt *Options) error {
 	for _, v := range values {
 		if err := insert(ctx, db, []T{v}, opt); err != nil {
 			return err
@@ -70,14 +66,14 @@ func insertOneByOne[T any](ctx *sqlf.Context, db QueryAble, values []T, opt *Opt
 	return nil
 }
 
-func insert[T any](ctx *sqlf.Context, db QueryAble, values []T, opt *Options) error {
+func insert[T any](ctx sqlb.Context, db QueryAble, values []T, opt *Options) error {
 	if err := checkPtrStruct(values[0]); err != nil {
 		return err
 	}
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Insert", values[0], opt)
-		defer debugger.print(ctx.Dialect())
+		defer debugger.print(ctx.BaseDialect())
 	}
 	queryStr, args, returningFields, err := buildInsertQueryForStruct(ctx, values, opt)
 	if err != nil {
@@ -116,7 +112,7 @@ func insert[T any](ctx *sqlf.Context, db QueryAble, values []T, opt *Options) er
 	return nil
 }
 
-func buildInsertQueryForStruct[T any](ctx *sqlf.Context, values []T, opt *Options) (query string, args []any, returningFields []fieldInfo, err error) {
+func buildInsertQueryForStruct[T any](ctx sqlb.Context, values []T, opt *Options) (query string, args []any, returningFields []fieldInfo, err error) {
 	if len(values) == 0 {
 		return "", nil, nil, fmt.Errorf("no values to insert")
 	}
@@ -128,11 +124,7 @@ func buildInsertQueryForStruct[T any](ctx *sqlf.Context, values []T, opt *Option
 	if err != nil {
 		return "", nil, nil, err
 	}
-	dialect, err := sqlb.DialectFromContext(ctx)
-	if err != nil {
-		return "", nil, nil, err
-	}
-	insertInfo, err := buildInsertInfo(dialect, info, values)
+	insertInfo, err := buildInsertInfo(ctx.Dialect(), info, values)
 	if err != nil {
 		return "", nil, nil, err
 	}

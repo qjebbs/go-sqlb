@@ -65,7 +65,7 @@ func (w *clauseWith) WithValues(table Table, columns []string, types []string, v
 }
 
 // BuildRequired builds the WITH clause including only the required CTEs.
-func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) (query string, err error) {
+func (w *clauseWith) BuildRequired(ctx Context, required map[string]bool) (query string, err error) {
 	pruning := pruningFromContext(ctx)
 	cteClauses := make([]sqlf.Builder, 0, len(w.ctes))
 	for _, cte := range w.ctes {
@@ -123,7 +123,7 @@ func (w *clauseWith) BuildRequired(ctx *sqlf.Context, required map[string]bool) 
 }
 
 // CollectDependenciesForDeps collects the table dependencies for specific deps
-func (w *clauseWith) CollectDependenciesForDeps(ctx *sqlf.Context, deps *dependencies) (required map[string]bool, unresolved *dependencies, err error) {
+func (w *clauseWith) CollectDependenciesForDeps(ctx Context, deps *dependencies) (required map[string]bool, unresolved *dependencies, err error) {
 	required = make(map[string]bool)
 	unresolved = newDependencies()
 	for t := range deps.SourceNames {
@@ -149,7 +149,7 @@ func (w *clauseWith) CollectDependenciesForDeps(ctx *sqlf.Context, deps *depende
 	return required, unresolved, nil
 }
 
-func (w *clauseWith) collectDepsBetweenCTEs(ctx *sqlf.Context, required map[string]bool) error {
+func (w *clauseWith) collectDepsBetweenCTEs(ctx Context, required map[string]bool) error {
 	cetDeps := make(map[string]bool)
 	for _, cte := range w.ctes {
 		if !required[cte.table.Name] {
@@ -167,7 +167,7 @@ func (w *clauseWith) collectDepsBetweenCTEs(ctx *sqlf.Context, required map[stri
 	return nil
 }
 
-func (w *clauseWith) collectDepsFromCTE(ctx *sqlf.Context, deps map[string]bool, cte *cte) error {
+func (w *clauseWith) collectDepsFromCTE(ctx Context, deps map[string]bool, cte *cte) error {
 	key := cte.table.Name
 	if deps[key] {
 		return nil

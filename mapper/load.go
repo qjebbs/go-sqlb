@@ -23,7 +23,7 @@ import (
 //   - match: The column will be always included in WHERE clause even if it is zero value.
 //
 // To locate the loading row, it will use non-zero `pk`, `unique`, or `unique_group` fields in priority order.
-func Load[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (T, error) {
+func Load[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) (T, error) {
 	r, err := load(ctx, db, value, options...)
 	if err != nil {
 		var zero T
@@ -32,7 +32,7 @@ func Load[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (T
 	return r, nil
 }
 
-func load[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (T, error) {
+func load[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) (T, error) {
 	var zero T
 	err := checkPtrStruct(value)
 	if err != nil {
@@ -43,7 +43,7 @@ func load[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (T
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Load", value, opt)
-		defer debugger.print(ctx.Dialect())
+		defer debugger.print(ctx.BaseDialect())
 	}
 	query, args, dests, err := buildLoadQueryForStruct(ctx, value, opt)
 	if err != nil {
@@ -76,7 +76,7 @@ func load[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (T
 	return value, nil
 }
 
-func buildLoadQueryForStruct[T any](ctx *sqlf.Context, value T, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
+func buildLoadQueryForStruct[T any](ctx sqlb.Context, value T, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}

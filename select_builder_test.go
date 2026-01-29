@@ -160,7 +160,7 @@ func TestSelectBuilderComplexDeps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	query, _ = util.Interpolate(query, args, ctx.Dialect())
+	query, _ = util.Interpolate(query, args, ctx.BaseDialect())
 	wantQuery := `WITH "foo" AS (SELECT * FROM "base_table2" AS "b2" WHERE "b2"."id" = 1), "bar" AS (SELECT * FROM "foo" AS "f" WHERE "f"."active" = TRUE) SELECT DISTINCT "b".* FROM "base_table" AS "b" LEFT JOIN "base_table3" AS "b3" ON "b3"."b_id" = "b"."id" WHERE EXISTS (SELECT 1 FROM "bar" AS "r" WHERE "r"."base_id" = "b3"."id" AND "r"."name" LIKE '%something%')`
 	if query != wantQuery {
 		t.Errorf("got:\n%s\nwant:\n%s", query, wantQuery)

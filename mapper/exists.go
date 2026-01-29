@@ -8,7 +8,7 @@ import (
 // Exists checks whether a record exists in the database.
 //
 // See Load() for struct tag syntax and locating rules.
-func Exists[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) (bool, error) {
+func Exists[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) (bool, error) {
 	if err := checkStruct(value); err != nil {
 		return false, err
 	}
@@ -17,7 +17,7 @@ func Exists[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) 
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Exists", value, opt)
-		defer debugger.print(ctx.Dialect())
+		defer debugger.print(ctx.BaseDialect())
 	}
 	queryStr, args, err := buildExistsQueryForStruct(ctx, value, opt)
 	if err != nil {
@@ -40,7 +40,7 @@ func Exists[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) 
 	return existsInt > 0, nil
 }
 
-func buildExistsQueryForStruct[T any](ctx *sqlf.Context, value T, opt *Options) (query string, args []any, err error) {
+func buildExistsQueryForStruct[T any](ctx sqlb.Context, value T, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}

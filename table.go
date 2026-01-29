@@ -7,12 +7,16 @@ import (
 var _ (sqlf.Builder) = Table{}
 
 // BuildTo implements sqlf.Builder
-func (t Table) BuildTo(ctx *sqlf.Context) (query string, err error) {
-	if deps := dependenciesFromContext(ctx); deps != nil {
+func (t Table) BuildTo(ctx sqlf.Context) (query string, err error) {
+	uCtx, err := ContextUpgrade(ctx)
+	if err != nil {
+		return "", err
+	}
+	if deps := dependenciesFromContext(uCtx); deps != nil {
 		// collecting
 		deps.Tables[t] = true
 	}
-	return sqlf.Identifier(t.AppliedName()).BuildTo(ctx)
+	return sqlf.Identifier(t.AppliedName()).BuildTo(uCtx)
 }
 
 // Table is the table name with optional alias.
@@ -87,7 +91,7 @@ func (t Table) AllColumns() sqlf.Builder {
 
 // TableAs returns a new builder that builds t into fragment like `table AS t`
 func (t Table) TableAs() sqlf.Builder {
-	return sqlf.Func(func(ctx *sqlf.Context) (query string, err error) {
+	return sqlf.Func(func(ctx sqlf.Context) (query string, err error) {
 		// report dependency
 		t.BuildTo(ctx)
 		if t.Alias == "" {

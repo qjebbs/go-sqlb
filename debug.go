@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/qjebbs/go-sqlf/v4"
 	"github.com/qjebbs/go-sqlf/v4/util"
 )
 
@@ -24,7 +23,7 @@ func (b *debugger) Debug(name ...string) {
 }
 
 // printDebugQuery prints the debug query to stdout.
-func (b *debugger) printIfDebug(ctx *sqlf.Context, query string, args []any) {
+func (b *debugger) printIfDebug(ctx Context, query string, args []any) {
 	if !b.debug {
 		return
 	}
@@ -32,7 +31,7 @@ func (b *debugger) printIfDebug(ctx *sqlf.Context, query string, args []any) {
 	if prefix == "" {
 		prefix = "sqlb"
 	}
-	interpolated, ok := util.Interpolate(query, args, ctx.Dialect())
+	interpolated, ok := util.Interpolate(query, args, ctx.BaseDialect())
 	if ok {
 		fmt.Printf("[%s] %s\n", prefix, interpolated)
 	} else {

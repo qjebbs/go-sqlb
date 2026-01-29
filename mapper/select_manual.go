@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
 // SelectOneManual executes a query and scans the results using a provider function.
 // The provider fn is called for each row to get the destination value and scan fields.
 // Unlike SelectOne, it doesn't limit the query to 1 row automatically.
-func SelectOneManual[T any](ctx *sqlf.Context, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) (T, error) {
+func SelectOneManual[T any](ctx sqlb.Context, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) (T, error) {
 	r, err := selectManual(ctx, "SelectOneManual", db, b, fn, options...)
 	if err != nil {
 		var zero T
@@ -25,19 +26,19 @@ func SelectOneManual[T any](ctx *sqlf.Context, db QueryAble, b sqlf.Builder, fn 
 
 // SelectManual executes a query and scans the results using a provider function.
 // The provider fn is called for each row to get the destination value and scan fields.
-func SelectManual[T any](ctx *sqlf.Context, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
+func SelectManual[T any](ctx sqlb.Context, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
 	return selectManual(ctx, "SelectManual", db, b, fn, options...)
 }
 
-func selectManual[T any](ctx *sqlf.Context, name string, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
+func selectManual[T any](ctx sqlb.Context, name string, db QueryAble, b sqlf.Builder, fn func() (T, []any), options ...Option) ([]T, error) {
 	opt := mergeOptions(options...)
 	var debugger *debugger
 	if opt.debug {
 		value, _ := fn()
 		debugger = newDebugger(name, value, opt)
-		defer debugger.print(ctx.Dialect())
+		defer debugger.print(ctx.BaseDialect())
 	}
-	query, args, err := sqlf.Build(ctx, b)
+	query, args, err := sqlb.Build(ctx, b)
 	if err != nil {
 		return nil, err
 	}

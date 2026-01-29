@@ -25,7 +25,7 @@ import (
 //
 // It will return an error if it cannot locating a row to avoid accidental full-table delete.
 // To locate the row, it will use non-zero `pk`, `unique`, or `unique_group` fields in priority order.
-func Delete[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+func Delete[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) error {
 	err := delete(ctx, db, value, options...)
 	if err != nil {
 		var zero T
@@ -34,7 +34,7 @@ func Delete[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) 
 	return nil
 }
 
-func delete[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) error {
+func delete[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) error {
 	if err := checkPtrStruct(value); err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func delete[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) 
 	var debugger *debugger
 	if opt.debug {
 		debugger = newDebugger("Delete", value, opt)
-		defer debugger.print(ctx.Dialect())
+		defer debugger.print(ctx.BaseDialect())
 	}
 	queryStr, args, err := buildDeleteQueryForStruct(ctx, value, opt)
 	if err != nil {
@@ -62,7 +62,7 @@ func delete[T any](ctx *sqlf.Context, db QueryAble, value T, options ...Option) 
 	return err
 }
 
-func buildDeleteQueryForStruct[T any](ctx *sqlf.Context, value T, opt *Options) (query string, args []any, err error) {
+func buildDeleteQueryForStruct[T any](ctx sqlb.Context, value T, opt *Options) (query string, args []any, err error) {
 	if opt == nil {
 		opt = newDefaultOptions()
 	}

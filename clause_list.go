@@ -54,7 +54,7 @@ func (b *clauseList) Empty() bool {
 }
 
 // Build implements sqlf.Builder
-func (b *clauseList) BuildTo(ctx *sqlf.Context) (string, error) {
+func (b *clauseList) BuildTo(ctx sqlf.Context) (string, error) {
 	if b == nil || len(b.elements) == 0 {
 		return "", nil
 	}

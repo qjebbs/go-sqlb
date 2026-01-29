@@ -8,13 +8,17 @@ import (
 )
 
 // Build builds the query.
-func (b *SelectBuilder) Build(ctx *sqlf.Context) (query string, args []any, err error) {
-	return sqlf.Build(ctx, b)
+func (b *SelectBuilder) Build(ctx Context) (query string, args []any, err error) {
+	return Build(ctx, b)
 }
 
 // BuildTo implements sqlf.Builder
-func (b *SelectBuilder) BuildTo(ctx *sqlf.Context) (query string, err error) {
-	return b.buildInternal(ctx)
+func (b *SelectBuilder) BuildTo(ctx sqlf.Context) (query string, err error) {
+	uCtx, err := ContextUpgrade(ctx)
+	if err != nil {
+		return "", err
+	}
+	return b.buildInternal(uCtx)
 }
 
 // Debug enables debug mode which prints the interpolated query to stdout.
@@ -38,7 +42,7 @@ func (b *SelectBuilder) EnableElimination() *SelectBuilder {
 }
 
 // buildInternal builds the query with the selects.
-func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
+func (b *SelectBuilder) buildInternal(ctx Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}
@@ -134,7 +138,7 @@ func (b *SelectBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 	return query, nil
 }
 
-func (b *SelectBuilder) buildSelects(ctx *sqlf.Context) (string, error) {
+func (b *SelectBuilder) buildSelects(ctx Context) (string, error) {
 	if b.distinct {
 		b.selects.SetPrefix("SELECT DISTINCT")
 	} else {
@@ -157,12 +161,12 @@ type selectBuilderDependencies struct {
 }
 
 // collectDependencies collects the dependencies of the tables.
-func (b *SelectBuilder) collectDependencies(ctx *sqlf.Context) (*selectBuilderDependencies, error) {
+func (b *SelectBuilder) collectDependencies(ctx Context) (*selectBuilderDependencies, error) {
 	if b.deps != nil {
 		return b.deps, nil
 	}
 	// use a separate context to avoid polluting args
-	ctx = sqlf.ContextWithNewArgStore(ctx)
+	ctx = ContextWithNewArgStore(ctx)
 	queryDeps, err := b.from.CollectDependencies(ctx, &fromBuilderMeta{
 		DebugName: b.name,
 		DependOnMe: []sqlf.Builder{

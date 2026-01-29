@@ -9,13 +9,17 @@ import (
 )
 
 // Build builds the query.
-func (b *InsertBuilder) Build(ctx *sqlf.Context) (query string, args []any, err error) {
-	return sqlf.Build(ctx, b)
+func (b *InsertBuilder) Build(ctx Context) (query string, args []any, err error) {
+	return Build(ctx, b)
 }
 
 // BuildTo implements sqlf.Builder
-func (b *InsertBuilder) BuildTo(ctx *sqlf.Context) (query string, err error) {
-	return b.buildInternal(ctx)
+func (b *InsertBuilder) BuildTo(ctx sqlf.Context) (query string, err error) {
+	uCtx, err := ContextUpgrade(ctx)
+	if err != nil {
+		return "", err
+	}
+	return b.buildInternal(uCtx)
 }
 
 // Debug enables debug mode which prints the interpolated query to stdout.
@@ -39,16 +43,11 @@ func (b *InsertBuilder) EnableElimination() *InsertBuilder {
 }
 
 // buildInternal builds the query with the selects.
-func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
+func (b *InsertBuilder) buildInternal(ctx Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}
-
-	dialect, err := DialectFromContext(ctx)
-	if err != nil {
-		return "", err
-	}
-	caps := dialect.Capabilities()
+	caps := ctx.Dialect().Capabilities()
 	if b.target.IsZero() {
 		return "", fmt.Errorf("no target table specified for insert")
 	}
@@ -166,7 +165,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		}
 	default:
 		if len(b.conflictOn) > 0 || len(b.conflictDo) > 0 {
-			return "", fmt.Errorf("ON CONFLICT / DUPLICATE KEY is not supported for dialact %t", dialect)
+			return "", fmt.Errorf("ON CONFLICT / DUPLICATE KEY is not supported for dialact %t", ctx.Dialect())
 		}
 	}
 
@@ -182,7 +181,7 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 		case caps.SupportsOutputInserted:
 			// already built
 		default:
-			return "", fmt.Errorf("returning is not supported for dialact %T", dialect)
+			return "", fmt.Errorf("returning is not supported for dialact %T", ctx.BaseDialect())
 		}
 	}
 	query := strings.TrimSpace(strings.Join(built, " "))
@@ -191,11 +190,11 @@ func (b *InsertBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
 }
 
 // collectDependencies collects the dependencies of the tables.
-func (b *InsertBuilder) collectDependencies(ctx *sqlf.Context) (*dependencies, error) {
+func (b *InsertBuilder) collectDependencies(ctx Context) (*dependencies, error) {
 	myDeps := newDependencies(b.name)
 
 	// use a separate context to avoid polluting args
-	ctx = sqlf.ContextWithNewArgStore(ctx)
+	ctx = ContextWithNewArgStore(ctx)
 	depCtx := contextWithDependencies(ctx, myDeps)
 	_, err := b.selects.BuildTo(depCtx)
 	if err != nil {

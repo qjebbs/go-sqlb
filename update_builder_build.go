@@ -8,13 +8,17 @@ import (
 )
 
 // Build builds the query with the given context.
-func (b *UpdateBuilder) Build(ctx *sqlf.Context) (query string, args []any, err error) {
-	return sqlf.Build(ctx, b)
+func (b *UpdateBuilder) Build(ctx Context) (query string, args []any, err error) {
+	return Build(ctx, b)
 }
 
 // BuildTo implements sqlf.Builder
-func (b *UpdateBuilder) BuildTo(ctx *sqlf.Context) (query string, err error) {
-	return b.buildInternal(ctx)
+func (b *UpdateBuilder) BuildTo(ctx sqlf.Context) (query string, err error) {
+	uCtx, err := ContextUpgrade(ctx)
+	if err != nil {
+		return "", err
+	}
+	return b.buildInternal(uCtx)
 }
 
 // Debug enables debug mode which prints the interpolated query to stdout.
@@ -38,20 +42,17 @@ func (b *UpdateBuilder) EnableElimination() *UpdateBuilder {
 }
 
 // buildInternal builds the query with the selects.
-func (b *UpdateBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
+func (b *UpdateBuilder) buildInternal(ctx Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}
 	built := make([]string, 0)
 
-	dialect, err := DialectFromContext(ctx)
-	if err != nil {
-		return "", err
-	}
-	caps := dialect.Capabilities()
+	caps := ctx.Dialect().Capabilities()
 
 	ctx, pruning := decideContextPruning(ctx, b.pruning)
 
+	var err error
 	myDeps := &selectBuilderDependencies{}
 	if pruning {
 		myDeps, err = b.collectDependencies(ctx)
@@ -154,12 +155,12 @@ func (b *UpdateBuilder) joinBuilderMeta() *fromBuilderMeta {
 }
 
 // collectDependencies collects the dependencies of the tables.
-func (b *UpdateBuilder) collectDependencies(ctx *sqlf.Context) (*selectBuilderDependencies, error) {
+func (b *UpdateBuilder) collectDependencies(ctx Context) (*selectBuilderDependencies, error) {
 	if b.deps != nil {
 		return b.deps, nil
 	}
 	// use a separate context to avoid polluting args
-	ctx = sqlf.ContextWithNewArgStore(ctx)
+	ctx = ContextWithNewArgStore(ctx)
 	queryDeps, err := b.from.CollectDependencies(ctx, b.joinBuilderMeta())
 	if err != nil {
 		return nil, err

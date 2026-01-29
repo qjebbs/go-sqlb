@@ -33,7 +33,7 @@ type fromBuilderMeta struct {
 }
 
 // BuildRequired builds the FROM clause with required tables.
-func (b *clauseFrom) BuildRequired(ctx *sqlf.Context, meta *fromBuilderMeta, deps *dependencies) (string, error) {
+func (b *clauseFrom) BuildRequired(ctx Context, meta *fromBuilderMeta, deps *dependencies) (string, error) {
 	err := b.anyError()
 	if err != nil {
 		return "", err
@@ -68,7 +68,7 @@ func (b *clauseFrom) BuildRequired(ctx *sqlf.Context, meta *fromBuilderMeta, dep
 }
 
 // CollectDependencies collects the table dependencies from FROM clause.
-func (b *clauseFrom) CollectDependencies(ctx *sqlf.Context, meta *fromBuilderMeta) (*dependencies, error) {
+func (b *clauseFrom) CollectDependencies(ctx Context, meta *fromBuilderMeta) (*dependencies, error) {
 	// extractTables gets all deps used in the builders,
 	// there are two types of table reporting:
 	// 1. *SelectBuilder only reports its unresolved deps (not defined in CTEs).
@@ -118,7 +118,7 @@ func (b *clauseFrom) CollectDependencies(ctx *sqlf.Context, meta *fromBuilderMet
 	return deps, nil
 }
 
-func (b *clauseFrom) collectDepsFromTable(ctx *sqlf.Context, meta *fromBuilderMeta, dep *dependencies, t Table) error {
+func (b *clauseFrom) collectDepsFromTable(ctx Context, meta *fromBuilderMeta, dep *dependencies, t Table) error {
 	from, ok := b.tablesDict[t.AppliedName()]
 	if !ok {
 		if meta.DebugName != "" {
@@ -146,7 +146,7 @@ func (b *clauseFrom) collectDepsFromTable(ctx *sqlf.Context, meta *fromBuilderMe
 	return nil
 }
 
-func (b *clauseFrom) extractTables(ctx *sqlf.Context, debugName string, args ...sqlf.Builder) (*dependencies, error) {
+func (b *clauseFrom) extractTables(ctx Context, debugName string, args ...sqlf.Builder) (*dependencies, error) {
 	tables := newDependencies(debugName)
 	depCtx := contextWithDependencies(ctx, tables)
 	_, err := sqlf.Join(args, ";").BuildTo(depCtx)

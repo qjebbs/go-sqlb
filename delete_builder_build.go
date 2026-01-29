@@ -7,13 +7,17 @@ import (
 )
 
 // Build builds the query.
-func (b *DeleteBuilder) Build(ctx *sqlf.Context) (query string, args []any, err error) {
-	return sqlf.Build(ctx, b)
+func (b *DeleteBuilder) Build(ctx Context) (query string, args []any, err error) {
+	return Build(ctx, b)
 }
 
 // BuildTo implements sqlf.Builder
-func (b *DeleteBuilder) BuildTo(ctx *sqlf.Context) (query string, err error) {
-	return b.buildInternal(ctx)
+func (b *DeleteBuilder) BuildTo(ctx sqlf.Context) (query string, err error) {
+	uCtx, err := ContextUpgrade(ctx)
+	if err != nil {
+		return "", err
+	}
+	return b.buildInternal(uCtx)
 }
 
 // Debug enables debug mode which prints the interpolated query to stdout.
@@ -23,7 +27,7 @@ func (b *DeleteBuilder) Debug(name ...string) *DeleteBuilder {
 }
 
 // buildInternal builds the query with the selects.
-func (b *DeleteBuilder) buildInternal(ctx *sqlf.Context) (string, error) {
+func (b *DeleteBuilder) buildInternal(ctx Context) (string, error) {
 	if b == nil {
 		return "", nil
 	}

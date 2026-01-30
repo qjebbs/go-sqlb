@@ -23,18 +23,3 @@ type Context interface {
 	sqlf.Context
 	Dialect() dialect.Dialect
 }
-
-// Build builds a Builder into a query string and its corresponding arguments.
-// It creates a new context to ensure that the original context is not modified.
-func Build(ctx Context, b sqlf.Builder) (query string, args []any, err error) {
-	if b == nil {
-		return "", nil, nil
-	}
-	// make sure not committing args to the original context
-	ctx = ContextWithNewArgStore(ctx)
-	query, err = b.BuildTo(ctx)
-	if err != nil {
-		return "", nil, err
-	}
-	return query, ctx.Args(), nil
-}

@@ -156,7 +156,7 @@ func buildSelectQueryForStruct[T any](ctx sqlb.Context, b SelectBuilder, opt *Op
 	}
 	columns, dests := buildSelectInfo(ctx.Dialect(), opt, info)
 	b.SetSelect(columns...)
-	query, args, err = sqlb.Build(ctx, b)
+	query, args, err = sqlf.Build(ctx, b)
 	if err != nil {
 		return "", nil, nil, err
 	}

@@ -35,7 +35,7 @@ func _count(ctx sqlb.Context, db QueryAble, b SelectBuilder, column sqlf.Builder
 	} else {
 		b.SetSelect(sqlf.F("COUNT(?)", column))
 	}
-	query, args, err := sqlb.Build(ctx, b)
+	query, args, err := sqlf.Build(ctx, b)
 	if err != nil {
 		return 0, err
 	}

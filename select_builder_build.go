@@ -9,7 +9,7 @@ import (
 
 // Build builds the query.
 func (b *SelectBuilder) Build(ctx Context) (query string, args []any, err error) {
-	return Build(ctx, b)
+	return sqlf.Build(ctx, b)
 }
 
 // BuildTo implements sqlf.Builder

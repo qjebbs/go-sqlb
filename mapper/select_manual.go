@@ -38,7 +38,7 @@ func selectManual[T any](ctx sqlb.Context, name string, db QueryAble, b sqlf.Bui
 		debugger = newDebugger(name, value, opt)
 		defer debugger.print(ctx.BaseDialect())
 	}
-	query, args, err := sqlb.Build(ctx, b)
+	query, args, err := sqlf.Build(ctx, b)
 	if err != nil {
 		return nil, err
 	}

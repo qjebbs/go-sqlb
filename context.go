@@ -46,10 +46,6 @@ func contextUpgrade(ctx sqlf.Context) (Context, error) {
 	if uc, ok := ctx.(Context); ok {
 		return uc, nil
 	}
-	// if _, ok := ctx.BaseDialect().(dialect.Dialect); ok {
-	// 	// the context was created with sqlb.NewContext, but is wrapped as sqlf.Context
-	// 	return &defaultCtx{Context: ctx}, nil
-	// }
 	return nil, errors.New("the context does not implement sqlb.Context, consider creating the context with sqlb.NewContext")
 }
 

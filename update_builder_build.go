@@ -14,7 +14,7 @@ func (b *UpdateBuilder) Build(ctx Context) (query string, args []any, err error)
 
 // BuildTo implements sqlf.Builder
 func (b *UpdateBuilder) BuildTo(ctx sqlf.Context) (query string, err error) {
-	uCtx, err := ContextUpgrade(ctx)
+	uCtx, err := contextUpgrade(ctx)
 	if err != nil {
 		return "", err
 	}

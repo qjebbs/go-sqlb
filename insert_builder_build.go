@@ -15,7 +15,7 @@ func (b *InsertBuilder) Build(ctx Context) (query string, args []any, err error)
 
 // BuildTo implements sqlf.Builder
 func (b *InsertBuilder) BuildTo(ctx sqlf.Context) (query string, err error) {
-	uCtx, err := ContextUpgrade(ctx)
+	uCtx, err := contextUpgrade(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -194,7 +194,7 @@ func (b *InsertBuilder) collectDependencies(ctx Context) (*dependencies, error) 
 	myDeps := newDependencies(b.name)
 
 	// use a separate context to avoid polluting args
-	ctx = ContextWithNewArgStore(ctx)
+	ctx = sqlf.ContextWithNewArgStore(ctx).(Context)
 	depCtx := contextWithDependencies(ctx, myDeps)
 	_, err := b.selects.BuildTo(depCtx)
 	if err != nil {

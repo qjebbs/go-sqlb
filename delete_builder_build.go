@@ -13,7 +13,7 @@ func (b *DeleteBuilder) Build(ctx Context) (query string, args []any, err error)
 
 // BuildTo implements sqlf.Builder
 func (b *DeleteBuilder) BuildTo(ctx sqlf.Context) (query string, err error) {
-	uCtx, err := ContextUpgrade(ctx)
+	uCtx, err := contextUpgrade(ctx)
 	if err != nil {
 		return "", err
 	}

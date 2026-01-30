@@ -8,7 +8,7 @@ var _ (sqlf.Builder) = Table{}
 
 // BuildTo implements sqlf.Builder
 func (t Table) BuildTo(ctx sqlf.Context) (query string, err error) {
-	uCtx, err := ContextUpgrade(ctx)
+	uCtx, err := contextUpgrade(ctx)
 	if err != nil {
 		return "", err
 	}

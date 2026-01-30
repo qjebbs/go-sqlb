@@ -10,23 +10,6 @@ import (
 
 var defaultDialect = dialect.PostgreSQL{}
 
-var _ Context = (*defaultCtx)(nil)
-
-type defaultCtx struct {
-	sqlf.Context
-
-	// cached values
-	d dialect.Dialect
-}
-
-// Dialect returns the dialect.
-func (c *defaultCtx) Dialect() dialect.Dialect {
-	if c.d == nil {
-		c.d = c.BaseDialect().(dialect.Dialect)
-	}
-	return c.d
-}
-
 // NewContext returns a new Context with an argument store for the given dialect.
 // If no store is provided, a new one is created using the dialect's NewArgStore method.
 func NewContext(parent context.Context, dialect dialect.Dialect) Context {
@@ -36,9 +19,7 @@ func NewContext(parent context.Context, dialect dialect.Dialect) Context {
 	if dialect == nil {
 		dialect = defaultDialect
 	}
-	return &defaultCtx{
-		Context: sqlf.NewContext(parent, dialect),
-	}
+	return newDeafultCtx(parent, dialect)
 }
 
 // ContextWithValue returns a new Context with the given value added to the context's value store.
@@ -46,9 +27,7 @@ func ContextWithValue(parent Context, key, value any) Context {
 	if parent == nil {
 		panic("cannot create context from nil parent")
 	}
-	return &defaultCtx{
-		Context: sqlf.ContextWithValue(unwrapContext(parent), key, value),
-	}
+	return parent.WithContextValue(key, value).(Context)
 }
 
 // ContextWithNewArgStore returns a new context with a new ArgStore created from the dialect in the parent context.
@@ -58,9 +37,7 @@ func ContextWithNewArgStore(parent Context) Context {
 	if parent == nil {
 		panic("cannot create context from nil parent")
 	}
-	return &defaultCtx{
-		Context: sqlf.ContextWithNewArgStore(unwrapContext(parent)),
-	}
+	return sqlf.ContextWithNewArgStore(parent).(Context)
 }
 
 // unwrapContext extracts *defaultCtx.Context to avoid double wrapping.
@@ -72,10 +49,40 @@ func unwrapContext(ctx Context) sqlf.Context {
 	return ctx
 }
 
-// ContextUpgrade upgrades a sqlf.Context to sqlb.Context.
-func ContextUpgrade(ctx sqlf.Context) (Context, error) {
+// contextUpgrade upgrades a sqlf.Context to sqlb.Context.
+// It's a helper for `BuildTo(ctx sqlf.Context)` functions who implement sqlf.Builder but recieve and accept sqlb.Context only.
+func contextUpgrade(ctx sqlf.Context) (Context, error) {
 	if uc, ok := ctx.(Context); ok {
 		return uc, nil
 	}
-	return nil, errors.New("the context does not imlpements sqlb.Context, consider create the context with sqlb.NewContext")
+	if _, ok := ctx.BaseDialect().(dialect.Dialect); ok {
+		// the context was created with sqlb.NewContext, but is wrapped as sqlf.Context
+		return &defaultCtx{Context: ctx}, nil
+	}
+	return nil, errors.New("the context does not implement sqlb.Context, consider creating the context with sqlb.NewContext")
+}
+
+var _ Context = (*defaultCtx)(nil)
+
+type defaultCtx struct {
+	sqlf.Context
+
+	// cached values
+	d dialect.Dialect
+}
+
+func newDeafultCtx(parent context.Context, dialect dialect.Dialect) *defaultCtx {
+	return &defaultCtx{
+		Context: sqlf.NewContext(parent, dialect),
+	}
+}
+
+// Dialect returns the dialect.
+func (c *defaultCtx) Dialect() dialect.Dialect {
+	// no need to check nil c, since user cannot create defaultCtx directly.
+	if c.d == nil {
+		// no need to check type assertion error, since the creation of c ensures the dialect is of the correct type.
+		c.d = c.BaseDialect().(dialect.Dialect)
+	}
+	return c.d
 }

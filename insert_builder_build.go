@@ -194,7 +194,7 @@ func (b *InsertBuilder) collectDependencies(ctx Context) (*dependencies, error) 
 	myDeps := newDependencies(b.name)
 
 	// use a separate context to avoid polluting args
-	ctx = sqlf.ContextWithNewArgStore(ctx).(Context)
+	ctx = sqlf.ContextWithNewArgStore(ctx)
 	depCtx := contextWithDependencies(ctx, myDeps)
 	_, err := b.selects.BuildTo(depCtx)
 	if err != nil {

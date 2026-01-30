@@ -27,7 +27,7 @@ func ContextWithValue(parent Context, key, value any) Context {
 	if parent == nil {
 		panic("cannot create context from nil parent")
 	}
-	return parent.ContextWithValue(key, value).(Context)
+	return sqlf.ContextWithValue(parent, key, value)
 }
 
 // ContextWithNewArgStore returns a new context with a new ArgStore created from the dialect in the parent context.
@@ -37,7 +37,7 @@ func ContextWithNewArgStore(parent Context) Context {
 	if parent == nil {
 		panic("cannot create context from nil parent")
 	}
-	return sqlf.ContextWithNewArgStore(parent).(Context)
+	return sqlf.ContextWithNewArgStore(parent)
 }
 
 // contextUpgrade upgrades a sqlf.Context to sqlb.Context.

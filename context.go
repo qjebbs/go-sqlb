@@ -8,6 +8,14 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
+// ContextWithValue is a sqlb version of sqlf.ContextWithValue.
+// It returns a new Context derived from parent with the key and value set.
+var ContextWithValue = sqlf.ContextWithValue[Context]
+
+// ContextWithNewArgStore is a sqlb version of sqlf.ContextWithNewArgStore.
+// It returns a new context with a new ArgStore created from the dialect in the parent context.
+var ContextWithNewArgStore = sqlf.ContextWithNewArgStore[Context]
+
 var defaultDialect = dialect.PostgreSQL{}
 
 // NewContext returns a new Context with an argument store for the given dialect.
@@ -20,24 +28,6 @@ func NewContext(parent context.Context, dialect dialect.Dialect) Context {
 		dialect = defaultDialect
 	}
 	return newDeafultCtx(parent, dialect)
-}
-
-// ContextWithValue returns a new Context with the given value added to the context's value store.
-func ContextWithValue(parent Context, key, value any) Context {
-	if parent == nil {
-		panic("cannot create context from nil parent")
-	}
-	return sqlf.ContextWithValue(parent, key, value)
-}
-
-// ContextWithNewArgStore returns a new context with a new ArgStore created from the dialect in the parent context.
-//
-// It's useful for creating sub-contexts that need their own ArgStore, like what sqlf.Build() does.
-func ContextWithNewArgStore(parent Context) Context {
-	if parent == nil {
-		panic("cannot create context from nil parent")
-	}
-	return sqlf.ContextWithNewArgStore(parent)
 }
 
 // contextUpgrade upgrades a sqlf.Context to sqlb.Context.
@@ -64,10 +54,9 @@ func newDeafultCtx(parent context.Context, dialect dialect.Dialect) *defaultCtx 
 	}
 }
 
-func (c *defaultCtx) ContextWithValue(key, value any) sqlf.Context {
+func (c *defaultCtx) WithContextFunc(fn sqlf.ContextDeriver) sqlf.Context {
 	return &defaultCtx{
-		Context: c.Context.ContextWithValue(key, value),
-		d:       c.d,
+		Context: c.Context.WithContextFunc(fn),
 	}
 }
 

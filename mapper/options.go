@@ -13,16 +13,18 @@ type Options struct {
 	debug       bool
 	debugTime   bool
 	debugWriter io.Writer
-	tags        []string
 
-	nullZeroTables []string
+	selectTags           []string
+	selectNullZeroTables []string
+
+	insertFrom sqlb.Builder
 }
 
 func (o *Options) matchTag(onTags []string) bool {
 	if len(onTags) == 0 {
 		return true
 	}
-	for _, tag := range o.tags {
+	for _, tag := range o.selectTags {
 		if util.Index(onTags, tag) >= 0 {
 			return true
 		}
@@ -30,7 +32,7 @@ func (o *Options) matchTag(onTags []string) bool {
 	return false
 }
 func (o *Options) enableNullZero(name string) bool {
-	return util.Index(o.nullZeroTables, name) >= 0
+	return util.Index(o.selectNullZeroTables, name) >= 0
 }
 
 // Option defines a function type for setting Options.
@@ -62,14 +64,15 @@ func WithDebugTime(writer ...io.Writer) Option {
 	}
 }
 
-// WithTags sets the scan tags for scanning.
-func WithTags(tags ...string) Option {
+// WithSelectTags is an option for Select() which sets the scan field tags to select.
+func WithSelectTags(tags ...string) Option {
 	return func(o *Options) {
-		o.tags = tags
+		o.selectTags = tags
 	}
 }
 
-// WithNullZeroTables sets the tables for which null-zero agents should be enabled.
+// WithSelectNullZeroTables is an option for Select() which
+// sets the tables for which null-zero agents should be enabled.
 // To decide whether to enable null-zero agent for a field, it matches the table.Name
 // against the effective `table` key value (e.g. `sqlb:table:foo`) of the field.
 //
@@ -82,13 +85,13 @@ func WithTags(tags ...string) Option {
 //	// All fields of *Foo will use null-zero agents.
 //	// *Foo.ID will be set to 0 if NULL is scanned from DB.
 //	// *Foo.Bar will be set to "" if NULL is scanned from DB.
-//	mapper.Select[*Foo](db, builder,mapper.WithNullZeroTables("foo"))
+//	mapper.Select[*Foo](db, builder,mapper.WithSelectNullZeroTables("foo"))
 //
 // Enable only when it's not used against massive rows and it's known that the
 // table fields could be NULL, e.g., when LEFT JOIN is used.
-func WithNullZeroTables(tables ...sqlb.Table) Option {
+func WithSelectNullZeroTables(tables ...sqlb.Table) Option {
 	return func(o *Options) {
-		o.nullZeroTables = util.Map(tables, func(t sqlb.Table) string {
+		o.selectNullZeroTables = util.Map(tables, func(t sqlb.Table) string {
 			return t.Name
 		})
 	}

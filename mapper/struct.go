@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/qjebbs/go-sqlb/internal/tag/syntax"
+	"github.com/qjebbs/go-sqlf/v4"
 )
 
 type structInfo struct {
@@ -16,10 +17,14 @@ type structInfo struct {
 type fieldInfo struct {
 	syntax.Info
 
-	Name       string // field name
-	Diving     bool   // whether this field is from a 'dive' operation
-	CheckUsage bool   // whether to do usage check for tables inherited from anonymous fields
-	Index      []int  // field index in the struct
+	Name           string // field name
+	Diving         bool   // whether this field is from a 'dive' operation
+	InheritedFroms bool   // whether the 'from' value is inherited
+	Index          []int  // field index in the struct
+}
+
+func (f fieldInfo) NewColumnBuilder() sqlf.Builder {
+	return sqlf.Identifier(f.Info.Column)
 }
 
 var structCache sync.Map
@@ -47,20 +52,20 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 	var columns []fieldInfo
 	type context struct {
 		table  string
-		tables []string
+		froms  []string
 		diving bool
 	}
 	var findFields func(t reflect.Type, basePath []int, ctx context) error
 	findFields = func(t reflect.Type, basePath []int, ctx context) error {
 		curTable := ctx.table
-		curTables := ctx.tables
+		curFroms := ctx.froms
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
 			fieldType := field.Type
 
 			var info *syntax.Info
-			var checkUsage = true
+			var inheritedFroms = false
 			tag := field.Tag.Get("sqlb")
 			if tag == "-" {
 				continue
@@ -71,11 +76,10 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tag, err)
 				}
 				if len(parsed.From) > 0 {
-					checkUsage = true
-					curTables = parsed.From
+					curFroms = parsed.From
 				} else {
-					checkUsage = false
-					parsed.From = curTables
+					inheritedFroms = true
+					parsed.From = curFroms
 				}
 				if parsed.Table != "" {
 					curTable = parsed.Table
@@ -95,8 +99,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				}
 				if fieldType.Kind() == reflect.Struct {
 					ctx.table = curTable
-					ctx.tables = curTables
-					ctx.diving = ctx.diving || false
+					ctx.froms = curFroms
 					err := findFields(fieldType, currentPath, ctx)
 					if err != nil {
 						return err
@@ -118,7 +121,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 						return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' can be used only with struct fields", zero, field.Name)
 					}
 					ctx.table = curTable
-					ctx.tables = curTables
+					ctx.froms = curFroms
 					ctx.diving = ctx.diving || info.Dive
 					err := findFields(fieldType, currentPath, ctx)
 					if err != nil {
@@ -130,10 +133,10 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					continue
 				}
 				columns = append(columns, fieldInfo{
-					Info:       *info,
-					Name:       field.Name,
-					CheckUsage: checkUsage,
-					Index:      currentPath,
+					Info:           *info,
+					Name:           field.Name,
+					InheritedFroms: inheritedFroms,
+					Index:          currentPath,
 				})
 			}
 		}

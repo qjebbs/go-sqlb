@@ -15,22 +15,21 @@ type locatingInfo struct {
 
 	locatingColumn []fieldData // from pk or unique (single) / unique_group (composite)
 	matchColumns   []fieldData // from match
-	softDelete     fieldData   // from soft_delete
+	softDelete     *fieldData  // from soft_delete
 	others         []fieldData // other columns
 }
 
 type fieldData struct {
-	Info   fieldInfo
-	IndentBuilder sqlf.Builder
-	Val    valueInfo
+	Info fieldInfo
+	Val  valueInfo
 }
 
 func (i locatingInfo) EachWhere(fn func(cond sqlf.Builder)) {
 	for _, coldata := range i.locatingColumn {
-		fn(eqOrIsNull(coldata.IndentBuilder, coldata.Val.Value))
+		fn(eqOrIsNull(coldata.Info.NewColumnBuilder(), coldata.Val.Value))
 	}
 	for _, coldata := range i.matchColumns {
-		fn(eqOrIsNull(coldata.IndentBuilder, coldata.Val.Value))
+		fn(eqOrIsNull(coldata.Info.NewColumnBuilder(), coldata.Val.Value))
 	}
 }
 
@@ -65,15 +64,13 @@ func buildLocatingInfo(f *structInfo, value reflect.Value) (*locatingInfo, error
 		if col.Column == "" {
 			continue
 		}
-		colIndent := sqlf.Identifier(col.Column)
 		colValue, ok := getValueAtIndex(col.Index, value)
 		if !ok {
 			return nil, fmt.Errorf("cannot get value for column %s", col.Column)
 		}
 		data := fieldData{
-			Info:   col,
-			IndentBuilder: colIndent,
-			Val:    *colValue,
+			Info: col,
+			Val:  *colValue,
 		}
 		if col.PK {
 			if seenPK {
@@ -92,7 +89,7 @@ func buildLocatingInfo(f *structInfo, value reflect.Value) (*locatingInfo, error
 				return nil, errors.New("multiple soft delete columns defined")
 			}
 			seenSoftDelete = true
-			r.softDelete = data
+			r.softDelete = &data
 			// copy and set zero value to match condition:
 			// WHERE <soft-delete> = <zero>
 			cp := data

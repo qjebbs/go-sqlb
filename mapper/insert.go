@@ -192,10 +192,8 @@ func buildInsertInfo[T any](dialect dialect.Dialect, f *structInfo, values []T) 
 		if col.Column == "" {
 			continue
 		}
-		colIndent := sqlf.Identifier(col.Column)
 		fieldData := fieldData{
-			Info:          col,
-			IndentBuilder: colIndent,
+			Info: col,
 		}
 		allZero := true
 		noZero := true
@@ -236,9 +234,9 @@ func buildInsertInfo[T any](dialect dialect.Dialect, f *structInfo, values []T) 
 			if *col.ConflictSet == "" {
 				switch {
 				case caps.SupportsOnConflictSetExcluded:
-					setValue = sqlf.F("EXCLUDED.?", colIndent)
+					setValue = sqlf.F("EXCLUDED.?", fieldData.Info.NewColumnBuilder())
 				case caps.SupportsOnDuplicateKeyUpdate:
-					setValue = sqlf.F("VALUES(?)", colIndent)
+					setValue = sqlf.F("VALUES(?)", fieldData.Info.NewColumnBuilder())
 				default:
 					return r, fmt.Errorf("'conflict_set' without expression is not supported for dialect %T", dialect)
 				}
@@ -251,7 +249,7 @@ func buildInsertInfo[T any](dialect dialect.Dialect, f *structInfo, values []T) 
 					return r, fmt.Errorf("'conflict_set' without expression is not supported for dialect %T", dialect)
 				}
 			}
-			r.actions = append(r.actions, sqlf.F("? = ?", colIndent, setValue))
+			r.actions = append(r.actions, sqlf.F("? = ?", fieldData.Info.NewColumnBuilder(), setValue))
 		}
 
 		if !col.InsertZero && col.Info.Required && !noZero {

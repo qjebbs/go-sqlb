@@ -90,7 +90,7 @@ func buildLoadQueryForStruct[T any](ctx sqlb.Context, value T, opt *Options) (qu
 	}
 	b := sqlb.NewSelectBuilder().
 		Select(util.Map(loadInfo.selects, func(c fieldData) sqlf.Builder {
-			return c.IndentBuilder
+			return c.Info.NewColumnBuilder()
 		})...).
 		From(sqlb.NewTable(loadInfo.table))
 

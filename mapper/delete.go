@@ -75,51 +75,45 @@ func buildDeleteQueryForStruct[T any](ctx sqlb.Context, value T, opt *Options) (
 		return "", nil, err
 	}
 
-	if deleteInfo.softDelete.IndentBuilder != nil {
-		switch v := deleteInfo.softDelete.Val.Raw.Interface().(type) {
-		case *time.Time:
-			// soft delete by setting current timestamp
-			if deleteInfo.softDelete.Val.Value == nil {
-				now := time.Now()
-				deleteInfo.softDelete.Val.Value = &now
-			}
-		case sql.NullTime:
-			if !v.Valid {
-				// soft delete by setting current timestamp
-				now := time.Now()
-				deleteInfo.softDelete.Val.Value = sql.NullTime{Time: now, Valid: true}
-			}
-		case bool:
-			// soft delete by setting true
-			deleteInfo.softDelete.Val.Value = true
-		default:
-			return "", nil, fmt.Errorf("unsupported soft delete column %q with type %T", deleteInfo.softDelete.Info.Column, deleteInfo.softDelete.Val)
-		}
-		// build UPDATE ... SET <soft-delete col> = ? WHERE ...
-		b := sqlb.NewUpdateBuilder().
-			Update(deleteInfo.table).
-			Set(deleteInfo.softDelete.Info.Column, deleteInfo.softDelete.Val.Value)
-		deleteInfo.EachWhere(func(cond sqlf.Builder) {
-			b.Where(cond)
-		})
-		query, args, err = b.Build(ctx)
-		if err != nil {
-			return "", nil, err
-		}
-		return query, args, nil
+	if deleteInfo.softDelete != nil {
+		return buildSoftDelete(ctx, deleteInfo)
 	}
-
 	b := sqlb.NewDeleteBuilder().
 		DeleteFrom(deleteInfo.table)
 	deleteInfo.EachWhere(func(cond sqlf.Builder) {
 		b.Where(cond)
 	})
+	return b.Build(ctx)
+}
 
-	query, args, err = b.Build(ctx)
-	if err != nil {
-		return "", nil, err
+func buildSoftDelete(ctx sqlb.Context, deleteInfo *locatingInfo) (string, []any, error) {
+	switch v := deleteInfo.softDelete.Val.Raw.Interface().(type) {
+	case *time.Time:
+		// soft delete by setting current timestamp
+		if deleteInfo.softDelete.Val.Value == nil {
+			now := time.Now()
+			deleteInfo.softDelete.Val.Value = &now
+		}
+	case sql.NullTime:
+		if !v.Valid {
+			// soft delete by setting current timestamp
+			now := time.Now()
+			deleteInfo.softDelete.Val.Value = sql.NullTime{Time: now, Valid: true}
+		}
+	case bool:
+		// soft delete by setting true
+		deleteInfo.softDelete.Val.Value = true
+	default:
+		return "", nil, fmt.Errorf("unsupported soft delete column %q with type %T", deleteInfo.softDelete.Info.Column, deleteInfo.softDelete.Val)
 	}
-	return query, args, nil
+	// build UPDATE ... SET <soft-delete col> = ? WHERE ...
+	b := sqlb.NewUpdateBuilder().
+		Update(deleteInfo.table).
+		Set(deleteInfo.softDelete.Info.Column, deleteInfo.softDelete.Val.Value)
+	deleteInfo.EachWhere(func(cond sqlf.Builder) {
+		b.Where(cond)
+	})
+	return b.Build(ctx)
 }
 
 func buildDeleteInfo[T any](f *structInfo, value T) (*locatingInfo, error) {

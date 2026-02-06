@@ -48,7 +48,7 @@ func SelectOne[T any](ctx sqlb.Context, db QueryAble, b SelectLimitBuilder, opti
 //
 // The supported struct tags are:
 //   - sel<:expr>: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. `sel:COALESCE(?.name,”);from:u;`, which is required by dependency analysis.
-//   - from<:name[,names]...>: [Inheritable]Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`.
+//   - from<:name[,names]...>: [Inheritable] Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`.
 //   - sel_on<:tag,[,tags]...>: Scan the field only on any one of tags specified, comma-separated. e.g. `sel_on:full;`
 //   - col<:name>: If `sel` key is not specified, specify the column to select for this field. It's recommended to use `col` key for simple column selection, which can be shared usage in INSERT/UPDATE/DELETE operations. e.g. `col:name;from:u;`
 //   - dive: For struct fields, dive into scan its field. e.g. `dive;`
@@ -170,7 +170,7 @@ func buildSelectInfo(dialect dialect.Dialect, opt *Options, f *structInfo) (colu
 			continue
 		}
 		// sel tag takes precedence over col tag
-		checkUsage := col.CheckUsage
+		checkUsage := !col.InheritedFroms
 		expr := col.Select
 		if expr == "" && col.Column != "" {
 			checkUsage = false

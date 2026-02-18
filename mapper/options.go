@@ -74,7 +74,7 @@ func WithSelectTags(tags ...string) Option {
 // WithSelectNullZeroTables is an option for Select() which
 // sets the tables for which null-zero agents should be enabled.
 // To decide whether to enable null-zero agent for a field, it matches the table.Name
-// against the effective `table` key value (e.g. `sqlb:table:foo`) of the field.
+// against the effective `table` key value (e.g. `sqlb:"table:foo"`) of the field.
 //
 // Example:
 //

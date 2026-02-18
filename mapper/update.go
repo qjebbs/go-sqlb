@@ -11,9 +11,6 @@ import (
 
 // Update updates a single struct into the database.
 //
-// Update omits zero-value fields by default. To force do a full update including zero-value fields,
-// use WithUpdateAll() option.
-//
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
 // The supported struct tags are:

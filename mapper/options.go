@@ -16,8 +16,6 @@ type Options struct {
 
 	selectTags           []string
 	selectNullZeroTables []string
-
-	insertFrom sqlb.Builder
 }
 
 func (o *Options) matchTag(onTags []string) bool {
@@ -85,10 +83,8 @@ func WithSelectTags(tags ...string) Option {
 //	// All fields of *Foo will use null-zero agents.
 //	// *Foo.ID will be set to 0 if NULL is scanned from DB.
 //	// *Foo.Bar will be set to "" if NULL is scanned from DB.
-//	mapper.Select[*Foo](db, builder,mapper.WithSelectNullZeroTables("foo"))
-//
-// Enable only when it's not used against massive rows and it's known that the
-// table fields could be NULL, e.g., when LEFT JOIN is used.
+//	foo := sqlb.NewTable("foo", "f")
+//	mapper.Select[*Foo](db, builder,mapper.WithSelectNullZeroTables(foo))
 func WithSelectNullZeroTables(tables ...sqlb.Table) Option {
 	return func(o *Options) {
 		o.selectNullZeroTables = util.Map(tables, func(t sqlb.Table) string {

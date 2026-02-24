@@ -90,26 +90,13 @@ func insert[T any](ctx sqlb.Context, db QueryAble, values []T, opt *Options) err
 		return err
 	}
 	index := 0
-	agents := make([]*nullZeroAgent, 0)
 	_, err = scan(ctx, db, queryStr, args, debugger, func() (T, []any) {
 		dest := values[index]
 		index++
-		dest, fields, ag := prepareScanDestinations(dest, returningFields, opt)
-		agents = append(agents, ag...)
+		dest, fields := prepareScanDestinations(dest, returningFields)
 		return dest, fields
 	})
-	if err != nil {
-		return err
-	}
-	if len(agents) > 0 {
-		for _, agent := range agents {
-			agent.Apply()
-		}
-		if debugger != nil {
-			debugger.onPostScan(nil)
-		}
-	}
-	return nil
+	return err
 }
 
 func buildInsertQueryForStruct[T any](ctx sqlb.Context, values []T, opt *Options) (query string, args []any, returningFields []fieldInfo, err error) {

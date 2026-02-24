@@ -17,10 +17,11 @@ type structInfo struct {
 type fieldInfo struct {
 	syntax.Info
 
-	Name           string // field name
-	Diving         bool   // whether this field is from a 'dive' operation
-	InheritedFroms bool   // whether the 'from' value is inherited
-	Index          []int  // field index in the struct
+	Name           string       // field name
+	Type           reflect.Type // field type
+	Diving         bool         // whether this field is from a 'dive' operation
+	InheritedFroms bool         // whether the 'from' value is inherited
+	Index          []int        // field index in the struct
 }
 
 func (f fieldInfo) NewColumnBuilder() sqlf.Builder {
@@ -62,7 +63,6 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
-			fieldType := field.Type
 
 			var info *syntax.Info
 			var inheritedFroms = false
@@ -94,13 +94,13 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 						return fmt.Errorf("sqlb tag: %T.%s: anonymous field supports only the 'tables' key", zero, field.Name)
 					}
 				}
-				if fieldType.Kind() == reflect.Ptr {
-					fieldType = fieldType.Elem()
+				if field.Type.Kind() == reflect.Ptr {
+					field.Type = field.Type.Elem()
 				}
-				if fieldType.Kind() == reflect.Struct {
+				if field.Type.Kind() == reflect.Struct {
 					ctx.table = curTable
 					ctx.froms = curFroms
-					err := findFields(fieldType, currentPath, ctx)
+					err := findFields(field.Type, currentPath, ctx)
 					if err != nil {
 						return err
 					}
@@ -114,16 +114,16 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 
 			if info != nil {
 				if info.Dive {
-					if fieldType.Kind() == reflect.Ptr {
-						fieldType = fieldType.Elem()
+					if field.Type.Kind() == reflect.Ptr {
+						field.Type = field.Type.Elem()
 					}
-					if fieldType.Kind() != reflect.Struct {
+					if field.Type.Kind() != reflect.Struct {
 						return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' can be used only with struct fields", zero, field.Name)
 					}
 					ctx.table = curTable
 					ctx.froms = curFroms
 					ctx.diving = ctx.diving || info.Dive
-					err := findFields(fieldType, currentPath, ctx)
+					err := findFields(field.Type, currentPath, ctx)
 					if err != nil {
 						return err
 					}
@@ -135,6 +135,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				columns = append(columns, fieldInfo{
 					Info:           *info,
 					Name:           field.Name,
+					Type:           field.Type,
 					InheritedFroms: inheritedFroms,
 					Index:          currentPath,
 				})

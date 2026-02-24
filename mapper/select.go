@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"database/sql"
+	"fmt"
 	"reflect"
 
 	"github.com/qjebbs/go-sqlb"
@@ -48,13 +49,11 @@ func SelectOne[T any](ctx sqlb.Context, db QueryAble, b SelectLimitBuilder, opti
 //
 // The supported struct tags are:
 //   - sel<:expr>: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. `sel:COALESCE(?.name,”);from:u;`, which is required by dependency analysis.
-//   - from<:name[,names]...>: [Inheritable] Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`.
+//   - from<:name[,names]...>: [Inheritable] Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`. They're the names of the tables that are effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
 //   - sel_on<:tag,[,tags]...>: Scan the field only on any one of tags specified, comma-separated. e.g. `sel_on:full;`
 //   - col<:name>: If `sel` key is not specified, specify the column to select for this field. It's recommended to use `col` key for simple column selection, which can be shared usage in INSERT/UPDATE/DELETE operations. e.g. `col:name;from:u;`
 //   - dive: For struct fields, dive into scan its field. e.g. `dive;`
-//   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields. It usually works with `WithNullZeroTables()` Option.
-//
-// Applied-Table-Name: The name of the table that is effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
+//   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields. For Select(), it usually works with `WithNullZeroTables()` Option.
 func Select[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	r, err := _select[T](ctx, db, b, options...)
 	if err != nil {
@@ -85,32 +84,18 @@ func _select[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, options ...
 	if db == nil {
 		return nil, ErrNilDB
 	}
-	agents := make([]*nullZeroAgent, 0)
-	r, err := scan(ctx, db, queryStr, args, debugger, func() (T, []any) {
+	return scan(ctx, db, queryStr, args, debugger, func() (T, []any) {
 		var dest T
-		dest, fields, ag := prepareScanDestinations(dest, dests, opt)
-		agents = append(agents, ag...)
+		dest, fields := prepareScanDestinations(dest, dests)
 		return dest, fields
 	})
-	if err != nil {
-		return nil, err
-	}
-	if len(agents) > 0 {
-		for _, agent := range agents {
-			agent.Apply()
-		}
-		if debugger != nil {
-			debugger.onPostScan(nil)
-		}
-	}
-	return r, nil
 }
 
 // prepareScanDestinations prepares the destinations for scanning the query results into the struct fields.
 // !!! MUST return dest since the param 'dest' and the caller 'dest' is different variable.
 // prepareScanDestinations will create new instances for nil pointer fields as needed which
 // affects only the param 'dest'.
-func prepareScanDestinations[T any](dest T, dests []fieldInfo, opt *Options) (T, []any, []*nullZeroAgent) {
+func prepareScanDestinations[T any](dest T, dests []fieldInfo) (T, []any) {
 	destValue := reflect.ValueOf(&dest).Elem()
 	if destValue.Kind() == reflect.Ptr {
 		if destValue.IsNil() {
@@ -119,7 +104,6 @@ func prepareScanDestinations[T any](dest T, dests []fieldInfo, opt *Options) (T,
 		destValue = destValue.Elem()
 	}
 	fields := make([]any, len(dests))
-	agents := make([]*nullZeroAgent, 0, len(dests))
 	for i, dest := range dests {
 		current := destValue
 		// Traverse the field path and initialize nil pointers.
@@ -133,16 +117,9 @@ func prepareScanDestinations[T any](dest T, dests []fieldInfo, opt *Options) (T,
 			}
 		}
 		field := current.Field(dest.Index[len(dest.Index)-1])
-		target := field.Addr().Interface()
-		if field.Kind() == reflect.Ptr || !opt.enableNullZero(dest.Table) {
-			fields[i] = target
-			continue
-		}
-		agent := newNullZeroAgent(field)
-		fields[i] = agent.Agent()
-		agents = append(agents, agent)
+		fields[i] = field.Addr().Interface()
 	}
-	return dest, fields, agents
+	return dest, fields
 }
 
 func buildSelectQueryForStruct[T any](ctx sqlb.Context, b SelectBuilder, opt *Options) (query string, args []any, dests []fieldInfo, err error) {
@@ -154,7 +131,10 @@ func buildSelectQueryForStruct[T any](ctx sqlb.Context, b SelectBuilder, opt *Op
 	if err != nil {
 		return "", nil, nil, err
 	}
-	columns, dests := buildSelectInfo(ctx.Dialect(), opt, info)
+	columns, dests, err := buildSelectInfo(ctx.Dialect(), opt, info)
+	if err != nil {
+		return "", nil, nil, err
+	}
 	b.SetSelect(columns...)
 	query, args, err = sqlf.Build(ctx, b)
 	if err != nil {
@@ -163,7 +143,7 @@ func buildSelectQueryForStruct[T any](ctx sqlb.Context, b SelectBuilder, opt *Op
 	return query, args, dests, nil
 }
 
-func buildSelectInfo(dialect dialect.Dialect, opt *Options, f *structInfo) (columns []sqlf.Builder, dests []fieldInfo) {
+func buildSelectInfo(d dialect.Dialect, opt *Options, f *structInfo) (columns []sqlf.Builder, dests []fieldInfo, err error) {
 	for _, col := range f.columns {
 		included := opt.matchTag(col.SelectOn)
 		if !included {
@@ -174,16 +154,27 @@ func buildSelectInfo(dialect dialect.Dialect, opt *Options, f *structInfo) (colu
 		expr := col.Select
 		if expr == "" && col.Column != "" {
 			checkUsage = false
-			expr = "?." + dialect.QuoteIdentifier(col.Column)
+			expr = "?." + d.QuoteIdentifier(col.Column)
 		}
-		column := sqlf.F(expr, util.Map(col.From, func(t string) any {
+		frag := sqlf.F(expr, util.Map(col.From, func(t string) any {
 			return sqlb.NewTable("", t)
 		})...)
 		if !checkUsage {
-			column.NoUsageCheck()
+			frag.NoUsageCheck()
+		}
+		var column sqlf.Builder = frag
+		if opt.enableNullZero(col.Table) &&
+			dialect.CheckNullCoalesceable(col.Type) {
+			if c, err := d.NullCoalesce(column, col.Type); err == nil {
+				if c != nil {
+					column = c
+				}
+			} else {
+				return nil, nil, fmt.Errorf("field %s: %w", col.Name, err)
+			}
 		}
 		columns = append(columns, column)
 		dests = append(dests, col)
 	}
-	return
+	return columns, dests, nil
 }

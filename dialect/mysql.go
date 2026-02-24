@@ -1,6 +1,10 @@
 package dialect
 
 import (
+	"reflect"
+	"time"
+
+	"github.com/qjebbs/go-sqlf/v4"
 	"github.com/qjebbs/go-sqlf/v4/dialect"
 )
 
@@ -25,4 +29,26 @@ func (MySQL) Capabilities() Capabilities {
 		SupportsUpdateFrom: false,
 		SupportsUpdateJoin: true,
 	}
+}
+
+// NullCoalesce provides a MySQL specific implementation for COALESCE, especially for time.Time type.
+func (d MySQL) NullCoalesce(column sqlf.Builder, goType reflect.Type) (sqlf.Builder, error) {
+	if !CheckNullCoalesceable(goType) {
+		return nil, nil
+	}
+	// Use AssignableTo to handle custom type aliases.
+	timeType := reflect.TypeOf(time.Time{})
+	if goType.AssignableTo(timeType) {
+		// Use the standard SQL TIMESTAMP literal format.
+		// MySQL correctly interprets this as a UTC timestamp, which is crucial for
+		// TIMESTAMP columns and avoids ambiguity with DATETIME columns.
+		// This is the most robust way to represent Go's zero time (UTC).
+		return sqlf.F("COALESCE(?, TIMESTAMP '0001-01-01 00:00:00')", column), nil
+	}
+	if goType.Kind() == reflect.Bool {
+		// MySQL does not have a native boolean type, it uses TINYINT(1) where 0 is false and 1 is true.
+		return sqlf.F("COALESCE(?, 0)", column), nil
+	}
+	// Fallback to the generic ANSI implementation for other types
+	return AnsiSQL{}.NullCoalesce(column, goType)
 }

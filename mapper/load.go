@@ -55,10 +55,8 @@ func load[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) (T,
 	if db == nil {
 		return zero, ErrNilDB
 	}
-	agents := make([]*nullZeroAgent, 0)
 	r, err := scan(ctx, db, query, args, debugger, func() (T, []any) {
-		dest, fields, ag := prepareScanDestinations(value, dests, opt)
-		agents = append(agents, ag...)
+		dest, fields := prepareScanDestinations(value, dests)
 		return dest, fields
 	})
 	if err != nil {
@@ -66,12 +64,6 @@ func load[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) (T,
 	}
 	if len(r) == 0 {
 		return zero, sql.ErrNoRows
-	}
-	if len(agents) > 0 {
-		for _, agent := range agents {
-			agent.Apply()
-		}
-		debugger.onPostScan(nil)
 	}
 	return value, nil
 }

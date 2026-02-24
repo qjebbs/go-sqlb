@@ -101,22 +101,22 @@ func (d *debugger) onScan(n int, err error) {
 	d.start = time.Now()
 }
 
-func (d *debugger) onPostScan(err error) {
-	if err != nil {
-		d.msgs = append(d.msgs, fmt.Sprintf(
-			"post scan failed: %s", err,
-		))
-		return
-	}
-	if !d.measureTime {
-		return
-	}
-	elapsed := time.Since(d.start)
-	d.msgs = append(d.msgs, fmt.Sprintf(
-		"post scan %s", elapsed,
-	))
-	d.start = time.Now()
-}
+// func (d *debugger) onPostScan(err error) {
+// 	if err != nil {
+// 		d.msgs = append(d.msgs, fmt.Sprintf(
+// 			"post scan failed: %s", err,
+// 		))
+// 		return
+// 	}
+// 	if !d.measureTime {
+// 		return
+// 	}
+// 	elapsed := time.Since(d.start)
+// 	d.msgs = append(d.msgs, fmt.Sprintf(
+// 		"post scan %s", elapsed,
+// 	))
+// 	d.start = time.Now()
+// }
 
 func wrapErrWithDebugName(funcName string, value any, err error) error {
 	if err == nil {

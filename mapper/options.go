@@ -69,9 +69,9 @@ func WithSelectTags(tags ...string) Option {
 	}
 }
 
-// WithSelectNullZeroTables is an option for Select() which
-// sets the tables for which null-zero agents should be enabled.
-// To decide whether to enable null-zero agent for a field, it matches the table.Name
+// WithSelectCoalesce is an option for Select() which enables COALESCE for fields of the specified tables.
+// The zero value is used as the default value for NULL fields.
+// To decide whether to enable COALESCE for a field, it matches the tables.Name
 // against the effective `table` key value (e.g. `sqlb:"table:foo"`) of the field.
 //
 // Example:
@@ -80,12 +80,10 @@ func WithSelectTags(tags ...string) Option {
 //		ID  int64  `sqlb:"col:id;table:foo;from:f"`
 //		Bar string `sqlb:"col:bar"`
 //	}
-//	// All fields of *Foo will use null-zero agents.
-//	// *Foo.ID will be set to 0 if NULL is scanned from DB.
-//	// *Foo.Bar will be set to "" if NULL is scanned from DB.
 //	foo := sqlb.NewTable("foo", "f")
-//	mapper.Select[*Foo](db, builder,mapper.WithSelectNullZeroTables(foo))
-func WithSelectNullZeroTables(tables ...sqlb.Table) Option {
+//	// SELECT COALESCE("f"."id", 0), COALESCE("f"."bar", '') FROM ...
+//	mapper.Select[*Foo](..., mapper.WithSelectCoalesce(foo))
+func WithSelectCoalesce(tables ...sqlb.Table) Option {
 	return func(o *Options) {
 		o.selectNullZeroTables = util.Map(tables, func(t sqlb.Table) string {
 			return t.Name

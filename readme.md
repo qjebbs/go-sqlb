@@ -1,5 +1,8 @@
 # Go SQL Builder with Struct Mapping
 
+> [!WARNING]
+> This package is in an alpha stage. The API is subject to change.
+
 sqlb is a powerful SQL builder and struct mapper. It provides,
 
 - SQL builders to craft complex queries.

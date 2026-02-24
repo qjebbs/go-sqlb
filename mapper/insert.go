@@ -87,6 +87,9 @@ func insert[T any](ctx sqlb.Context, db QueryAble, values []T, opt *Options) err
 	}
 	if len(returningFields) == 0 {
 		_, err = db.Exec(queryStr, args...)
+		if debugger != nil {
+			debugger.onExec(err)
+		}
 		return err
 	}
 	index := 0

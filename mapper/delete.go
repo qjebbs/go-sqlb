@@ -15,7 +15,7 @@ import (
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
 // The supported struct tags are:
-//   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
+//   - table<:name[,alias]>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
 //   - col<:name>: The column in database associated with the field.
 //   - pk: The column is primary key.
 //   - unique: The column is unique.

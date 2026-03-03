@@ -104,7 +104,7 @@ func Example_complexSelect() {
 	type User struct {
 		// 'from' defines the from table in SQL for this struct,
 		// it can be inherited by nested fields and by subsequent sibling fields of the current struct.
-		Model `sqlb:"from:u"`
+		Model `sqlb:"table:users,u"`
 		// For fields without 'sel' tag, mapper constructs the selection column
 		// from the 'from' tag (inherited here) and the 'col' tag of the field.
 		// It is equivalent to:

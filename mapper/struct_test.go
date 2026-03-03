@@ -11,11 +11,11 @@ import (
 
 func TestQueryStruct(t *testing.T) {
 	type Model struct {
-		ID int `sqlb:"sel:?.id"`
+		ID int `sqlb:"col:id"`
 	}
 
 	type User struct {
-		*Model   `sqlb:"from:u"`
+		*Model   `sqlb:"table:users,u"`
 		Name     string `sqlb:"col:name"`
 		Email    string `sqlb:"col:email"`
 		Constant string `sqlb:"sel:'str'"`
@@ -31,7 +31,7 @@ func TestQueryStruct(t *testing.T) {
 		"?=?",
 		userTable.Column("id"), 1,
 	))
-	want := `SELECT "u".id, "u"."name", "u"."email", 'str' FROM "users" AS "u" WHERE "u"."id"=$1`
+	want := `SELECT "u"."id", "u"."name", "u"."email", 'str' FROM "users" AS "u" WHERE "u"."id"=$1`
 	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	got, _, _, err := buildSelectQueryForStruct[User](ctx, b, nil)
 	if err != nil {

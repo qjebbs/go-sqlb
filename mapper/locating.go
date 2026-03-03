@@ -57,9 +57,9 @@ func buildLocatingInfo(f *structInfo, value reflect.Value) (*locatingInfo, error
 		if col.Diving {
 			continue
 		}
-		if r.table == "" && col.Table != "" {
+		if r.table == "" && col.Table[0] != "" {
 			// respect first column with table specified
-			r.table = col.Table
+			r.table = col.Table[0]
 		}
 		if col.Column == "" {
 			continue

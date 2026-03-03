@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -10,12 +11,12 @@ import (
 
 // Info represents parsed tag information.
 type Info struct {
-	Select   string   // Select is parsed from "sel" key.
-	Column   string   // Column is parsed from "col" key.
-	Table    string   // Table is parsed from "table" key.
-	From     []string // From is parsed from "from" key.
-	SelectOn []string // On is parsed from "sel_on" key.
-	Dive     bool     // Dive indicates whether "dive" key is present.
+	Select   string    // Select is parsed from "sel" key.
+	Column   string    // Column is parsed from "col" key.
+	Table    [2]string // Table is parsed from "table" key.
+	From     []string  // From is parsed from "from" key.
+	SelectOn []string  // On is parsed from "sel_on" key.
+	Dive     bool      // Dive indicates whether "dive" key is present.
 
 	PK          bool    // PK indicates whether "pk" key is present.
 	Required    bool    // Required indicates whether "required" key is present.
@@ -146,7 +147,20 @@ func parseKeyValue(p *parser) (parseFn, error) {
 		})
 	case "table":
 		return parseStringAndSet(p, func(v string) error {
-			p.c.Table = v
+			names, err := parseNames(v)
+			if err != nil {
+				return err
+			}
+			switch len(names) {
+			case 0:
+				return nil
+			case 1:
+				p.c.Table = [2]string{names[0], ""}
+			case 2:
+				p.c.Table = [2]string{names[0], names[1]}
+			default:
+				return errors.New("table accepts at most 2 args: <table>,[alias]")
+			}
 			return nil
 		})
 	case "from":

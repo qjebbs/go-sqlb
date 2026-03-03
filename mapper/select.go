@@ -48,12 +48,12 @@ func SelectOne[T any](ctx sqlb.Context, db QueryAble, b SelectLimitBuilder, opti
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"col:id;from:u;"`
 //
 // The supported struct tags are:
-//   - sel<:expr>: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. `sel:COALESCE(?.name,”);from:u;`, which is required by dependency analysis.
-//   - from<:name[,names]...>: [Inheritable] Declare from tables for this field or its sub-fields / subsequent sibling fields. It accepts multiple Applied-Table-Name, comma-separated, e.g. `from:f,b`. They're the names of the tables that are effective in the current query. For example, `f` in `sqlb.NewTable("foo", "f")`, and `foo` in `sqlb.NewTable("foo")`.
+//   - table<:name[,alias]>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields, e.g. `table:foo,f;`
+//   - col<:name>: the column to select for this field, e.g. `col:id;`
 //   - sel_on<:tag,[,tags]...>: Scan the field only on any one of tags specified, comma-separated. e.g. `sel_on:full;`
-//   - col<:name>: If `sel` key is not specified, specify the column to select for this field. It's recommended to use `col` key for simple column selection, which can be shared usage in INSERT/UPDATE/DELETE operations. e.g. `col:name;from:u;`
-//   - dive: For struct fields, dive into scan its field. e.g. `dive;`
-//   - table<:name>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields. For Select(), it usually works with `WithNullZeroTables()` Option.
+//   - sel<:expr>: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. “sel:COALESCE(?.bar,?.baz);from:f,b;`, which is required by dependency analysis.
+//   - from<:name[,names]...>: Works with 'sel', it accepts multiple Applied-Table-Name, comma-separated.
+//   - dive: For struct fields, dive into and scan its fields. e.g. `dive;`
 func Select[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
 	r, err := _select[T](ctx, db, b, options...)
 	if err != nil {
@@ -145,25 +145,25 @@ func buildSelectQueryForStruct[T any](ctx sqlb.Context, b SelectBuilder, opt *Op
 
 func buildSelectInfo(d dialect.Dialect, opt *Options, f *structInfo) (columns []sqlf.Builder, dests []fieldInfo, err error) {
 	for _, col := range f.columns {
-		included := opt.matchTag(col.SelectOn)
-		if !included {
+		if col.Column == "" && col.Select == "" {
 			continue
 		}
+		if !opt.matchTag(col.SelectOn) {
+			continue
+		}
+
+		var column sqlf.Builder
 		// sel tag takes precedence over col tag
-		checkUsage := !col.InheritedFroms
-		expr := col.Select
-		if expr == "" && col.Column != "" {
-			checkUsage = false
-			expr = "?." + d.QuoteIdentifier(col.Column)
-		}
-		frag := sqlf.F(expr, util.Map(col.From, func(t string) any {
-			return sqlb.NewTable("", t)
-		})...)
-		if !checkUsage {
+		if col.Select != "" {
+			frag := sqlf.F(col.Select, util.Map(col.From, func(t string) any {
+				return sqlb.NewTable("", t)
+			})...)
 			frag.NoUsageCheck()
+			column = frag
+		} else {
+			column = sqlf.F("?.?", sqlb.NewTable(col.Table[0], col.Table[1]), sqlf.Identifier(col.Column))
 		}
-		var column sqlf.Builder = frag
-		if opt.enableNullZero(col.Table) &&
+		if opt.enableNullZero(col.Table[0]) &&
 			dialect.CheckNullCoalesceable(col.Type) {
 			if c, err := d.NullCoalesce(column, col.Type); err == nil {
 				if c != nil {

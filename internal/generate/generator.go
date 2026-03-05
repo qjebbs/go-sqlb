@@ -90,6 +90,14 @@ func (g *Generator) findPackages(patterns []string) []*packages.Package {
 func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructInfo {
 	var structs []StructInfo
 	ast.Inspect(node, func(n ast.Node) bool {
+		switch n.(type) {
+		case *ast.FuncDecl, *ast.FuncLit:
+			// ignore function literals to avoid processing struct types defined inside them,
+			// which are not relevant for SQL builder generation.
+			return false
+		}
+		// fmt.Printf("node %T\n", n)
+
 		ts, ok := n.(*ast.TypeSpec)
 		if !ok {
 			return true

@@ -1,5 +1,7 @@
 package mapper_test
 
+//go:generate go run github.com/qjebbs/go-sqlb/cmd/sqlbgen .
+
 import (
 	"context"
 	"errors"
@@ -93,54 +95,57 @@ func Example_cRUD() {
 	// [Delete(*mapper_test.User)] UPDATE "users" SET "deleted" = '0001-01-01 00:00:00 +0000 UTC' WHERE "id" = 1 AND "deleted" IS NULL
 }
 
+// Model represents the base model with common fields.
+type Model struct {
+	ID      int        `sqlb:"col:id"`
+	Created *time.Time `sqlb:"col:created"`
+	Updated *time.Time `sqlb:"col:updated"`
+	Deleted *time.Time `sqlb:"col:deleted"`
+}
+
+type User struct {
+	Model `sqlb:"table:users"`
+	OrgID int    `sqlb:"col:org_id"`
+	Name  string `sqlb:"col:name"`
+}
+
+type Org struct {
+	Model `sqlb:"table:orgs"`
+	Name  string `sqlb:"col:name"`
+}
+
 func Example_complexSelect() {
-	type Model struct {
-		ID      int        `sqlb:"col:id"`
-		Created *time.Time `sqlb:"col:created"`
-		Updated *time.Time `sqlb:"col:updated"`
-		Deleted *time.Time `sqlb:"col:deleted"`
-	}
-
-	type User struct {
-		// 'from' defines the from table in SQL for this struct,
-		// it can be inherited by nested fields and by subsequent sibling fields of the current struct.
-		Model `sqlb:"table:users,u"`
-		// For fields without 'sel' tag, mapper constructs the selection column
-		// from the 'from' tag (inherited here) and the 'col' tag of the field.
-		// It is equivalent to:
-		//  table := sqlb.NewTable("", "u")
-		//  identifier := table.Column("name")
-		//  const expr = "?.?"
-		//  sel := sqlf.F(expr, table, identifier)
-		Name string `sqlb:"col:name"`
-	}
-
 	type userListItem struct {
 		User
-		// OrgName is from another table and could be NULL,
-		// 'sel' works together with 'from', which is equivalent to:
-		//  table := sqlb.NewTable("", "o")
-		//  expr := "COALESCE(?.name,'')"
-		//  sel := sqlf.F(expr, table)
-		OrgName string `sqlb:"sel:COALESCE(?.name,'');from:o"`
+		Org
 	}
 
-	Users := sqlb.NewTable("users", "u")
-	Orgs := sqlb.NewTable("orgs", "o")
+	// sqlbgen (//go:generate go run github.com/qjebbs/go-sqlb/cmd/sqlbgen .)
+	// will generate the methods for User and Org models based on the struct
+	// tags, e.g.:
+	//
+	// func (s *User) Table() sqlb.Table
+	// func (s *Org) Table() sqlb.Table
+	// func (*User) ColumnID() sqlf.Builder
+	// func (*User) ColumnDeleted() sqlf.Builder
+	// ...
+	user := &User{}
+	org := &Org{}
+
 	b := sqlb.NewSelectBuilder().
-		From(Users).
-		LeftJoin(Orgs, sqlf.F(
+		From(user.Table()).
+		InnerJoin(org.Table(), sqlf.F(
 			"? = ?",
-			Users.Column("org_id"),
-			Orgs.Column("id"),
+			user.ColumnOrgID(),
+			org.ColumnID(),
 		)).
-		WhereEquals(Orgs.Column("id"), 1).
-		WhereIsNull(Users.Column("deleted_at"))
+		WhereEquals(org.ColumnID(), 1).
+		WhereIsNull(user.ColumnDeleted())
 	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	_, err := mapper.Select[*userListItem](ctx, nil, b, mapper.WithDebug())
 	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
 		fmt.Println(err)
 	}
 	// Output:
-	// [Select(*mapper_test.userListItem)] SELECT "u"."id", "u"."created", "u"."updated", "u"."deleted", "u"."name", COALESCE("o".name,'') FROM "users" AS "u" LEFT JOIN "orgs" AS "o" ON "u"."org_id" = "o"."id" WHERE "o"."id" = 1 AND "u"."deleted_at" IS NULL
+	// [Select(*mapper_test.userListItem)] SELECT "users"."id", "users"."created", "users"."updated", "users"."deleted", "users"."org_id", "users"."name", "orgs"."id", "orgs"."created", "orgs"."updated", "orgs"."deleted", "orgs"."name" FROM "users" INNER JOIN "orgs" ON "users"."org_id" = "orgs"."id" WHERE "orgs"."id" = 1 AND "users"."deleted" IS NULL
 }

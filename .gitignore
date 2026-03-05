@@ -13,6 +13,10 @@
 *.so
 *.dylib
 
+# Generated files
+*_gen.go
+*_gen_test.go
+
 # Test binary, built with `go test -c`
 *.test
 

@@ -7,18 +7,20 @@ import (
 )
 
 {{ range .Structs }}
+{{ if .TableName }}
 func (s *{{ .Name }}) Table() sqlb.Table {
-	return sqlb.NewTable("{{ index .Table 0 }}", "{{ index .Table 1 }}")
+	return sqlb.NewTable("{{ .TableName }}", "{{ .TableAlias }}")
 }
 
 func (s *{{ .Name }}) TableName() string {
-	return "{{ index .Table 0 }}"
+	return "{{ .TableName }}"
 }
 
 func (s *{{ .Name }}) TableAlias() string {
-	return "{{ index .Table 1 }}"
+	return "{{ .TableAlias }}"
 }
 
+{{ end }}
 func (s *{{ .Name }}) Columns() []sqlf.Builder {
 	return []sqlf.Builder{
 		{{ range .Columns -}}
@@ -41,7 +43,7 @@ func (s *{{ .Name }}) New() *{{ .Name }} {
 {{ $model := . }}
 {{ range .Columns }}
 func (s *{{ $model.Name }}) Column{{ .FieldName }}() sqlf.Builder {
-    return sqlf.F("?.?", s.Table(), sqlf.Identifier("{{ .ColumnName }}"))
+    return sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", "{{ .TableAlias }}"), sqlf.Identifier("{{ .ColumnName }}"))
 }
 {{ end }}
 {{ end }}

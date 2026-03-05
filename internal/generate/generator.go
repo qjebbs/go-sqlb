@@ -101,7 +101,6 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 		}
 
 		var columns []ColumnInfo
-		var table [2]string
 
 		type context struct {
 			table [2]string
@@ -126,9 +125,6 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 						}
 						if parsed.Table[0] != "" {
 							curTable = parsed.Table
-							if table[0] == "" {
-								table = curTable
-							}
 						} else {
 							parsed.Table = curTable
 						}
@@ -190,6 +186,8 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 					columns = append(columns, ColumnInfo{
 						FieldName:  field.Name,
 						ColumnName: info.Column,
+						TableName:  info.Table[0],
+						TableAlias: info.Table[1],
 					})
 				}
 			}
@@ -214,13 +212,23 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 			})
 		}
 
-		findFields(initialFields, []int{}, context{table: table})
+		findFields(initialFields, []int{}, context{})
 
 		if len(columns) > 0 {
+			var onlyTable [2]string
+			for _, col := range columns {
+				if onlyTable[0] == "" {
+					onlyTable = [2]string{col.TableName, col.TableAlias}
+				} else if onlyTable[0] != col.TableName || onlyTable[1] != col.TableAlias {
+					onlyTable = [2]string{}
+					break
+				}
+			}
 			structs = append(structs, StructInfo{
-				Name:    ts.Name.Name,
-				Columns: columns,
-				Table:   table,
+				Name:       ts.Name.Name,
+				Columns:    columns,
+				TableName:  onlyTable[0],
+				TableAlias: onlyTable[1],
 			})
 		}
 		return false

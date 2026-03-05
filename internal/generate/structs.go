@@ -8,14 +8,17 @@ type PackageInfo struct {
 
 // StructInfo holds information about a struct to be processed by the template.
 type StructInfo struct {
-	Name    string
-	Columns []ColumnInfo
-	Table   [2]string // table name, table alias
+	Name       string
+	Columns    []ColumnInfo
+	TableName  string
+	TableAlias string
 }
 
 // ColumnInfo holds information about a struct field that maps to a database column.
 type ColumnInfo struct {
 	FieldName  string
+	TableName  string
+	TableAlias string
 	ColumnName string
 }
 

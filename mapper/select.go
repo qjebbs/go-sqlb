@@ -45,7 +45,7 @@ func SelectOne[T any](ctx sqlb.Context, db QueryAble, b SelectLimitBuilder, opti
 
 // Select builds and executes the query and scans the results into a slice of struct T.
 //
-// The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"col:id;from:u;"`
+// The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"table:users;col:id"`
 //
 // The supported struct tags are:
 //   - table<:name[,alias]>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields, e.g. `table:foo,f;`
@@ -155,9 +155,14 @@ func buildSelectInfo(d dialect.Dialect, opt *Options, f *structInfo) (columns []
 		var column sqlf.Builder
 		// sel tag takes precedence over col tag
 		if col.Select != "" {
-			frag := sqlf.F(col.Select, util.Map(col.From, func(t string) any {
-				return sqlb.NewTable("", t)
-			})...)
+			var frag *sqlf.Fragment
+			if len(col.From) > 0 {
+				frag = sqlf.F(col.Select, util.Map(col.From, func(t string) any {
+					return sqlb.NewTable("", t)
+				})...)
+			} else {
+				frag = sqlf.F(col.Select, sqlb.NewTable(col.Table[0], col.Table[1]))
+			}
 			frag.NoUsageCheck()
 			column = frag
 		} else {

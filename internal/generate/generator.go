@@ -255,7 +255,13 @@ func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath 
 		log.Fatalf("failed to format generated code: %v", err)
 	}
 
-	outputName := strings.TrimSuffix(filePath, ".go") + "_sqlb_gen.go"
+	var outputName string
+
+	if strings.HasSuffix(pkg.Name, "_test") {
+		outputName = strings.TrimSuffix(filePath, "_test.go") + "_sqlb_gen_test.go"
+	} else {
+		outputName = strings.TrimSuffix(filePath, ".go") + "_sqlb_gen.go"
+	}
 	err = os.WriteFile(outputName, formatted, 0644)
 	if err != nil {
 		log.Fatalf("failed to write output file: %v", err)

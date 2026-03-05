@@ -45,7 +45,7 @@ func (g *Generator) Generate(patterns []string) {
 			if len(allStructs) > 0 {
 				dir := filepath.Dir(pkg.GoFiles[0])
 				g.write(
-					pkg, allStructs,
+					pkg, allStructs, true,
 					filepath.Join(dir, pkg.Name),
 				)
 			}
@@ -64,9 +64,11 @@ func (g *Generator) Generate(patterns []string) {
 			}
 		}
 
+		helpersGenerated := false
 		for filePath, structs := range fileStructs {
 			if len(structs) > 0 {
-				g.write(pkg, structs, filePath)
+				g.write(pkg, structs, !helpersGenerated, filePath)
+				helpersGenerated = true
 			}
 		}
 	}
@@ -244,15 +246,16 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 	return structs
 }
 
-func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath string) {
+func (g *Generator) write(pkg *packages.Package, structs []StructInfo, helpers bool, filePath string) {
 	if len(structs) == 0 {
 		return
 	}
 
 	var buf bytes.Buffer
-	err := tmpl.Execute(&buf, &PackageInfo{
-		Name:    pkg.Name,
-		Structs: structs,
+	err := tmpl.Execute(&buf, &Info{
+		Name:                  pkg.Name,
+		Structs:               structs,
+		WithTableAliasHelpers: helpers,
 	})
 	if err != nil {
 		log.Fatalf("failed to execute template: %v", err)

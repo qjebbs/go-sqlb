@@ -8,23 +8,15 @@ import (
 
 {{ range .Structs }}
 {{ if .TableName }}
-func (s *{{ .Name }}) Table() sqlb.Table {
-	return sqlb.NewTable("{{ .TableName }}", "{{ .TableAlias }}")
-}
-
-func (s *{{ .Name }}) TableName() string {
-	return "{{ .TableName }}"
-}
-
-func (s *{{ .Name }}) TableAlias() string {
-	return "{{ .TableAlias }}"
+func (s *{{ .Name }}) Table(alias ...string) sqlb.Table {
+	return tableOverrideAlias(sqlb.NewTable("{{ .TableName }}", "{{ .TableAlias }}"), alias...)
 }
 
 {{ end }}
-func (s *{{ .Name }}) Columns() []sqlf.Builder {
+func (s *{{ .Name }}) Columns(alias ...string) []sqlf.Builder {
 	return []sqlf.Builder{
 		{{ range .Columns -}}
-		s.Column{{ .FieldName }}(),
+		s.Column{{ .FieldName }}(alias...),
 		{{ end }}
 	}
 }
@@ -42,8 +34,18 @@ func (s *{{ .Name }}) New() *{{ .Name }} {
 
 {{ $model := . }}
 {{ range .Columns }}
-func (s *{{ $model.Name }}) Column{{ .FieldName }}() sqlf.Builder {
-    return sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", "{{ .TableAlias }}"), sqlf.Identifier("{{ .ColumnName }}"))
+func (s *{{ $model.Name }}) Column{{ .FieldName }}(alias ...string) sqlf.Builder {
+    return sqlf.F("?.?", tableOverrideAlias(sqlb.NewTable("{{ .TableName }}", "{{ .TableAlias }}"), alias...), sqlf.Identifier("{{ .ColumnName }}"))
 }
 {{ end }}
+{{ end }}
+
+{{ if .WithTableAliasHelpers }}
+// tableOverrideAlias returns a new Table with the alias if provided.
+func tableOverrideAlias(t sqlb.Table, alias ...string) sqlb.Table {
+	if len(alias) > 0 {
+		t.Alias = alias[0]
+	}
+	return t
+}
 {{ end }}

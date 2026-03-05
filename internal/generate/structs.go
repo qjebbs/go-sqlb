@@ -1,9 +1,10 @@
 package generate
 
-// PackageInfo holds information about a Go package, including its name and the structs it contains.
-type PackageInfo struct {
-	Name    string
-	Structs []StructInfo
+// Info holds information about the package and structs to be used in the code generation template.
+type Info struct {
+	Name                  string
+	Structs               []StructInfo
+	WithTableAliasHelpers bool
 }
 
 // StructInfo holds information about a struct to be processed by the template.

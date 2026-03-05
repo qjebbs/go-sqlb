@@ -55,3 +55,26 @@ func parseNames(tag string) ([]string, error) {
 	}
 	return names, nil
 }
+
+func isAllowedName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, ch := range name {
+		if !isAllowedNameChar(ch) {
+			return false
+		}
+	}
+	return true
+}
+
+func isAllowedNameChar(ch rune) bool {
+	return ch >= 'a' && ch <= 'z' ||
+		ch >= 'A' && ch <= 'Z' ||
+		ch >= '0' && ch <= '9' ||
+		ch == '_' || ch == '@' || ch == '#'
+}
+
+func isDigit(ch rune) bool {
+	return ch >= '0' && ch <= '9'
+}

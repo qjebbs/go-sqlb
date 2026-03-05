@@ -11,26 +11,7 @@ import (
 func (s *{{ .Name }}) Table(alias ...string) sqlb.Table {
 	return sqlb.NewTable("{{ .UniqueTable }}", alias...)
 }
-
 {{ end }}
-func (s *{{ .Name }}) Columns(alias ...string) []sqlf.Builder {
-	return []sqlf.Builder{
-		{{ range .Columns -}}
-		s.Column{{ .FieldName }}(alias...),
-		{{ end }}
-	}
-}
-
-func (s *{{ .Name }}) Values() []interface{} {
-	return []interface{}{
-		{{ range .Columns }}&s.{{ .FieldName }},
-		{{ end }}
-	}
-}
-
-func (s *{{ .Name }}) New() *{{ .Name }} {
-	return new({{ .Name }})
-}
 
 {{ $model := . }}
 {{ range .Columns }}

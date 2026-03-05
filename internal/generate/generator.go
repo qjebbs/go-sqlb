@@ -2,6 +2,8 @@ package generate
 
 import (
 	"bytes"
+	// embed is used to embed the code template into the binary,
+	// allowing for easy distribution without external template files.
 	_ "embed"
 	"go/ast"
 	"go/format"
@@ -16,6 +18,11 @@ import (
 	"github.com/qjebbs/go-sqlb/internal/tag/syntax"
 	"golang.org/x/tools/go/packages"
 )
+
+//go:embed code.tmpl
+var codeTemplate string
+
+var tmpl = template.Must(template.New("").Parse(codeTemplate))
 
 // Generator is responsible for generating SQL builder code based on struct definitions in Go source files.
 type Generator struct {
@@ -45,7 +52,7 @@ func (g *Generator) Generate(patterns []string) {
 			if len(allStructs) > 0 {
 				dir := filepath.Dir(pkg.GoFiles[0])
 				g.write(
-					pkg, allStructs, true,
+					pkg, allStructs,
 					filepath.Join(dir, pkg.Name),
 				)
 			}
@@ -64,11 +71,9 @@ func (g *Generator) Generate(patterns []string) {
 			}
 		}
 
-		helpersGenerated := false
 		for filePath, structs := range fileStructs {
 			if len(structs) > 0 {
-				g.write(pkg, structs, !helpersGenerated, filePath)
-				helpersGenerated = true
+				g.write(pkg, structs, filePath)
 			}
 		}
 	}
@@ -113,7 +118,7 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 		var columns []ColumnInfo
 
 		type context struct {
-			table [2]string
+			table string
 		}
 
 		var findFields func(fields []FieldInfo, basePath []int, ctx context)
@@ -133,7 +138,7 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 						if err != nil {
 							log.Fatalf("failed to parse tag: %v", err)
 						}
-						if parsed.Table[0] != "" {
+						if parsed.Table != "" {
 							curTable = parsed.Table
 						} else {
 							parsed.Table = curTable
@@ -189,15 +194,14 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 				}
 
 				if info != nil {
-					if info.Table[0] == "" || info.Column == "" {
+					if info.Table == "" || info.Column == "" {
 						continue
 					}
 
 					columns = append(columns, ColumnInfo{
 						FieldName:  field.Name,
 						ColumnName: info.Column,
-						TableName:  info.Table[0],
-						TableAlias: info.Table[1],
+						TableName:  info.Table,
 					})
 				}
 			}
@@ -225,20 +229,19 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 		findFields(initialFields, []int{}, context{})
 
 		if len(columns) > 0 {
-			var onlyTable [2]string
+			var uniqueTable string
 			for _, col := range columns {
-				if onlyTable[0] == "" {
-					onlyTable = [2]string{col.TableName, col.TableAlias}
-				} else if onlyTable[0] != col.TableName || onlyTable[1] != col.TableAlias {
-					onlyTable = [2]string{}
+				if uniqueTable == "" {
+					uniqueTable = col.TableName
+				} else if uniqueTable != col.TableName {
+					uniqueTable = ""
 					break
 				}
 			}
 			structs = append(structs, StructInfo{
-				Name:       ts.Name.Name,
-				Columns:    columns,
-				TableName:  onlyTable[0],
-				TableAlias: onlyTable[1],
+				Name:        ts.Name.Name,
+				Columns:     columns,
+				UniqueTable: uniqueTable,
 			})
 		}
 		return false
@@ -246,16 +249,15 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructI
 	return structs
 }
 
-func (g *Generator) write(pkg *packages.Package, structs []StructInfo, helpers bool, filePath string) {
+func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath string) {
 	if len(structs) == 0 {
 		return
 	}
 
 	var buf bytes.Buffer
 	err := tmpl.Execute(&buf, &Info{
-		Name:                  pkg.Name,
-		Structs:               structs,
-		WithTableAliasHelpers: helpers,
+		Name:    pkg.Name,
+		Structs: structs,
 	})
 	if err != nil {
 		log.Fatalf("failed to execute template: %v", err)
@@ -278,8 +280,3 @@ func (g *Generator) write(pkg *packages.Package, structs []StructInfo, helpers b
 		log.Fatalf("failed to write output file: %v", err)
 	}
 }
-
-//go:embed code.tmpl
-var codeTemplate string
-
-var tmpl = template.Must(template.New("").Parse(codeTemplate))

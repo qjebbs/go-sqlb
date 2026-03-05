@@ -7,9 +7,9 @@ import (
 )
 
 {{ range .Structs }}
-{{ if .TableName }}
+{{ if .UniqueTable }}
 func (s *{{ .Name }}) Table(alias ...string) sqlb.Table {
-	return tableOverrideAlias(sqlb.NewTable("{{ .TableName }}", "{{ .TableAlias }}"), alias...)
+	return sqlb.NewTable("{{ .UniqueTable }}", alias...)
 }
 
 {{ end }}
@@ -35,17 +35,7 @@ func (s *{{ .Name }}) New() *{{ .Name }} {
 {{ $model := . }}
 {{ range .Columns }}
 func (s *{{ $model.Name }}) Column{{ .FieldName }}(alias ...string) sqlf.Builder {
-    return sqlf.F("?.?", tableOverrideAlias(sqlb.NewTable("{{ .TableName }}", "{{ .TableAlias }}"), alias...), sqlf.Identifier("{{ .ColumnName }}"))
+    return sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", alias...), sqlf.Identifier("{{ .ColumnName }}"))
 }
 {{ end }}
-{{ end }}
-
-{{ if .WithTableAliasHelpers }}
-// tableOverrideAlias returns a new Table with the alias if provided.
-func tableOverrideAlias(t sqlb.Table, alias ...string) sqlb.Table {
-	if len(alias) > 0 {
-		t.Alias = alias[0]
-	}
-	return t
-}
 {{ end }}

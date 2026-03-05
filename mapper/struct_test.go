@@ -15,7 +15,7 @@ func TestQueryStruct(t *testing.T) {
 	}
 
 	type User struct {
-		*Model   `sqlb:"table:users,u"`
+		*Model   `sqlb:"table:users"`
 		Name     string `sqlb:"col:name"`
 		Email    string `sqlb:"col:email"`
 		Constant string `sqlb:"sel:'str'"`
@@ -25,13 +25,13 @@ func TestQueryStruct(t *testing.T) {
 		unexported string `sqlb:"sel:1"` // should be ignored
 	}
 
-	userTable := sqlb.NewTable("users", "u")
+	userTable := sqlb.NewTable("users")
 	b := sqlb.NewSelectBuilder().
 		From(userTable).Where(sqlf.F(
 		"?=?",
 		userTable.Column("id"), 1,
 	))
-	want := `SELECT "u"."id", "u"."name", "u"."email", 'str' FROM "users" AS "u" WHERE "u"."id"=$1`
+	want := `SELECT "users"."id", "users"."name", "users"."email", 'str' FROM "users" WHERE "users"."id"=$1`
 	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	got, _, _, err := buildSelectQueryForStruct[User](ctx, b, nil)
 	if err != nil {

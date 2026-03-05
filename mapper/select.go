@@ -48,7 +48,7 @@ func SelectOne[T any](ctx sqlb.Context, db QueryAble, b SelectLimitBuilder, opti
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"table:users;col:id"`
 //
 // The supported struct tags are:
-//   - table<:name[,alias]>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields, e.g. `table:foo,f;`
+//   - table<:name>: [Inheritable] Declare the database table for the current field and its sub-fields / subsequent sibling fields, e.g. `table:foo;`
 //   - col<:name>: the column to select for this field, e.g. `col:id;`
 //   - sel_on<:tag,[,tags]...>: Scan the field only on any one of tags specified, comma-separated. e.g. `sel_on:full;`
 //   - sel<:expr>: Specify expression to select for this field. It's used together with `from` key to declare tables used in the expression, e.g. “sel:COALESCE(?.bar,?.baz);from:f,b;`, which is required by dependency analysis.
@@ -161,14 +161,14 @@ func buildSelectInfo(d dialect.Dialect, opt *Options, f *structInfo) (columns []
 					return sqlb.NewTable("", t)
 				})...)
 			} else {
-				frag = sqlf.F(col.Select, sqlb.NewTable(col.Table[0], col.Table[1]))
+				frag = sqlf.F(col.Select, sqlb.NewTable(col.Table))
 			}
 			frag.NoUsageCheck()
 			column = frag
 		} else {
-			column = sqlf.F("?.?", sqlb.NewTable(col.Table[0], col.Table[1]), sqlf.Identifier(col.Column))
+			column = sqlf.F("?.?", sqlb.NewTable(col.Table), sqlf.Identifier(col.Column))
 		}
-		if opt.enableNullZero(col.Table[0]) &&
+		if opt.enableNullZero(col.Table) &&
 			dialect.CheckNullCoalesceable(col.Type) {
 			if c, err := d.NullCoalesce(column, col.Type); err == nil {
 				if c != nil {

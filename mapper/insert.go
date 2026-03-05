@@ -33,7 +33,7 @@ func InsertOne[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
 // The supported struct tags are:
-//   - table<:name[,alias]>: [Inheritable] Declare base table for the current field and its sub-fields / subsequent sibling fields.
+//   - table<:name>: [Inheritable] Declare the database table for the current field and its sub-fields / subsequent sibling fields, e.g. `table:foo;`
 //   - col<:name>: Specify the column associated with the field.
 //   - pk: The column is primary key, which is excluded from INSERT statement.
 //   - unique: The column could be used with conflict_on to detect conflict.
@@ -175,9 +175,9 @@ func buildInsertInfo[T any](dialect dialect.Dialect, f *structInfo, values []T) 
 	// FIXME: Oracle does not support DEFAULT keyword in INSERT VALUES
 	var defaultBuilder sqlf.Builder = sqlf.F("DEFAULT")
 	for _, col := range f.columns {
-		if r.table == "" && !col.Diving && col.Table[0] != "" {
+		if r.table == "" && !col.Diving && col.Table != "" {
 			// respect first non-diving column with table specified
-			r.table = col.Table[0]
+			r.table = col.Table
 		}
 		if col.Column == "" {
 			continue

@@ -51,7 +51,7 @@ func getStructInfo(zero any) (*structInfo, error) {
 func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 	var columns []fieldInfo
 	type context struct {
-		table  [2]string
+		table  string
 		diving bool
 	}
 	var findFields func(t reflect.Type, basePath []int, ctx context) error
@@ -71,7 +71,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				if err != nil {
 					return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tag, err)
 				}
-				if parsed.Table[0] != "" {
+				if parsed.Table != "" {
 					curTable = parsed.Table
 				} else {
 					parsed.Table = curTable

@@ -2,20 +2,18 @@ package generate
 
 import (
 	"bytes"
+	"fmt"
+
 	// embed is used to embed the code template into the binary,
 	// allowing for easy distribution without external template files.
 	_ "embed"
-	"go/ast"
 	"go/format"
-	"go/types"
 	"html/template"
 	"log"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 
-	"github.com/qjebbs/go-sqlb/internal/tag/syntax"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -40,7 +38,10 @@ func NewGenerator(unifile bool) *Generator {
 
 // Generate processes the provided patterns to find Go packages, extract struct information, and generate SQL builder code.
 func (g *Generator) Generate(patterns []string) {
-	pkgs := g.findPackages(patterns)
+	pkgs, err := g.findPackages(patterns)
+	if err != nil {
+		log.Fatalf("failed to find packages: %v", err)
+	}
 
 	if g.Unifile {
 		for _, pkg := range pkgs {
@@ -79,181 +80,31 @@ func (g *Generator) Generate(patterns []string) {
 	}
 }
 
-func (g *Generator) findPackages(patterns []string) []*packages.Package {
+func (g *Generator) findPackages(patterns []string) ([]*packages.Package, error) {
 	cfg := &packages.Config{
 		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo,
 		Tests: true,
 	}
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
-		log.Fatalf("failed to load packages: %v", err)
+		return nil, fmt.Errorf("failed to load packages: %v", err)
 	}
 	if len(pkgs) == 0 {
-		log.Fatalf("no packages found for patterns: %v", patterns)
+		return nil, fmt.Errorf("no packages found for patterns: %v", patterns)
 	}
-	return pkgs
+	return pkgs, nil
 }
 
-func (g *Generator) processFile(pkg *packages.Package, node *ast.File) []StructInfo {
-	var structs []StructInfo
-	ast.Inspect(node, func(n ast.Node) bool {
-		switch n.(type) {
-		case *ast.FuncDecl, *ast.FuncLit:
-			// ignore function literals to avoid processing struct types defined inside them,
-			// which are not relevant for SQL builder generation.
-			return false
-		}
-		// fmt.Printf("node %T\n", n)
-
-		ts, ok := n.(*ast.TypeSpec)
-		if !ok {
-			return true
-		}
-
-		s, ok := ts.Type.(*ast.StructType)
-		if !ok {
-			return true
-		}
-
-		var columns []ColumnInfo
-
-		type context struct {
-			table string
-		}
-
-		var findFields func(fields []FieldInfo, basePath []int, ctx context)
-		findFields = func(fields []FieldInfo, basePath []int, ctx context) {
-			curTable := ctx.table
-			for i, field := range fields {
-				currentPath := append(basePath, i)
-
-				var info *syntax.Info
-				if field.Tag != "" {
-					tagVal := reflect.StructTag(strings.Trim(field.Tag, "`")).Get("sqlb")
-					if tagVal == "-" {
-						continue
-					}
-					if tagVal != "" {
-						parsed, err := syntax.Parse(tagVal)
-						if err != nil {
-							log.Fatalf("failed to parse tag: %v", err)
-						}
-						if parsed.Table != "" {
-							curTable = parsed.Table
-						} else {
-							parsed.Table = curTable
-						}
-						info = parsed
-					}
-				}
-
-				isAnonymous := field.IsAnonymous
-				if isAnonymous {
-					var typeObj types.Object
-					var ok bool = true
-
-					switch t := field.Type.(type) {
-					case *ast.Ident:
-						typeObj, ok = pkg.TypesInfo.Uses[t]
-						if !ok || typeObj == nil {
-							typeObj, ok = pkg.TypesInfo.Defs[t]
-						}
-					case *ast.SelectorExpr:
-						typeObj, ok = pkg.TypesInfo.Uses[t.Sel]
-					case *types.Named:
-						typeObj = t.Obj()
-					case *types.Alias:
-						typeObj = t.Obj()
-					}
-					if !ok || typeObj == nil {
-						continue
-					}
-
-					underlyingStruct := findUnderlyingStruct(typeObj.Type())
-
-					if underlyingStruct != nil {
-						var embeddedFields []FieldInfo
-						for i := 0; i < underlyingStruct.NumFields(); i++ {
-							f := underlyingStruct.Field(i)
-							embeddedFields = append(embeddedFields, FieldInfo{
-								Name:        f.Name(),
-								Tag:         underlyingStruct.Tag(i),
-								IsAnonymous: f.Anonymous(),
-								IsExported:  f.Exported(),
-								Type:        f.Type(),
-							})
-						}
-						ctx.table = curTable
-						findFields(embeddedFields, currentPath, ctx)
-					}
-					continue
-				}
-
-				if !field.IsExported {
-					continue
-				}
-
-				if info != nil {
-					if info.Table == "" || info.Column == "" {
-						continue
-					}
-
-					columns = append(columns, ColumnInfo{
-						FieldName:  field.Name,
-						ColumnName: info.Column,
-						TableName:  info.Table,
-					})
-				}
-			}
-		}
-
-		var initialFields []FieldInfo
-		for _, f := range s.Fields.List {
-			var name string
-			if len(f.Names) > 0 {
-				name = f.Names[0].Name
-			}
-			var tag string
-			if f.Tag != nil {
-				tag = f.Tag.Value
-			}
-			initialFields = append(initialFields, FieldInfo{
-				Name:        name,
-				Tag:         tag,
-				IsAnonymous: f.Names == nil,
-				IsExported:  f.Names == nil || f.Names[0].IsExported(),
-				Type:        f.Type,
-			})
-		}
-
-		findFields(initialFields, []int{}, context{})
-
-		if len(columns) > 0 {
-			var uniqueTable string
-			for _, col := range columns {
-				if uniqueTable == "" {
-					uniqueTable = col.TableName
-				} else if uniqueTable != col.TableName {
-					uniqueTable = ""
-					break
-				}
-			}
-			structs = append(structs, StructInfo{
-				Name:        ts.Name.Name,
-				Columns:     columns,
-				UniqueTable: uniqueTable,
-			})
-		}
-		return false
-	})
-	return structs
+// Info holds information about the package and structs to be used in the code generation template.
+type Info struct {
+	Name    string
+	Structs []StructInfo
 }
 
 func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath string) {
 	if len(structs) == 0 {
 		return
 	}
-
 	var buf bytes.Buffer
 	err := tmpl.Execute(&buf, &Info{
 		Name:    pkg.Name,

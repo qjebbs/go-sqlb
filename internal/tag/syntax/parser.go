@@ -10,26 +10,26 @@ import (
 
 // Info represents parsed tag information.
 type Info struct {
-	Select   string   // Select is parsed from "sel" key.
-	Column   string   // Column is parsed from "col" key.
-	Table    string   // Table is parsed from "table" key.
-	From     []string // From is parsed from "from" key.
-	SelectOn []string // On is parsed from "sel_on" key.
-	Dive     bool     // Dive indicates whether "dive" key is present.
+	Select   string   `json:",omitempty"` // Select is parsed from "sel" key.
+	Column   string   `json:",omitempty"` // Column is parsed from "col" key.
+	Table    string   `json:",omitempty"` // Table is parsed from "table" key.
+	From     []string `json:",omitempty"` // From is parsed from "from" key.
+	SelectOn []string `json:",omitempty"` // On is parsed from "sel_on" key.
+	Dive     bool     `json:",omitempty"` // Dive indicates whether "dive" key is present.
 
-	PK          bool    // PK indicates whether "pk" key is present.
-	Required    bool    // Required indicates whether "required" key is present.
-	ReadOnly    bool    // ReadOnly indicates whether "readonly" key is present.
-	InsertZero  bool    // InsertZero indicates whether "insert_zero" key is present.
-	Returning   bool    // Returning indicates whether "returning" key is present.
-	ConflictOn  *string // ConflictOn indicates whether "conflict_on" key is present.
-	ConflictSet *string // ConflictSet is parsed from "conflict_set" key.
+	PK          bool    `json:",omitempty"` // PK indicates whether "pk" key is present.
+	Required    bool    `json:",omitempty"` // Required indicates whether "required" key is present.
+	ReadOnly    bool    `json:",omitempty"` // ReadOnly indicates whether "readonly" key is present.
+	InsertZero  bool    `json:",omitempty"` // InsertZero indicates whether "insert_zero" key is present.
+	Returning   bool    `json:",omitempty"` // Returning indicates whether "returning" key is present.
+	ConflictOn  *string `json:",omitempty"` // ConflictOn indicates whether "conflict_on" key is present.
+	ConflictSet *string `json:",omitempty"` // ConflictSet is parsed from "conflict_set" key.
 
-	Unique       bool     // Unique indicates whether "unique" key is present.
-	UniqueGroups []string // UniqueGroup indicates whether "unique_group" key is present.
-	Match        bool     // Match indicates whether "match" key is present.
+	Unique       bool     `json:",omitempty"` // Unique indicates whether "unique" key is present.
+	UniqueGroups []string `json:",omitempty"` // UniqueGroup indicates whether "unique_group" key is present.
+	Match        bool     `json:",omitempty"` // Match indicates whether "match" key is present.
 
-	SoftDelete bool // SoftDelete indicates whether "soft_delete" key is present.
+	SoftDelete bool `json:",omitempty"` // SoftDelete indicates whether "soft_delete" key is present.
 }
 
 // Parse parses the input and returns the list of expressions.

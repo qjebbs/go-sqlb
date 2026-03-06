@@ -148,7 +148,7 @@ func buildSelectInfo(d dialect.Dialect, opt *Options, f *structInfo) (columns []
 		if col.Column == "" && col.Select == "" {
 			continue
 		}
-		if !opt.matchTag(col.SelectOn) {
+		if !opt.selectTags.Match(col.SelectOn) {
 			continue
 		}
 

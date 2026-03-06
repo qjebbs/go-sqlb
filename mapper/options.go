@@ -14,21 +14,26 @@ type Options struct {
 	debugTime   bool
 	debugWriter io.Writer
 
-	selectTags           []string
+	selectTags           SelectTags
 	selectNullZeroTables []string
 }
 
-func (o *Options) matchTag(onTags []string) bool {
-	if len(onTags) == 0 {
+// SelectTags is a type for select tags in Options.
+type SelectTags []string
+
+// Match checks if any of the given tags matches the selectTags in Options.
+func (o SelectTags) Match(tags []string) bool {
+	if len(tags) == 0 {
 		return true
 	}
-	for _, tag := range o.selectTags {
-		if util.Index(onTags, tag) >= 0 {
+	for _, tag := range o {
+		if util.Index(tags, tag) >= 0 {
 			return true
 		}
 	}
 	return false
 }
+
 func (o *Options) enableNullZero(name string) bool {
 	return util.Index(o.selectNullZeroTables, name) >= 0
 }

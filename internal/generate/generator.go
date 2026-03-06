@@ -99,6 +99,7 @@ func (g *Generator) findPackages(patterns []string) ([]*packages.Package, error)
 type Info struct {
 	Name    string
 	Structs []StructInfo
+	Imports []string
 }
 
 func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath string) {
@@ -109,6 +110,7 @@ func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath 
 	err := tmpl.Execute(&buf, &Info{
 		Name:    pkg.Name,
 		Structs: structs,
+		Imports: g.collectImports(structs),
 	})
 	if err != nil {
 		log.Fatalf("failed to execute template: %v", err)
@@ -130,4 +132,20 @@ func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath 
 	if err != nil {
 		log.Fatalf("failed to write output file: %v", err)
 	}
+}
+
+func (g *Generator) collectImports(structs []StructInfo) []string {
+	importSet := make(map[string]struct{})
+	for _, s := range structs {
+		if s.Select != nil {
+			for _, imp := range s.Select.Imports {
+				importSet[imp] = struct{}{}
+			}
+		}
+	}
+	var imports []string
+	for imp := range importSet {
+		imports = append(imports, imp)
+	}
+	return imports
 }

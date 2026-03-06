@@ -3,20 +3,96 @@ package {{ .Name }}
 
 import (
 	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/mapper"
 	"github.com/qjebbs/go-sqlf/v4"
+	{{- range .Imports }}
+    "{{ . }}"
+    {{- end }}
 )
 
 {{ range .Structs }}
-{{ if .UniqueTable }}
+{{ if .Model }}
 func (s *{{ .Name }}) Table(alias ...string) sqlb.Table {
-	return sqlb.NewTable("{{ .UniqueTable }}", alias...)
+	return sqlb.NewTable("{{ .Model.Table }}", alias...)
 }
-{{ end }}
 
 {{ $model := . }}
-{{ range .Columns }}
+{{ range .Model.Columns }}
 func (s *{{ $model.Name }}) Column{{ .FieldName }}(alias ...string) sqlf.Builder {
     return sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", alias...), sqlf.Identifier("{{ .ColumnName }}"))
+}
+{{ end }}
+{{ end }}
+
+{{ if .Select }}
+func (s *{{ .Name }}) Columns(tags mapper.SelectTags, alias ...string) []sqlf.Builder {
+	{{- if eq (len .Select.TaggedSelectColumns) 0 }}
+	return []sqlf.Builder{
+		{{ range .Select.UntaggedSelectColumns -}}
+		sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", alias...), sqlf.Identifier("{{ .ColumnName }}")),
+		{{ end }}
+	}
+	{{- else -}}
+	var columns = []sqlf.Builder{
+		{{ range .Select.UntaggedSelectColumns -}}
+		sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", alias...), sqlf.Identifier("{{ .ColumnName }}")),
+		{{ end }}
+	}
+	tagged := []struct {
+		Column sqlf.Builder
+		Tags   []string
+	}{
+		{{ range .Select.TaggedSelectColumns -}}
+		{sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", alias...), sqlf.Identifier("{{ .ColumnName }}")), []string{ {{- range $i, $tag := .SelectTags -}}{{ if $i }}, {{ end }}"{{ $tag }}"{{- end -}} }},
+		{{ end }}
+	}
+	for _, c := range tagged {
+		if tags.Match(c.Tags) {
+			columns = append(columns, c.Column)
+		}
+	}
+	return columns
+	{{ end }}
+}
+
+func (s *{{ .Name }}) Values(tags mapper.SelectTags) []interface{} {
+	{{- range .Select.InitFields }}
+    if s{{ .FieldSelector }} == nil {
+        s{{ .FieldSelector }} = new({{ .FieldType }})
+    }
+    {{- end }}
+
+	{{- if eq (len .Select.TaggedSelectColumns) 0 }}
+	return []interface{}{
+		{{ range .Select.UntaggedSelectColumns -}}
+		&s{{ .FieldSelector }}.{{ .FieldName }},
+		{{ end }}
+    }
+	{{- else }}
+    var fields = []interface{}{
+		{{ range .Select.UntaggedSelectColumns -}}
+        &s{{ .FieldSelector }}.{{ .FieldName }},
+		{{ end }}
+    }
+    tagged := []struct {
+        Column interface{}
+        Tags   []string
+    }{
+        {{- range .Select.TaggedSelectColumns }}
+        {&s{{ .FieldSelector }}.{{ .FieldName }}, []string{ {{- range $i, $tag := .SelectTags -}}{{ if $i }}, {{ end }}"{{ $tag }}"{{- end -}} }},
+        {{- end }}
+    }
+    for _, c := range tagged {
+        if tags.Match(c.Tags) {
+            fields = append(fields, c.Column)
+        }
+    }
+    return fields
+	{{ end }}
+}
+
+func (s *{{ .Name }}) New() *{{ .Name }} {
+	return new({{ .Name }})
 }
 {{ end }}
 {{ end }}

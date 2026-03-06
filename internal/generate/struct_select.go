@@ -66,16 +66,16 @@ func parseStructSelects(n *Node) *StructSelectInfo {
 			var selectorPath []string
 			var pointerIndices []bool
 			var types []string
-			current := n.Parent
-			for current != nil && current.Parent != nil {
-				selectorPath = append(selectorPath, current.Name)
-				pointerIndices = append(pointerIndices, current.IsPtr)
-				types = append(types, current.FieldType)
-				current = current.Parent
-			}
-			if current.IsPtr && n.ImportPath != "" {
-				// import for generating s.Selector1.Selector2 = new(somepkg.SomeType)
-				imports = append(imports, n.ImportPath)
+			parent := n.Parent
+			for parent != nil && parent.Parent != nil {
+				selectorPath = append(selectorPath, parent.Name)
+				pointerIndices = append(pointerIndices, parent.IsPtr)
+				types = append(types, parent.FieldType)
+				if parent.IsPtr && parent.ImportPath != "" {
+					// import for generating s.Selector1.Selector2 = new(somepkg.SomeType)
+					imports = append(imports, parent.ImportPath)
+				}
+				parent = parent.Parent
 			}
 			selectors = append(selectors, SelectorInfo{
 				Selectors:    selectorPath,

@@ -1,9 +1,9 @@
 package generate
 
 import (
+	"fmt"
 	"go/ast"
 	"go/types"
-	"log"
 	"reflect"
 	"strings"
 
@@ -21,6 +21,9 @@ type FieldInfo struct {
 	Type        interface{} `json:"-"` // Can be ast.Expr or types.Type
 }
 
+var _ objecter = (*types.Named)(nil)
+var _ objecter = (*types.Alias)(nil)
+
 // objecter is an interface that abstracts over types that have an Obj() method returning a *types.TypeName.
 // This is used to handle both *types.Named and *types.Alias uniformly when resolving type information.
 type objecter interface {
@@ -30,23 +33,29 @@ type objecter interface {
 func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) (*Node, error) {
 	for i := range fields {
 		field := &fields[i]
+		isAnonymous := field.IsAnonymous
 
+		var tagVal string
 		var info *syntax.Info
+
 		if field.Tag != "" {
-			tagVal := reflect.StructTag(strings.Trim(field.Tag, "`")).Get("sqlb")
-			if tagVal == "-" {
+			tagVal = reflect.StructTag(strings.Trim(field.Tag, "`")).Get("sqlb")
+		}
+		if tagVal == "-" {
+			continue
+		}
+		if tagVal == "" {
+			if !isAnonymous {
 				continue
 			}
-			if tagVal != "" {
-				parsed, err := syntax.Parse(tagVal)
-				if err != nil {
-					log.Fatalf("failed to parse tag: %v", err)
-				}
-				info = parsed
+		} else {
+			parsed, err := syntax.Parse(tagVal)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse tag %q: %w", tagVal, err)
 			}
+			info = parsed
 		}
 
-		isAnonymous := field.IsAnonymous
 		isPtr, fieldType, importPath, typeObj, err := resolveTypeInfo(pkg, field.Type)
 		if err != nil {
 			return nil, err

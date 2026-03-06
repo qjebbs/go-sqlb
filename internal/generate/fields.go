@@ -1,7 +1,6 @@
 package generate
 
 import (
-	"fmt"
 	"go/ast"
 	"go/types"
 	"log"
@@ -128,9 +127,6 @@ func resolveTypeInfo(pkg *packages.Package, typeExpr interface{}) (isPtr bool, t
 			if typePkg != pkg.Types.Path() {
 				importPath = typePkg
 			}
-		} else {
-			err = fmt.Errorf("not able to determine name for anonymous field with %T of %v", currentType, currentType)
-			return
 		}
 	}
 	return

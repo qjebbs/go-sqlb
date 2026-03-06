@@ -37,17 +37,21 @@ func NewGenerator(unifile bool) *Generator {
 }
 
 // Generate processes the provided patterns to find Go packages, extract struct information, and generate SQL builder code.
-func (g *Generator) Generate(patterns []string) {
+func (g *Generator) Generate(patterns []string) error {
 	pkgs, err := g.findPackages(patterns)
 	if err != nil {
-		log.Fatalf("failed to find packages: %v", err)
+		return fmt.Errorf("failed to find packages: %v", err)
 	}
 
 	if g.Unifile {
 		for _, pkg := range pkgs {
 			var allStructs []StructInfo
-			for _, fileNode := range pkg.Syntax {
-				structs := g.processFile(pkg, fileNode)
+			for i, fileNode := range pkg.Syntax {
+				filePath := pkg.GoFiles[i]
+				structs, err := g.processFile(pkg, fileNode)
+				if err != nil {
+					return fmt.Errorf("failed to process file %s: %v", filePath, err)
+				}
 				allStructs = append(allStructs, structs...)
 			}
 			if len(allStructs) > 0 {
@@ -58,7 +62,7 @@ func (g *Generator) Generate(patterns []string) {
 				)
 			}
 		}
-		return
+		return nil
 	}
 
 	for _, pkg := range pkgs {
@@ -66,7 +70,10 @@ func (g *Generator) Generate(patterns []string) {
 		fileStructs := make(map[string][]StructInfo)
 		for i, fileNode := range pkg.Syntax {
 			filePath := pkg.GoFiles[i]
-			structs := g.processFile(pkg, fileNode)
+			structs, err := g.processFile(pkg, fileNode)
+			if err != nil {
+				return fmt.Errorf("failed to process file %s: %v", filePath, err)
+			}
 			if len(structs) > 0 {
 				fileStructs[filePath] = append(fileStructs[filePath], structs...)
 			}
@@ -78,6 +85,7 @@ func (g *Generator) Generate(patterns []string) {
 			}
 		}
 	}
+	return nil
 }
 
 func (g *Generator) findPackages(patterns []string) ([]*packages.Package, error) {

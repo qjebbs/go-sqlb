@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"fmt"
 	"go/ast"
 	"go/types"
 	"log"
@@ -27,7 +28,7 @@ type objecter interface {
 	Obj() *types.TypeName
 }
 
-func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) *Node {
+func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) (*Node, error) {
 	for i := range fields {
 		field := &fields[i]
 
@@ -47,7 +48,10 @@ func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) *Node {
 		}
 
 		isAnonymous := field.IsAnonymous
-		isPtr, fieldType, importPath, typeObj := resolveTypeInfo(pkg, field.Type)
+		isPtr, fieldType, importPath, typeObj, err := resolveTypeInfo(pkg, field.Type)
+		if err != nil {
+			return nil, err
+		}
 		node := &Node{
 			Name:        field.Name,
 			Conf:        info,
@@ -76,14 +80,17 @@ func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) *Node {
 						Type:        f.Type(),
 					})
 				}
-				findFields(pkg, node, embeddedFields)
+				_, err = findFields(pkg, node, embeddedFields)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
-	return parent
+	return parent, nil
 }
 
-func resolveTypeInfo(pkg *packages.Package, typeExpr interface{}) (isPtr bool, typeStr, importPath string, typeObj types.Object) {
+func resolveTypeInfo(pkg *packages.Package, typeExpr interface{}) (isPtr bool, typeStr, importPath string, typeObj types.Object, err error) {
 	qualifier := func(p *types.Package) string {
 		if p.Path() == pkg.Types.Path() {
 			return ""
@@ -121,7 +128,46 @@ func resolveTypeInfo(pkg *packages.Package, typeExpr interface{}) (isPtr bool, t
 			if typePkg != pkg.Types.Path() {
 				importPath = typePkg
 			}
+		} else {
+			err = fmt.Errorf("not able to determine name for anonymous field with %T of %v", currentType, currentType)
+			return
 		}
 	}
 	return
+}
+
+// findUnderlyingStruct recursively resolves types to find the base struct.
+// It operates purely on go/types information.
+func findUnderlyingStruct(t types.Type) *types.Struct {
+	if t == nil {
+		return nil
+	}
+
+	// If it's already a struct, we're done.
+	if s, ok := t.Underlying().(*types.Struct); ok {
+		return s
+	}
+
+	// Follow named types and aliases.
+	for {
+		switch next := t.(type) {
+		case *types.Named:
+			t = next.Underlying()
+		case *types.Alias:
+			t = next.Rhs()
+		default:
+			// Not a type we can resolve further.
+			return nil
+		}
+
+		// Check if the new type is a struct.
+		if s, ok := t.Underlying().(*types.Struct); ok {
+			return s
+		}
+
+		// If the underlying type is the same as the current type, we've hit a loop or a base type.
+		if t == t.Underlying() {
+			return nil
+		}
+	}
 }

@@ -25,6 +25,9 @@ func main() {
 		patterns = []string{"./..."}
 	}
 
-	generate.NewGenerator(unifile).
-		Generate(patterns)
+	err := generate.NewGenerator(unifile).Generate(patterns)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }

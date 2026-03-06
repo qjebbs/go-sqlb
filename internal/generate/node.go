@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"fmt"
 	"go/ast"
 	"go/types"
 
@@ -39,7 +40,7 @@ func (n *Node) Walk(fn func(*Node) bool) {
 	}
 }
 
-func parseNodes(pkg *packages.Package, typ *ast.StructType) *Node {
+func parseNodes(pkg *packages.Package, typ *ast.StructType) (*Node, error) {
 	var initialFields []FieldInfo
 	for _, f := range typ.Fields.List {
 		var name string
@@ -53,6 +54,8 @@ func parseNodes(pkg *packages.Package, typ *ast.StructType) *Node {
 				}
 				if o, ok := typ.(objecter); ok {
 					name = o.Obj().Name()
+				} else {
+					return nil, fmt.Errorf("not able to determine name for anonymous field with %T of %v", typ, typ)
 				}
 			}
 		}

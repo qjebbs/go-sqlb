@@ -21,6 +21,12 @@ type FieldInfo struct {
 	Type        interface{} `json:"-"` // Can be ast.Expr or types.Type
 }
 
+// objecter is an interface that abstracts over types that have an Obj() method returning a *types.TypeName.
+// This is used to handle both *types.Named and *types.Alias uniformly when resolving type information.
+type objecter interface {
+	Obj() *types.TypeName
+}
+
 func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) *Node {
 	for i := range fields {
 		field := &fields[i]
@@ -108,9 +114,8 @@ func resolveTypeInfo(pkg *packages.Package, typeExpr interface{}) (isPtr bool, t
 	}
 
 	typeStr = types.TypeString(currentType, qualifier)
-
-	if named, ok := currentType.(*types.Named); ok {
-		typeObj = named.Obj()
+	if o, ok := currentType.(objecter); ok {
+		typeObj = o.Obj()
 		if typeObj != nil && typeObj.Pkg() != nil {
 			typePkg := typeObj.Pkg().Path()
 			if typePkg != pkg.Types.Path() {

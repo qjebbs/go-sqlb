@@ -51,8 +51,8 @@ func parseNodes(pkg *packages.Package, typ *ast.StructType) *Node {
 				if ptr, ok := typ.(*types.Pointer); ok {
 					typ = ptr.Elem()
 				}
-				if named, ok := typ.(*types.Named); ok && named.Obj() != nil {
-					name = named.Obj().Name()
+				if o, ok := typ.(objecter); ok {
+					name = o.Obj().Name()
 				}
 			}
 		}

@@ -113,12 +113,12 @@ type Org struct {
 	Model `sqlb:"table:orgs"`
 	Name  string `sqlb:"col:name"`
 }
+type userListItem struct {
+	User
+	Org
+}
 
 func Example_complexSelect() {
-	type userListItem struct {
-		User
-		Org
-	}
 
 	// sqlbgen (//go:generate go run github.com/qjebbs/go-sqlb/cmd/sqlbgen .)
 	// will generate the methods for User and Org models based on the struct

@@ -12,24 +12,24 @@ import (
 
 {{- define "GetColumns" -}}
 	{{- if eq (len .Select.TaggedSelectColumns) 0 -}}
-		[]sqlf.Builder{
+		[]*sqlb.Column{
 			{{- range .Select.UntaggedSelectColumns }}
-			sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", alias...), sqlf.Identifier("{{ .ColumnName }}")),
+			sqlb.NewTable("{{ .TableName }}", alias...).Column("{{ .ColumnName }}"),
 			{{- end }}
 		}
 	{{- else -}}
-		func() []sqlf.Builder {
-			columns := []sqlf.Builder{
+		func() []*sqlb.Column {
+			columns := []*sqlb.Column{
 				{{- range .Select.UntaggedSelectColumns }}
-				sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", alias...), sqlf.Identifier("{{ .ColumnName }}")),
+				sqlb.NewTable("{{ .TableName }}", alias...).Column("{{ .ColumnName }}"),
 				{{- end }}
 			}
 			tagged := []struct {
-				Column sqlf.Builder
+				Column *sqlb.Column
 				Tags   []string
 			}{
 				{{- range .Select.TaggedSelectColumns }}
-				{sqlf.F("?.?", sqlb.NewTable("{{ .TableName }}", alias...), sqlf.Identifier("{{ .ColumnName }}")), []string{ {{- range $i, $tag := .SelectTags -}}{{ if $i }}, {{ end }}"{{ $tag }}"{{- end -}} }},
+				{sqlb.NewTable("{{ .TableName }}", alias...).Column("{{ .ColumnName }}"), []string{ {{- range $i, $tag := .SelectTags -}}{{ if $i }}, {{ end }}"{{ $tag }}"{{- end -}} }},
 				{{- end }}
 			}
 			for _, c := range tagged {
@@ -44,20 +44,20 @@ import (
 
 {{- define "GetValues" -}}
 	{{- if eq (len .Select.TaggedSelectColumns) 0 -}}
-		[]interface{}{
+		[]any{
 			{{- range .Select.UntaggedSelectColumns }}
 			&s{{ .FieldSelector }}.{{ .FieldName }},
 			{{- end }}
 		}
 	{{- else -}}
-		func() []interface{} {
-			fields := []interface{}{
+		func() []any {
+			fields := []any{
 				{{- range .Select.UntaggedSelectColumns }}
 				&s{{ .FieldSelector }}.{{ .FieldName }},
 				{{- end }}
 			}
 			tagged := []struct {
-				Field interface{}
+				Field any
 				Tags  []string
 			}{
 				{{- range .Select.TaggedSelectColumns }}
@@ -93,11 +93,11 @@ import (
 		return new({{ .Name }})
 	}
 
-	func (s *{{ .Name }}) Columns(tags mapper.SelectTags, alias ...string) []sqlf.Builder {
+	func (s *{{ .Name }}) Columns(tags mapper.SelectTags, alias ...string) []*sqlb.Column {
 		return {{ template "GetColumns" . }}
 	}
 
-	func (s *{{ .Name }}) Values(tags mapper.SelectTags) []interface{} {
+	func (s *{{ .Name }}) Values(tags mapper.SelectTags) []any {
 		{{- range .Select.InitFields }}
 		if s{{ .FieldSelector }} == nil {
 			s{{ .FieldSelector }} = new({{ .FieldType }})

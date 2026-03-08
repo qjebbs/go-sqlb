@@ -30,7 +30,10 @@ func TestSelectBuilderDistinctElimination(t *testing.T) {
 				users.Column("id"), locs.Column("id"),
 			),
 		).
-		Distinct().Select(foo.Columns("id", "name")...).
+		Distinct().Select(
+		foo.Column("id"),
+		foo.Column("name"),
+	).
 		From(users).
 		LeftJoinOptional(foo, sqlf.F(
 			"?=?",
@@ -69,7 +72,10 @@ func TestSelectBuilderGroupbyElimination(t *testing.T) {
 			baz,
 			sqlf.F("SELECT * FROM baz WHERE type=$1", "user"),
 		).
-		Select(foo.Columns("id", "bar")...).
+		Select(
+			foo.Column("id"),
+			foo.Column("bar"),
+		).
 		From(foo).
 		LeftJoinOptional(baz, sqlf.F(
 			"?=?",

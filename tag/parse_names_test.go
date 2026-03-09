@@ -1,4 +1,4 @@
-package syntax
+package tag
 
 import "testing"
 

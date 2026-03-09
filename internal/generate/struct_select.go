@@ -1,26 +1,27 @@
 package generate
 
+import "github.com/qjebbs/go-sqlb/tag"
+
 // StructSelectInfo holds information about the fields of a struct that are used in select queries,
 // including their select tags and the necessary imports for generating initialization code in the Values() method.
 type StructSelectInfo struct {
-	TaggedSelectColumns   []SelectColumnInfo
-	UntaggedSelectColumns []SelectColumnInfo
-	Imports               []string
-	InitFields            []InitFieldInfo
+	Columns    []SelectColumnInfo
+	Imports    []string
+	InitFields []InitFieldInfo
 }
 
 // SelectColumnInfo holds information about a struct field that is used in select queries,
 // including the path to access it through embedded structs and whether any part of that path is a pointer.
 type SelectColumnInfo struct {
-	ModelColumnInfo
-	FieldSelector string
-	SelectTags    []string // The list of struct select tags associated with this field
+	Selector string
+	Diving   bool
+	Tags     *tag.Info
 }
 
 // InitFieldInfo holds information about a struct field that needs to be initialized in the Values() method.
 type InitFieldInfo struct {
-	FieldSelector string
-	FieldType     string
+	Type     string
+	Selector string
 }
 
 // SelectorInfo holds information about the path to access a struct field through structs,
@@ -34,10 +35,9 @@ type SelectorInfo struct {
 
 func parseStructSelects(n *Node) *StructSelectInfo {
 	var (
-		taggedSelectColumns   []SelectColumnInfo
-		untaggedSelectColumns []SelectColumnInfo
-		imports               []string
-		selectors             []SelectorInfo
+		columns   []SelectColumnInfo
+		imports   []string
+		selectors []SelectorInfo
 	)
 	var curTable string
 	n.Walk(func(n *Node) bool {
@@ -50,13 +50,13 @@ func parseStructSelects(n *Node) *StructSelectInfo {
 			// inherit table name
 			n.Conf.Table = curTable
 		}
-		if n.IsAnonymous {
-			// Anonymous fields are not treated as columns themselves, but their children might be.
-			return true
-		}
 		if !n.IsExported {
 			// Unexported fields cannot be accessed by the generated code, so we skip them.
 			return false
+		}
+		if n.IsAnonymous {
+			// Anonymous fields are not treated as columns themselves, but their children might be.
+			return true
 		}
 		if n.Conf.Dive {
 			// If Dive is true, we want to continue walking into this field's children, but we don't want to treat this field as a column itself.
@@ -86,24 +86,17 @@ func parseStructSelects(n *Node) *StructSelectInfo {
 			for i := len(selectorPath) - 1; i >= 0; i-- {
 				fieldSelector += "." + selectorPath[i]
 			}
+			fieldSelector += "." + n.Name
 			info := SelectColumnInfo{
-				ModelColumnInfo: ModelColumnInfo{
-					FieldName:  n.Name,
-					TableName:  n.Conf.Table,
-					ColumnName: n.Conf.Column,
-				},
-				SelectTags:    n.Conf.SelectOn,
-				FieldSelector: fieldSelector,
+				Selector: fieldSelector,
+				Diving:   isDiving(n),
+				Tags:     n.Conf,
 			}
-			if len(info.SelectTags) > 0 {
-				taggedSelectColumns = append(taggedSelectColumns, info)
-			} else {
-				untaggedSelectColumns = append(untaggedSelectColumns, info)
-			}
+			columns = append(columns, info)
 		}
 		return false
 	})
-	if len(taggedSelectColumns)+len(untaggedSelectColumns) == 0 {
+	if len(columns) == 0 {
 		return nil
 	}
 	var seenInitFields = make(map[string]struct{})
@@ -124,16 +117,26 @@ func parseStructSelects(n *Node) *StructSelectInfo {
 				continue
 			}
 			initFields = append(initFields, InitFieldInfo{
-				FieldSelector: selector,
-				FieldType:     col.PointerTypes[i],
+				Selector: selector,
+				Type:     col.PointerTypes[i],
 			})
 			seenInitFields[selector] = struct{}{}
 		}
 	}
 	return &StructSelectInfo{
-		TaggedSelectColumns:   taggedSelectColumns,
-		UntaggedSelectColumns: untaggedSelectColumns,
-		Imports:               imports,
-		InitFields:            initFields,
+		Columns:    columns,
+		Imports:    imports,
+		InitFields: initFields,
 	}
+}
+
+func isDiving(n *Node) bool {
+	parent := n.Parent
+	for parent != nil {
+		if parent.Conf != nil && parent.Conf.Dive {
+			return true
+		}
+		parent = parent.Parent
+	}
+	return false
 }

@@ -1,4 +1,4 @@
-package syntax
+package tag
 
 // scanFn is the lexical scan function
 type scanFn func(*scanner) scanFn

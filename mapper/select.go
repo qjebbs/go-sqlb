@@ -8,6 +8,7 @@ import (
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/dialect"
 	"github.com/qjebbs/go-sqlb/internal/util"
+	"github.com/qjebbs/go-sqlb/tag"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -98,8 +99,7 @@ func _select[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, options ...
 	}
 	return scan(ctx, db, queryStr, args, debugger, func() (T, []any) {
 		var dest T
-		dest, fields := prepareScanDestinations(dest, dests)
-		return dest, fields
+		return prepareScanDestinations(dest, dests)
 	})
 }
 
@@ -164,34 +164,42 @@ func buildSelectInfo(d dialect.Dialect, opt *Options, f *structInfo) (columns []
 			continue
 		}
 
-		var column sqlf.Builder
-		// sel tag takes precedence over col tag
-		if col.Select != "" {
-			var frag *sqlf.Fragment
-			if len(col.From) > 0 {
-				frag = sqlf.F(col.Select, util.Map(col.From, func(t string) any {
-					return sqlb.NewTable("", t)
-				})...)
-			} else {
-				frag = sqlf.F(col.Select, sqlb.NewTable(col.Table))
-			}
-			frag.NoUsageCheck()
-			column = frag
-		} else {
-			column = sqlf.F("?.?", sqlb.NewTable(col.Table), sqlf.Identifier(col.Column))
-		}
-		if opt.enableNullZero(col.Table) &&
-			dialect.CheckNullCoalesceable(col.Type) {
-			if c, err := d.NullCoalesce(column, col.Type); err == nil {
-				if c != nil {
-					column = c
-				}
-			} else {
-				return nil, nil, fmt.Errorf("field %s: %w", col.Name, err)
-			}
+		column, err := buildSelectColumn(d, &col.Info, col.Type, opt)
+		if err != nil {
+			return nil, nil, fmt.Errorf("field %s: %w", col.Name, err)
 		}
 		columns = append(columns, column)
 		dests = append(dests, col)
 	}
 	return columns, dests, nil
+}
+
+func buildSelectColumn(d dialect.Dialect, tags *tag.Info, rtype reflect.Type, opt *Options) (sqlf.Builder, error) {
+	var column sqlf.Builder
+	// sel tag takes precedence over col tag
+	if tags.Select != "" {
+		var frag *sqlf.Fragment
+		if len(tags.From) > 0 {
+			frag = sqlf.F(tags.Select, util.Map(tags.From, func(t string) any {
+				return sqlb.NewTable("", t)
+			})...)
+		} else {
+			frag = sqlf.F(tags.Select, sqlb.NewTable(tags.Table))
+		}
+		frag.NoUsageCheck()
+		column = frag
+	} else {
+		column = sqlf.F("?.?", sqlb.NewTable(tags.Table), sqlf.Identifier(tags.Column))
+	}
+	if opt.enableNullZero(tags.Table) &&
+		dialect.CheckNullCoalesceable(rtype) {
+		if c, err := d.NullCoalesce(column, rtype); err == nil {
+			if c != nil {
+				column = c
+			}
+		} else {
+			return nil, fmt.Errorf("build column %s: %w", tags.Column, err)
+		}
+	}
+	return column, nil
 }

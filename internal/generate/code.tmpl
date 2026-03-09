@@ -2,76 +2,71 @@
 package {{ .Name }}
 
 import (
+	"sync"
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlb/mapper"
+	"github.com/qjebbs/go-sqlb/tag"
 	"github.com/qjebbs/go-sqlf/v4"
 	{{- range .Imports }}
     "{{ . }}"
     {{- end }}
 )
 
-{{- define "GetColumns" -}}
-	{{- if eq (len .Select.TaggedSelectColumns) 0 -}}
-		[]*sqlb.Column{
-			{{- range .Select.UntaggedSelectColumns }}
-			sqlb.NewTable("{{ .TableName }}", alias...).Column("{{ .ColumnName }}"),
-			{{- end }}
-		}
-	{{- else -}}
-		func() []*sqlb.Column {
-			columns := []*sqlb.Column{
-				{{- range .Select.UntaggedSelectColumns }}
-				sqlb.NewTable("{{ .TableName }}", alias...).Column("{{ .ColumnName }}"),
-				{{- end }}
-			}
-			tagged := []struct {
-				Column *sqlb.Column
-				Tags   []string
-			}{
-				{{- range .Select.TaggedSelectColumns }}
-				{sqlb.NewTable("{{ .TableName }}", alias...).Column("{{ .ColumnName }}"), []string{ {{- range $i, $tag := .SelectTags -}}{{ if $i }}, {{ end }}"{{ $tag }}"{{- end -}} }},
-				{{- end }}
-			}
-			for _, c := range tagged {
-				if tags.Match(c.Tags) {
-					columns = append(columns, c.Column)
-				}
-			}
-			return columns
-		}()
+{{- define "RenderString" -}}
+	{{- if .Value -}}
+		{{ .Name }}: "{{ .Value }}",
 	{{- end -}}
 {{- end -}}
 
-{{- define "GetValues" -}}
-	{{- if eq (len .Select.TaggedSelectColumns) 0 -}}
-		[]any{
-			{{- range .Select.UntaggedSelectColumns }}
-			&s{{ .FieldSelector }}.{{ .FieldName }},
+{{- define "RenderStringSlice" -}}
+	{{- if .Value -}}
+		{{ .Name }}: []string{
+			{{- range .Value -}}
+			"{{ . }}",
 			{{- end }}
-		}
-	{{- else -}}
-		func() []any {
-			fields := []any{
-				{{- range .Select.UntaggedSelectColumns }}
-				&s{{ .FieldSelector }}.{{ .FieldName }},
-				{{- end }}
-			}
-			tagged := []struct {
-				Field any
-				Tags  []string
-			}{
-				{{- range .Select.TaggedSelectColumns }}
-				{&s{{ .FieldSelector }}.{{ .FieldName }}, []string{ {{- range $i, $tag := .SelectTags -}}{{ if $i }}, {{ end }}"{{ $tag }}"{{- end -}} }},
-				{{- end }}
-			}
-			for _, c := range tagged {
-				if tags.Match(c.Tags) {
-					fields = append(fields, c.Field)
-				}
-			}
-			return fields
-		}()
+		},
+	{{ end -}}
+{{- end -}}
+
+{{- define "RenderBool" -}}
+	{{- if .Value -}}
+		{{ .Name }}: true,
 	{{- end -}}
+{{- end -}}
+
+{{- define "RenderStringPointer" -}}
+	{{- if .Value -}}
+		{{ .Name }}: func() *string {
+			s := "{{ .Value }}"
+			return &s
+		}(),
+	{{- end -}}
+{{- end -}}
+
+{{- define "RenderTags" -}}
+	&tag.Info {
+		{{ template "RenderString" (mkmap "Name" "Table" "Value" .Table) }}
+		{{ template "RenderString" (mkmap "Name" "Column" "Value" .Column) }}
+
+		{{ template "RenderBool" (mkmap "Name" "PK" "Value" .PK) }}
+		{{ template "RenderBool" (mkmap "Name" "Required" "Value" .Required) }}
+		{{ template "RenderBool" (mkmap "Name" "ReadOnly" "Value" .ReadOnly) }}
+		{{ template "RenderBool" (mkmap "Name" "InsertZero" "Value" .InsertZero) }}
+		{{ template "RenderBool" (mkmap "Name" "Returning" "Value" .Returning) }}
+		{{ template "RenderStringPointer" (mkmap "Name" "ConflictOn" "Value" .ConflictOn) }}
+		{{ template "RenderStringPointer" (mkmap "Name" "ConflictSet" "Value" .ConflictSet) }}
+
+		{{ template "RenderBool" (mkmap "Name" "Unique" "Value" .Unique) }}
+		{{ template "RenderStringSlice" (mkmap "Name" "UniqueGroups" "Value" .UniqueGroups) }}
+		{{ template "RenderBool" (mkmap "Name" "Match" "Value" .Match) }}
+
+		{{ template "RenderBool" (mkmap "Name" "SoftDelete" "Value" .SoftDelete) }}
+
+		{{ template "RenderString" (mkmap "Name" "Select" "Value" .Select) }}
+		{{ template "RenderStringSlice" (mkmap "Name" "From" "Value" .From) }}
+		{{ template "RenderStringSlice" (mkmap "Name" "SelectOn" "Value" .SelectOn) }}
+		{{ template "RenderBool" (mkmap "Name" "Dive" "Value" .Dive) }}
+	}
 {{- end -}}
 
 {{ range .Structs }}
@@ -93,17 +88,36 @@ import (
 		return new({{ .Name }})
 	}
 
-	func (s *{{ .Name }}) Columns(tags mapper.SelectTags, alias ...string) []*sqlb.Column {
-		return {{ template "GetColumns" . }}
-	}
-
-	func (s *{{ .Name }}) Values(tags mapper.SelectTags) []any {
+	func (s *{{ .Name }}) Values() []any {
 		{{- range .Select.InitFields }}
-		if s{{ .FieldSelector }} == nil {
-			s{{ .FieldSelector }} = new({{ .FieldType }})
+		if s{{ .Selector }} == nil {
+			s{{ .Selector }} = new({{ .Type }})
 		}
 		{{- end }}
-		return {{ template "GetValues" . }}
+		return []any{
+			{{- range .Select.Columns }}
+			&s{{ .Selector }},
+			{{- end }}
+		}
+	}
+
+	var (
+		_{{ .Name }}Once   sync.Once
+		_{{ .Name }}Fields []*mapper.Field
+	)
+
+	func (s *{{ .Name }}) Fields() []*mapper.Field {
+		_{{ .Name }}Once.Do(func() {
+        _{{ .Name }}Fields = []*mapper.Field{
+            {{- range .Select.Columns }}
+				{
+					Tags:  {{ template "RenderTags" .Tags }},
+					Diving: {{ .Diving }},
+				},
+				{{- end }}
+			}
+		})
+		return _{{ .Name }}Fields
 	}
 	{{ end }}
 {{ end }}

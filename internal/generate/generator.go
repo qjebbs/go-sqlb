@@ -20,7 +20,22 @@ import (
 //go:embed code.tmpl
 var codeTemplate string
 
-var tmpl = template.Must(template.New("").Parse(codeTemplate))
+var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
+	"mkmap": func(values ...interface{}) (map[string]interface{}, error) {
+		if len(values)%2 != 0 {
+			return nil, fmt.Errorf("invalid number of arguments to mkmap")
+		}
+		m := make(map[string]interface{})
+		for i := 0; i < len(values); i += 2 {
+			key, ok := values[i].(string)
+			if !ok {
+				return nil, fmt.Errorf("map key must be a string")
+			}
+			m[key] = values[i+1]
+		}
+		return m, nil
+	},
+}).Parse(codeTemplate))
 
 // Generator is responsible for generating SQL builder code based on struct definitions in Go source files.
 type Generator struct {
@@ -126,6 +141,8 @@ func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath 
 
 	formatted, err := format.Source(buf.Bytes())
 	if err != nil {
+		fmt.Println("Generated code:")
+		fmt.Println(buf.String())
 		log.Fatalf("failed to format generated code: %v", err)
 	}
 

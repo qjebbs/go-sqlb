@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/qjebbs/go-sqlb/internal/tag/syntax"
+	"github.com/qjebbs/go-sqlb/tag"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -18,7 +18,7 @@ type FieldInfo struct {
 	Tag         string
 	IsAnonymous bool
 	IsExported  bool
-	Type        interface{} `json:"-"` // Can be ast.Expr or types.Type
+	Type        any `json:"-"` // Can be ast.Expr or types.Type
 }
 
 var _ objecter = (*types.Named)(nil)
@@ -36,7 +36,7 @@ func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) (*Node,
 		isAnonymous := field.IsAnonymous
 
 		var tagVal string
-		var info *syntax.Info
+		var info *tag.Info
 
 		if field.Tag != "" {
 			tagVal = reflect.StructTag(strings.Trim(field.Tag, "`")).Get("sqlb")
@@ -49,7 +49,7 @@ func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) (*Node,
 				continue
 			}
 		} else {
-			parsed, err := syntax.Parse(tagVal)
+			parsed, err := tag.Parse(tagVal)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse tag %q: %w", tagVal, err)
 			}
@@ -98,7 +98,7 @@ func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) (*Node,
 	return parent, nil
 }
 
-func resolveTypeInfo(pkg *packages.Package, typeExpr interface{}) (isPtr bool, typeStr, importPath string, typeObj types.Object, err error) {
+func resolveTypeInfo(pkg *packages.Package, typeExpr any) (isPtr bool, typeStr, importPath string, typeObj types.Object, err error) {
 	qualifier := func(p *types.Package) string {
 		if p.Path() == pkg.Types.Path() {
 			return ""

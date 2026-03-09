@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/qjebbs/go-sqlb/internal/tag/syntax"
+	"github.com/qjebbs/go-sqlb/tag"
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
@@ -15,7 +15,7 @@ type structInfo struct {
 }
 
 type fieldInfo struct {
-	syntax.Info
+	tag.Info
 
 	Name   string       // field name
 	Type   reflect.Type // field type
@@ -61,15 +61,15 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
 
-			var info *syntax.Info
-			tag := field.Tag.Get("sqlb")
-			if tag == "-" {
+			var info *tag.Info
+			tagVal := field.Tag.Get("sqlb")
+			if tagVal == "-" {
 				continue
 			}
-			if tag != "" {
-				parsed, err := syntax.Parse(tag)
+			if tagVal != "" {
+				parsed, err := tag.Parse(tagVal)
 				if err != nil {
-					return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tag, err)
+					return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tagVal, err)
 				}
 				if parsed.Table != "" {
 					curTable = parsed.Table

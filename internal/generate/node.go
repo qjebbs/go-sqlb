@@ -5,7 +5,7 @@ import (
 	"go/ast"
 	"go/types"
 
-	"github.com/qjebbs/go-sqlb/internal/tag/syntax"
+	"github.com/qjebbs/go-sqlb/tag"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -18,7 +18,7 @@ type Node struct {
 	IsPtr       bool   `json:",omitempty"` // Indicates if the field is a pointer type
 	ImportPath  string `json:",omitempty"` // The package path of the field's type, if it's from an imported package
 
-	Conf *syntax.Info `json:",omitempty"` // The parsed tag information, if available
+	Conf *tag.Info `json:",omitempty"` // The parsed tag information, if available
 
 	Parent   *Node   `json:"-"`
 	Children []*Node `json:",omitempty"`

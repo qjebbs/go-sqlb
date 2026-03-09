@@ -101,6 +101,23 @@ import (
 		}
 	}
 
+	func (s *{{ .Name }}) FillValues(dests []any, indexes []int) {
+		{{- range .Select.InitFields }}
+		if s{{ .Selector }} == nil {
+			s{{ .Selector }} = new({{ .Type }})
+		}
+		{{- end }}
+
+		for i, index := range indexes {
+			switch index {
+			{{- range $i, $col := .Select.Columns }}
+			case {{ $i }}:
+				dests[i] = &s{{ .Selector }}
+			{{- end }}
+			}
+		}
+	}
+
 	var (
 		_{{ .Name }}Once   sync.Once
 		_{{ .Name }}Fields []*mapper.Field

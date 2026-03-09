@@ -118,23 +118,14 @@ func (g *Generator) findPackages(patterns []string) ([]*packages.Package, error)
 	return pkgs, nil
 }
 
-// Info holds information about the package and structs to be used in the code generation template.
-type Info struct {
-	Name    string
-	Structs []StructInfo
-	Imports []string
-}
-
 func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath string) {
 	if len(structs) == 0 {
 		return
 	}
 	var buf bytes.Buffer
-	err := tmpl.Execute(&buf, &Info{
-		Name:    pkg.Name,
-		Structs: structs,
-		Imports: g.collectImports(structs),
-	})
+	data := NewData(pkg.Name, structs)
+	err := tmpl.Execute(&buf, data)
+
 	if err != nil {
 		log.Fatalf("failed to execute template: %v", err)
 	}
@@ -159,10 +150,36 @@ func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath 
 	}
 }
 
-func (g *Generator) collectImports(structs []StructInfo) []string {
+// Data holds information about the package and structs to be used in the code generation template.
+type Data struct {
+	Name    string
+	Structs []StructInfo
+
+	Imports   []string
+	HasModel  bool
+	HasSelect bool
+}
+
+// NewData creates a new Data instance with the given package name and struct information, and initializes it.
+func NewData(name string, structs []StructInfo) *Data {
+	info := &Data{
+		Name:    name,
+		Structs: structs,
+	}
+	info.init()
+	return info
+}
+
+func (i *Data) init() {
 	importSet := make(map[string]struct{})
-	for _, s := range structs {
+	hasTable := false
+	hasSelect := false
+	for _, s := range i.Structs {
+		if s.Model != nil {
+			hasTable = true
+		}
 		if s.Select != nil {
+			hasSelect = true
 			for _, imp := range s.Select.Imports {
 				importSet[imp] = struct{}{}
 			}
@@ -172,5 +189,7 @@ func (g *Generator) collectImports(structs []StructInfo) []string {
 	for imp := range importSet {
 		imports = append(imports, imp)
 	}
-	return imports
+	i.Imports = imports
+	i.HasModel = hasTable
+	i.HasSelect = hasSelect
 }

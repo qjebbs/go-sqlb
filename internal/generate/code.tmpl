@@ -2,71 +2,74 @@
 package {{ .Name }}
 
 import (
-	"sync"
-	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/mapper"
-	"github.com/qjebbs/go-sqlb/tag"
-	"github.com/qjebbs/go-sqlf/v4"
-	{{- range .Imports }}
+	{{- if .HasSelect }}
+    "sync"
+    {{ end -}}
+
+    {{- if .HasModel }}
+    "github.com/qjebbs/go-sqlb"
+    "github.com/qjebbs/go-sqlf/v4"
+    {{- end }}
+    {{- if .HasSelect }}
+    "github.com/qjebbs/go-sqlb/mapper"
+    "github.com/qjebbs/go-sqlb/tag"
+    {{- end }}
+    {{- range .Imports }}
     "{{ . }}"
     {{- end }}
 )
 
 {{- define "RenderString" -}}
-	{{- if .Value -}}
-		{{ .Name }}: "{{ .Value }}",
-	{{- end -}}
+    {{- if .Value }}
+        {{ .Name }}: "{{ .Value }}",
+    {{- end }}
 {{- end -}}
 
 {{- define "RenderStringSlice" -}}
-	{{- if .Value -}}
-		{{ .Name }}: []string{
-			{{- range .Value -}}
-			"{{ . }}",
-			{{- end }}
-		},
-	{{ end -}}
+    {{- if .Value }}
+        {{ .Name }}: []string{
+            {{- range .Value -}}
+            "{{ . }}",
+            {{- end }}
+        },
+    {{- end }}
 {{- end -}}
 
 {{- define "RenderBool" -}}
-	{{- if .Value -}}
-		{{ .Name }}: true,
-	{{- end -}}
+    {{- if .Value }}
+        {{ .Name }}: true,
+    {{- end }}
 {{- end -}}
 
 {{- define "RenderStringPointer" -}}
-	{{- if .Value -}}
-		{{ .Name }}: func() *string {
-			s := "{{ .Value }}"
-			return &s
-		}(),
-	{{- end -}}
+    {{- if .Value }}
+        {{ .Name }}: func() *string {
+            s := "{{ .Value }}"
+            return &s
+        }(),
+    {{- end }}
 {{- end -}}
 
 {{- define "RenderTags" -}}
-	&tag.Info {
-		{{ template "RenderString" (mkmap "Name" "Table" "Value" .Table) }}
-		{{ template "RenderString" (mkmap "Name" "Column" "Value" .Column) }}
-
-		{{ template "RenderBool" (mkmap "Name" "PK" "Value" .PK) }}
-		{{ template "RenderBool" (mkmap "Name" "Required" "Value" .Required) }}
-		{{ template "RenderBool" (mkmap "Name" "ReadOnly" "Value" .ReadOnly) }}
-		{{ template "RenderBool" (mkmap "Name" "InsertZero" "Value" .InsertZero) }}
-		{{ template "RenderBool" (mkmap "Name" "Returning" "Value" .Returning) }}
-		{{ template "RenderStringPointer" (mkmap "Name" "ConflictOn" "Value" .ConflictOn) }}
-		{{ template "RenderStringPointer" (mkmap "Name" "ConflictSet" "Value" .ConflictSet) }}
-
-		{{ template "RenderBool" (mkmap "Name" "Unique" "Value" .Unique) }}
-		{{ template "RenderStringSlice" (mkmap "Name" "UniqueGroups" "Value" .UniqueGroups) }}
-		{{ template "RenderBool" (mkmap "Name" "Match" "Value" .Match) }}
-
-		{{ template "RenderBool" (mkmap "Name" "SoftDelete" "Value" .SoftDelete) }}
-
-		{{ template "RenderString" (mkmap "Name" "Select" "Value" .Select) }}
-		{{ template "RenderStringSlice" (mkmap "Name" "From" "Value" .From) }}
-		{{ template "RenderStringSlice" (mkmap "Name" "SelectOn" "Value" .SelectOn) }}
-		{{ template "RenderBool" (mkmap "Name" "Dive" "Value" .Dive) }}
-	}
+    &tag.Info{
+        {{- template "RenderString" (mkmap "Name" "Table" "Value" .Table) }}
+        {{- template "RenderString" (mkmap "Name" "Column" "Value" .Column) }}
+        {{- template "RenderBool" (mkmap "Name" "PK" "Value" .PK) }}
+        {{- template "RenderBool" (mkmap "Name" "Required" "Value" .Required) }}
+        {{- template "RenderBool" (mkmap "Name" "ReadOnly" "Value" .ReadOnly) }}
+        {{- template "RenderBool" (mkmap "Name" "InsertZero" "Value" .InsertZero) }}
+        {{- template "RenderBool" (mkmap "Name" "Returning" "Value" .Returning) }}
+        {{- template "RenderStringPointer" (mkmap "Name" "ConflictOn" "Value" .ConflictOn) }}
+        {{- template "RenderStringPointer" (mkmap "Name" "ConflictSet" "Value" .ConflictSet) }}
+        {{- template "RenderBool" (mkmap "Name" "Unique" "Value" .Unique) }}
+        {{- template "RenderStringSlice" (mkmap "Name" "UniqueGroups" "Value" .UniqueGroups) }}
+        {{- template "RenderBool" (mkmap "Name" "Match" "Value" .Match) }}
+        {{- template "RenderBool" (mkmap "Name" "SoftDelete" "Value" .SoftDelete) }}
+        {{- template "RenderString" (mkmap "Name" "Select" "Value" .Select) }}
+        {{- template "RenderStringSlice" (mkmap "Name" "From" "Value" .From) }}
+        {{- template "RenderStringSlice" (mkmap "Name" "SelectOn" "Value" .SelectOn) }}
+        {{- template "RenderBool" (mkmap "Name" "Dive" "Value" .Dive) }}
+    }
 {{- end -}}
 
 {{ range .Structs }}
@@ -107,7 +110,6 @@ import (
 			s{{ .Selector }} = new({{ .Type }})
 		}
 		{{- end }}
-
 		for i, index := range indexes {
 			switch index {
 			{{- range $i, $col := .Select.Columns }}

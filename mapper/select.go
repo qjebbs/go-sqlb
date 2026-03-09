@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/qjebbs/go-sqlb"
 	"github.com/qjebbs/go-sqlf/v4"
@@ -57,4 +58,22 @@ func Select[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, options ...O
 		return nil, wrapErrWithDebugName("Select", zero, err)
 	}
 	return r, nil
+}
+
+func _select[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, options ...Option) ([]T, error) {
+	var zero T
+	m, ok := any(zero).(selectableModel[T])
+	if !ok {
+		return _selectReflect(ctx, db, zero, b, options...)
+	}
+	// m can be nil if T is an pointer type, so we need to create a new instance to call the methods.
+	// It's safe to call New() on a nil pointer receiver, as long as the method doesn't access any
+	// fields of the struct.
+	model := any(m.New()).(selectableModel[T])
+	r, err := _selectModel(ctx, db, b, model, options...)
+	if err != nil {
+		return nil, fmt.Errorf("select model: %w", err)
+	}
+	return r, nil
+
 }

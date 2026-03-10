@@ -11,7 +11,6 @@ import (
     "github.com/qjebbs/go-sqlf/v4"
     {{- end }}
     {{- if .HasSelect }}
-    "github.com/qjebbs/go-sqlb/mapper"
     "github.com/qjebbs/go-sqlb/tag"
     {{- end }}
     {{- range .Imports }}
@@ -43,15 +42,12 @@ import (
 
 {{- define "RenderStringPointer" -}}
     {{- if .Value }}
-        {{ .Name }}: func() *string {
-            s := "{{ .Value }}"
-            return &s
-        }(),
+        {{ .Name }}: func() *string {  s := "{{ .Value }}"; return &s }(),
     {{- end }}
 {{- end -}}
 
 {{- define "RenderTags" -}}
-    &tag.Info{
+    {
         {{- template "RenderString" (mkmap "Name" "Table" "Value" .Table) }}
         {{- template "RenderString" (mkmap "Name" "Column" "Value" .Column) }}
         {{- template "RenderBool" (mkmap "Name" "PK" "Value" .PK) }}
@@ -122,19 +118,16 @@ import (
 
 	var (
 		_{{ .Name }}Once   sync.Once
-		_{{ .Name }}Fields []*mapper.Field
+		_{{ .Name }}Fields []*tag.Info
 	)
 
-	func (s *{{ .Name }}) Fields() []*mapper.Field {
+	func (s *{{ .Name }}) Tags() []*tag.Info {
 		_{{ .Name }}Once.Do(func() {
-        _{{ .Name }}Fields = []*mapper.Field{
+        _{{ .Name }}Fields = []*tag.Info{
             {{- range .Select.Columns }}
-				{
-					Tags:  {{ template "RenderTags" .Tags }},
-					Diving: {{ .Diving }},
-				},
-				{{- end }}
-			}
+			{{ template "RenderTags" .Tags }},
+			{{- end }}
+		}
 		})
 		return _{{ .Name }}Fields
 	}

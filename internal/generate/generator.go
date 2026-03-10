@@ -58,6 +58,22 @@ func (g *Generator) Generate(patterns []string) error {
 		return fmt.Errorf("failed to find packages: %v", err)
 	}
 
+	generatedFiles := make(map[string]struct{})
+	existingGeneratedFiles := make(map[string]struct{})
+
+	for _, pkg := range pkgs {
+		dir := filepath.Dir(pkg.GoFiles[0])
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			return fmt.Errorf("failed to read directory %s: %v", dir, err)
+		}
+		for _, file := range files {
+			if !file.IsDir() && (strings.HasSuffix(file.Name(), "_sqlb_gen.go") || strings.HasSuffix(file.Name(), "_sqlb_gen_test.go")) {
+				existingGeneratedFiles[filepath.Join(dir, file.Name())] = struct{}{}
+			}
+		}
+	}
+
 	if g.Unifile {
 		for _, pkg := range pkgs {
 			var allStructs []StructInfo
@@ -71,35 +87,46 @@ func (g *Generator) Generate(patterns []string) error {
 			}
 			if len(allStructs) > 0 {
 				dir := filepath.Dir(pkg.GoFiles[0])
-				g.write(
+				outputName := g.write(
 					pkg, allStructs,
 					filepath.Join(dir, pkg.Name),
 				)
+				generatedFiles[outputName] = struct{}{}
 			}
 		}
-		return nil
+	} else {
+		for _, pkg := range pkgs {
+			// file path -> structs
+			fileStructs := make(map[string][]StructInfo)
+			for i, fileNode := range pkg.Syntax {
+				filePath := pkg.GoFiles[i]
+				structs, err := g.processFile(pkg, fileNode)
+				if err != nil {
+					return fmt.Errorf("failed to process file %s: %v", filePath, err)
+				}
+				if len(structs) > 0 {
+					fileStructs[filePath] = append(fileStructs[filePath], structs...)
+				}
+			}
+
+			for filePath, structs := range fileStructs {
+				if len(structs) > 0 {
+					outputName := g.write(pkg, structs, filePath)
+					generatedFiles[outputName] = struct{}{}
+				}
+			}
+		}
 	}
 
-	for _, pkg := range pkgs {
-		// file path -> structs
-		fileStructs := make(map[string][]StructInfo)
-		for i, fileNode := range pkg.Syntax {
-			filePath := pkg.GoFiles[i]
-			structs, err := g.processFile(pkg, fileNode)
-			if err != nil {
-				return fmt.Errorf("failed to process file %s: %v", filePath, err)
-			}
-			if len(structs) > 0 {
-				fileStructs[filePath] = append(fileStructs[filePath], structs...)
-			}
-		}
-
-		for filePath, structs := range fileStructs {
-			if len(structs) > 0 {
-				g.write(pkg, structs, filePath)
+	// Clean up old files
+	for file := range existingGeneratedFiles {
+		if _, ok := generatedFiles[file]; !ok {
+			if err := os.Remove(file); err != nil {
+				log.Printf("failed to remove old generated file %s: %v", file, err)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -118,9 +145,9 @@ func (g *Generator) findPackages(patterns []string) ([]*packages.Package, error)
 	return pkgs, nil
 }
 
-func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath string) {
+func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath string) string {
 	if len(structs) == 0 {
-		return
+		return ""
 	}
 	var buf bytes.Buffer
 	data := NewData(pkg.Name, structs)
@@ -148,6 +175,7 @@ func (g *Generator) write(pkg *packages.Package, structs []StructInfo, filePath 
 	if err != nil {
 		log.Fatalf("failed to write output file: %v", err)
 	}
+	return outputName
 }
 
 // Data holds information about the package and structs to be used in the code generation template.

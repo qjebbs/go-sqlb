@@ -50,7 +50,7 @@ func _selectModel[T any](ctx sqlb.Context, db QueryAble, b SelectBuilder, model 
 		// compiler that the slice's lifetime is confined. This gives the compiler the opportunity
 		// to perform an optimization and allocate the `values` slice on the stack instead of the heap,
 		// effectively making this part of the scan preparation a zero-allocation operation.
-		model.FillValues(values, indexes)
+		any(m).(selectableModel[T]).FillValues(values, indexes)
 		return m, values
 	})
 }

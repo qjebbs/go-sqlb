@@ -56,6 +56,13 @@ func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) (*Node,
 			info = parsed
 		}
 
+		// don't not ignore unexported fields even if they are not anonymous,
+		// as they might be used to define table names, e.g.:
+		// type User struct {
+		//     _ struct{} `sqlb:"users"`
+		//     ID int
+		// }
+
 		isPtr, fieldType, importPath, typeObj, err := resolveTypeInfo(pkg, field.Type)
 		if err != nil {
 			return nil, err
@@ -70,9 +77,6 @@ func findFields(pkg *packages.Package, parent *Node, fields []FieldInfo) (*Node,
 			ImportPath:  importPath,
 		}
 
-		if !isAnonymous && !field.IsExported {
-			continue
-		}
 		parent.AddChild(node)
 		if typeObj != nil {
 			underlyingStruct := findUnderlyingStruct(typeObj.Type())

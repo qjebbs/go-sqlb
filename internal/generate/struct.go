@@ -7,9 +7,13 @@ type StructInfo struct {
 	Select *StructSelectInfo
 }
 
-func parseStruct(name string, n *Node) *StructInfo {
+func parseStruct(name string, n *Node, mapperMethods bool) *StructInfo {
 	model := parseStructModel(n)
-	selects := parseStructSelects(n)
+
+	var selects *StructSelectInfo
+	if mapperMethods {
+		selects = parseStructSelects(n)
+	}
 	if model == nil && selects == nil {
 		return nil
 	}

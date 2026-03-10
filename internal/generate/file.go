@@ -37,7 +37,7 @@ func (g *Generator) processFile(pkg *packages.Package, node *ast.File) ([]Struct
 			inspectError = err
 			return false
 		}
-		r := parseStruct(ts.Name.Name, nd)
+		r := parseStruct(ts.Name.Name, nd, g.MapperMethods)
 		if r != nil {
 			structs = append(structs, *r)
 		}

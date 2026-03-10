@@ -42,12 +42,19 @@ type Generator struct {
 	// Unifile indicates whether to generate a single file for the entire package
 	// or separate files for each file.
 	Unifile bool
+
+	// MapperMethods indicates whether to generate methods that implement
+	// mapper interfaces. This provides a more performant, reflection-free
+	// alternative for mapping operations but increases the amount of generated code.
+	// It should be enabled only when optimization of the mapper package is a specific goal.
+	MapperMethods bool
 }
 
 // NewGenerator creates a new instance of Generator with the specified unifile option.
-func NewGenerator(unifile bool) *Generator {
+func NewGenerator(unifile, mapperMethods bool) *Generator {
 	return &Generator{
-		Unifile: unifile,
+		Unifile:       unifile,
+		MapperMethods: mapperMethods,
 	}
 }
 

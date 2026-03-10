@@ -9,8 +9,12 @@ import (
 )
 
 func main() {
-	var unifile bool
+	var (
+		unifile       bool
+		mapperMethods bool
+	)
 	flag.BoolVar(&unifile, "unifile", false, "generate a single file for the entire package")
+	flag.BoolVar(&mapperMethods, "mapperMethods", false, "generate methods that implement mapper interfaces")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] [patterns]\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, "Flags:")
@@ -25,7 +29,7 @@ func main() {
 		patterns = []string{"./..."}
 	}
 
-	err := generate.NewGenerator(unifile).Generate(patterns)
+	err := generate.NewGenerator(unifile, mapperMethods).Generate(patterns)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

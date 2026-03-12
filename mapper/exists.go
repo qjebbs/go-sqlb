@@ -9,6 +9,15 @@ import (
 //
 // See Load() for struct tag syntax and locating rules.
 func Exists[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) (bool, error) {
+	r, err := exists(ctx, db, value, options...)
+	if err != nil {
+		var zero T
+		return false, wrapErrWithDebugName("Exists", zero, err)
+	}
+	return r, nil
+}
+
+func exists[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option) (bool, error) {
 	if err := checkStruct(value); err != nil {
 		return false, err
 	}
@@ -44,7 +53,7 @@ func buildExistsQueryForStruct[T any](ctx sqlb.Context, value T, opt *Options) (
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
-	info, err := getStructInfo(value)
+	info, err := getModelStructInfo(value)
 	if err != nil {
 		return "", nil, err
 	}

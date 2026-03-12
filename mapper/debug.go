@@ -41,14 +41,15 @@ func (d *debugger) print(dialect dialect.Dialect) {
 	if !ok {
 		query = fmt.Sprintf("%s; %v", d.query, d.args)
 	}
+	if len(d.msgs) == 0 && d.query == "" {
+		return
+	}
 	d.writer.Write([]byte{'['})
 	d.writer.Write([]byte(d.name))
 	d.writer.Write([]byte{']', ' '})
-	if len(d.msgs) > 0 {
-		for _, msg := range d.msgs {
-			d.writer.Write([]byte(msg))
-			d.writer.Write([]byte{':', ' '})
-		}
+	for _, msg := range d.msgs {
+		d.writer.Write([]byte(msg))
+		d.writer.Write([]byte{':', ' '})
 	}
 	d.writer.Write([]byte(query))
 	d.writer.Write([]byte{'\n'})

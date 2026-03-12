@@ -1,6 +1,6 @@
 package mapper_test
 
-//go:generate go run github.com/qjebbs/go-sqlb/cmd/sqlbgen .
+//go:generate go run github.com/qjebbs/go-sqlb/cmd/sqlbgen -mapperMethods .
 
 import (
 	"context"

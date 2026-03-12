@@ -15,16 +15,28 @@ type ModelColumnInfo struct {
 }
 
 func parseStructModel(n *Node) *StructModelInfo {
-	var modelColumns []ModelColumnInfo
+	// Inheritable by latter fields, including children and siblings after.
+	// Or, global statistics about the struct
+	type inheritable struct {
+		// Inheritable
+		table string
+
+		// Global statistics
+		uniqueTable    bool
+		topHasModelTag bool
+		columns        []ModelColumnInfo
+	}
 	type modelContext struct {
-		// current table name, used for inheriting table names in embedded structs
-		table       string
-		uniqueTable bool
+		*inheritable
+		topLevel bool
 	}
-	ctx := &modelContext{
-		uniqueTable: true,
+	ctx := modelContext{
+		topLevel: true,
+		inheritable: &inheritable{
+			uniqueTable: true,
+		},
 	}
-	WalkNodeContext(ctx, n, func(ctx *modelContext, n *Node) (*modelContext, bool) {
+	WalkNodeContext(ctx, n, func(ctx modelContext, n *Node) (modelContext, bool) {
 		if n.Conf == nil {
 			return ctx, true
 		}
@@ -37,8 +49,12 @@ func parseStructModel(n *Node) *StructModelInfo {
 			// inherit table name
 			n.Conf.Table = ctx.table
 		}
+		if ctx.topLevel && n.Conf.Model {
+			ctx.topHasModelTag = true
+		}
 		if n.IsAnonymous {
 			// Anonymous fields are not treated as columns themselves, but their children might be.
+			ctx.topLevel = false
 			return ctx, true
 		}
 		if !n.IsExported {
@@ -46,7 +62,7 @@ func parseStructModel(n *Node) *StructModelInfo {
 			return ctx, false
 		}
 		if n.Conf.Table != "" && n.Conf.Column != "" {
-			modelColumns = append(modelColumns, ModelColumnInfo{
+			ctx.columns = append(ctx.columns, ModelColumnInfo{
 				FieldName:  n.Name,
 				TableName:  n.Conf.Table,
 				ColumnName: n.Conf.Column,
@@ -55,12 +71,12 @@ func parseStructModel(n *Node) *StructModelInfo {
 		return ctx, false
 	})
 
-	if !ctx.uniqueTable || len(modelColumns) == 0 {
+	if !ctx.topHasModelTag || !ctx.uniqueTable || len(ctx.columns) == 0 {
 		return nil
 	}
 
 	return &StructModelInfo{
 		Table:   ctx.table,
-		Columns: modelColumns,
+		Columns: ctx.columns,
 	}
 }

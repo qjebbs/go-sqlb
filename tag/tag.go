@@ -2,6 +2,7 @@ package tag
 
 // Info represents parsed tag information.
 type Info struct {
+	Model  bool   `json:",omitempty"` // Model indicates whether "model" key is present.
 	Table  string `json:",omitempty"` // Table is parsed from "table" key.
 	Column string `json:",omitempty"` // Column is parsed from "col" key.
 

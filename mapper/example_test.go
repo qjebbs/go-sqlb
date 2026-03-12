@@ -104,13 +104,13 @@ type Model struct {
 }
 
 type User struct {
-	Model `sqlb:"table:users"`
+	Model `sqlb:"model;table:users"`
 	OrgID int    `sqlb:"col:org_id"`
 	Name  string `sqlb:"col:name"`
 }
 
 type Org struct {
-	Model `sqlb:"table:orgs"`
+	Model `sqlb:"model;table:orgs"`
 	Name  string `sqlb:"col:name"`
 }
 type userListItem struct {

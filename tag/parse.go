@@ -120,6 +120,10 @@ func parseKeyValue(p *parser) (parseFn, error) {
 			p.c.Select = p.token.lit
 			return nil
 		})
+	case "model":
+		return parseBoolAndSet(p, func(v bool) {
+			p.c.Model = v
+		})
 	case "table":
 		return parseStringAndSet(p, func(v string) error {
 			p.c.Table = v

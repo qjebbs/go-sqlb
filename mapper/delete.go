@@ -66,7 +66,7 @@ func buildDeleteQueryForStruct[T any](ctx sqlb.Context, value T, opt *Options) (
 	if opt == nil {
 		opt = newDefaultOptions()
 	}
-	info, err := getStructInfo(value)
+	info, err := getModelStructInfo(value)
 	if err != nil {
 		return "", nil, err
 	}

@@ -110,7 +110,7 @@ func buildInsertQueryForStruct[T any](ctx sqlb.Context, values []T, opt *Options
 		opt = newDefaultOptions()
 	}
 	var zero T
-	info, err := getStructInfo(zero)
+	info, err := getModelStructInfo(zero)
 	if err != nil {
 		return "", nil, nil, err
 	}

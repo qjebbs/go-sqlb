@@ -28,7 +28,9 @@ func parseStructModel(n *Node) *StructModelInfo {
 	}
 	type modelContext struct {
 		*inheritable
-		topLevel bool
+		topLevel             bool
+		directEmbedding      bool
+		directEmbeddingLevel int
 	}
 	ctx := modelContext{
 		topLevel: true,
@@ -49,11 +51,16 @@ func parseStructModel(n *Node) *StructModelInfo {
 			// inherit table name
 			n.Conf.Table = ctx.table
 		}
-		if ctx.topLevel && n.Conf.Model {
+		if n.Conf.Model && (ctx.topLevel || ctx.directEmbeddingLevel == 1) {
 			ctx.topHasModelTag = true
 		}
 		if n.IsAnonymous {
 			// Anonymous fields are not treated as columns themselves, but their children might be.
+			if ctx.topLevel || ctx.directEmbedding {
+				// only identify direct embedding.
+				ctx.directEmbedding = true
+				ctx.directEmbeddingLevel++
+			}
 			ctx.topLevel = false
 			return ctx, true
 		}

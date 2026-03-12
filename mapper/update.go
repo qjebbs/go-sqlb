@@ -88,7 +88,7 @@ func buildUpdateQueryForStruct[T any](ctx sqlb.Context, value T, updateAll bool,
 	b := sqlb.NewUpdateBuilder()
 
 	var zero T
-	info, err := getStructInfo(zero)
+	info, err := getModelStructInfo(zero)
 	if err != nil {
 		return "", nil, err
 	}

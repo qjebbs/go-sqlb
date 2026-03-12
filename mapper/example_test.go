@@ -20,7 +20,7 @@ func Example_cRUD() {
 		// ID is the model ID.
 		// pk means primary key, which is used to locate records for Load / Update / Delete operations.
 		// returning means the ID will be returned after insertion.
-		ID int64 `sqlb:"col:id;pk;returning"`
+		ID int64 `sqlb:"model;col:id;pk;returning"`
 		// Created is the creation time.
 		// readonly means this field will be excluded from INSERT / UPDATE, created usually set by DB default value.
 		Created *time.Time `sqlb:"col:created;readonly"`
@@ -97,20 +97,20 @@ func Example_cRUD() {
 
 // Model represents the base model with common fields.
 type Model struct {
-	ID      int        `sqlb:"col:id"`
+	ID      int        `sqlb:"model;col:id"`
 	Created *time.Time `sqlb:"col:created"`
 	Updated *time.Time `sqlb:"col:updated"`
 	Deleted *time.Time `sqlb:"col:deleted"`
 }
 
 type User struct {
-	Model `sqlb:"model;table:users"`
+	Model `sqlb:"table:users"`
 	OrgID int    `sqlb:"col:org_id"`
 	Name  string `sqlb:"col:name"`
 }
 
 type Org struct {
-	Model `sqlb:"model;table:orgs"`
+	Model `sqlb:"table:orgs"`
 	Name  string `sqlb:"col:name"`
 }
 type userListItem struct {

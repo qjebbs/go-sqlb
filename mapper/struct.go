@@ -10,8 +10,11 @@ import (
 )
 
 type structInfo struct {
-	columns []fieldInfo
-	err     error
+	columns        []fieldInfo
+	uniqueTable    bool
+	topHasModelTag bool
+
+	err error
 }
 
 type fieldInfo struct {
@@ -28,6 +31,20 @@ func (f fieldInfo) NewColumnBuilder() sqlf.Builder {
 }
 
 var structCache sync.Map
+
+func getModelStructInfo(zero any) (*structInfo, error) {
+	info, err := getStructInfo(zero)
+	if err != nil {
+		return nil, err
+	}
+	if !info.topHasModelTag {
+		return nil, fmt.Errorf("refuse to operate a struct without 'model' tag on top-level / first level embedded fields, to avoid unexpected behavior")
+	}
+	if !info.uniqueTable {
+		return nil, fmt.Errorf("multiple tables found in a model struct")
+	}
+	return info, nil
+}
 
 func getStructInfo(zero any) (*structInfo, error) {
 	typ := reflect.TypeOf(zero)
@@ -49,14 +66,24 @@ func getStructInfo(zero any) (*structInfo, error) {
 }
 
 func parseStructInfo(typ reflect.Type, zero any) *structInfo {
-	var columns []fieldInfo
+	// Inheritable by latter fields, including children and siblings after.
+	// Or, global statistics about the struct
+	type inheritable struct {
+		// Inheritable
+		table string
+
+		// Global statistics
+		structInfo
+	}
 	type context struct {
-		table  string
-		diving bool
+		*inheritable
+		topLevel             bool
+		directEmbedding      bool
+		directEmbeddingLevel int
+		diving               bool
 	}
 	var findFields func(t reflect.Type, basePath []int, ctx context) error
 	findFields = func(t reflect.Type, basePath []int, ctx context) error {
-		curTable := ctx.table
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			currentPath := append(basePath, i)
@@ -72,24 +99,30 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					return fmt.Errorf("sqlb tag: on %T.%s: %q: %w", zero, field.Name, tagVal, err)
 				}
 				if parsed.Table != "" {
-					curTable = parsed.Table
+					if ctx.table != "" && ctx.table != parsed.Table {
+						ctx.uniqueTable = false
+					}
+					ctx.table = parsed.Table
 				} else {
-					parsed.Table = curTable
+					parsed.Table = ctx.table
+				}
+				if parsed.Model && (ctx.topLevel || ctx.directEmbeddingLevel == 1) {
+					ctx.topHasModelTag = true
 				}
 				info = parsed
 			}
 			if field.Anonymous {
-				if info != nil {
-					if info.Column != "" || len(info.SelectOn) > 0 {
-						return fmt.Errorf("sqlb tag: %T.%s: anonymous field supports only the 'tables' key", zero, field.Name)
-					}
-				}
 				if field.Type.Kind() == reflect.Ptr {
 					field.Type = field.Type.Elem()
 				}
 				if field.Type.Kind() == reflect.Struct {
-					ctx.table = curTable
-					err := findFields(field.Type, currentPath, ctx)
+					newCtx := ctx
+					if ctx.topLevel || ctx.directEmbedding {
+						newCtx.directEmbedding = true
+						newCtx.directEmbeddingLevel++
+					}
+					newCtx.topLevel = false
+					err := findFields(field.Type, currentPath, newCtx)
 					if err != nil {
 						return err
 					}
@@ -109,9 +142,10 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 					if field.Type.Kind() != reflect.Struct {
 						return fmt.Errorf("sqlb tag: column definition on %T.%s: 'dive' can be used only with struct fields", zero, field.Name)
 					}
-					ctx.table = curTable
-					ctx.diving = ctx.diving || info.Dive
-					err := findFields(field.Type, currentPath, ctx)
+					newCtx := ctx
+					newCtx.diving = true
+					newCtx.topLevel = false
+					err := findFields(field.Type, currentPath, newCtx)
 					if err != nil {
 						return err
 					}
@@ -120,7 +154,7 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 				if info.Column == "" && info.Select == "" {
 					continue
 				}
-				columns = append(columns, fieldInfo{
+				ctx.columns = append(ctx.columns, fieldInfo{
 					Info:  *info,
 					Name:  field.Name,
 					Type:  field.Type,
@@ -131,19 +165,22 @@ func parseStructInfo(typ reflect.Type, zero any) *structInfo {
 		return nil
 	}
 
-	err := findFields(typ, nil, context{})
+	ctx := context{
+		inheritable: &inheritable{
+			structInfo: structInfo{
+				uniqueTable: true,
+			},
+		},
+		topLevel: true,
+	}
+	err := findFields(typ, nil, ctx)
 	if err != nil {
 		return &structInfo{err: err}
 	}
 
-	if len(columns) == 0 {
-		return &structInfo{
-			err: fmt.Errorf("no fields with 'sqlb' tag found in struct %T", zero),
-		}
+	if len(ctx.columns) == 0 {
+		ctx.structInfo.err = fmt.Errorf("no fields with 'sqlb' tag found in struct %T", zero)
 	}
 
-	return &structInfo{
-		columns: columns,
-		err:     nil,
-	}
+	return &ctx.structInfo
 }

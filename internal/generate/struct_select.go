@@ -39,28 +39,34 @@ func parseStructSelects(n *Node) *StructSelectInfo {
 		imports   []string
 		selectors []SelectorInfo
 	)
-	var curTable string
-	n.Walk(func(n *Node) bool {
+	type mapperContext struct {
+		// current table name, used for inheriting table names in embedded structs
+		table string
+		// diving indicates whether current field is under a field with `sqlb:"dive"` tag
+		diving bool
+	}
+	WalkNodeContext(mapperContext{}, n, func(ctx mapperContext, n *Node) (mapperContext, bool) {
 		if n.Conf == nil {
-			return true
+			return ctx, true
 		}
 		if n.Conf.Table != "" {
-			curTable = n.Conf.Table
+			ctx.table = n.Conf.Table
 		} else {
 			// inherit table name
-			n.Conf.Table = curTable
+			n.Conf.Table = ctx.table
 		}
 		if !n.IsExported {
 			// Unexported fields cannot be accessed by the generated code, so we skip them.
-			return false
+			return ctx, false
 		}
 		if n.IsAnonymous {
 			// Anonymous fields are not treated as columns themselves, but their children might be.
-			return true
+			return ctx, true
 		}
 		if n.Conf.Dive {
 			// If Dive is true, we want to continue walking into this field's children, but we don't want to treat this field as a column itself.
-			return true
+			ctx.diving = true
+			return ctx, true
 		}
 		if n.Conf.Table != "" && n.Conf.Column != "" {
 			var selectorPath []string
@@ -89,12 +95,12 @@ func parseStructSelects(n *Node) *StructSelectInfo {
 			fieldSelector += "." + n.Name
 			info := SelectColumnInfo{
 				Selector: fieldSelector,
-				Diving:   isDiving(n),
+				Diving:   ctx.diving,
 				Tags:     n.Conf,
 			}
 			columns = append(columns, info)
 		}
-		return false
+		return ctx, false
 	})
 	if len(columns) == 0 {
 		return nil
@@ -128,15 +134,4 @@ func parseStructSelects(n *Node) *StructSelectInfo {
 		Imports:    imports,
 		InitFields: initFields,
 	}
-}
-
-func isDiving(n *Node) bool {
-	parent := n.Parent
-	for parent != nil {
-		if parent.Conf != nil && parent.Conf.Dive {
-			return true
-		}
-		parent = parent.Parent
-	}
-	return false
 }

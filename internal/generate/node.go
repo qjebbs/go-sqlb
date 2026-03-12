@@ -30,13 +30,14 @@ func (n *Node) AddChild(child *Node) {
 	n.Children = append(n.Children, child)
 }
 
-// Walk traverses the node hierarchy and applies the given function to each node.
-func (n *Node) Walk(fn func(*Node) bool) {
-	if !fn(n) {
+// WalkNodeContext is a variant of Walk that allows passing a context value through the traversal.
+func WalkNodeContext[T any](ctx T, n *Node, fn func(T, *Node) (T, bool)) {
+	newCtx, ok := fn(ctx, n)
+	if !ok {
 		return
 	}
 	for _, child := range n.Children {
-		child.Walk(fn)
+		WalkNodeContext(newCtx, child, fn)
 	}
 }
 

@@ -15,29 +15,35 @@ type ModelColumnInfo struct {
 }
 
 func parseStructModel(n *Node) *StructModelInfo {
-	var curTable string
 	var modelColumns []ModelColumnInfo
-	uniqueTable := true
-	n.Walk(func(n *Node) bool {
+	type modelContext struct {
+		// current table name, used for inheriting table names in embedded structs
+		table       string
+		uniqueTable bool
+	}
+	ctx := &modelContext{
+		uniqueTable: true,
+	}
+	WalkNodeContext(ctx, n, func(ctx *modelContext, n *Node) (*modelContext, bool) {
 		if n.Conf == nil {
-			return true
+			return ctx, true
 		}
 		if n.Conf.Table != "" {
-			if uniqueTable && curTable != "" && curTable != n.Conf.Table {
-				uniqueTable = false
+			if ctx.uniqueTable && ctx.table != "" && ctx.table != n.Conf.Table {
+				ctx.uniqueTable = false
 			}
-			curTable = n.Conf.Table
+			ctx.table = n.Conf.Table
 		} else {
 			// inherit table name
-			n.Conf.Table = curTable
+			n.Conf.Table = ctx.table
 		}
 		if n.IsAnonymous {
 			// Anonymous fields are not treated as columns themselves, but their children might be.
-			return true
+			return ctx, true
 		}
 		if !n.IsExported {
 			// Unexported fields cannot be accessed by the generated code, so we skip them.
-			return false
+			return ctx, false
 		}
 		if n.Conf.Table != "" && n.Conf.Column != "" {
 			modelColumns = append(modelColumns, ModelColumnInfo{
@@ -46,15 +52,15 @@ func parseStructModel(n *Node) *StructModelInfo {
 				ColumnName: n.Conf.Column,
 			})
 		}
-		return false
+		return ctx, false
 	})
 
-	if !uniqueTable || len(modelColumns) == 0 {
+	if !ctx.uniqueTable || len(modelColumns) == 0 {
 		return nil
 	}
 
 	return &StructModelInfo{
-		Table:   curTable,
+		Table:   ctx.table,
 		Columns: modelColumns,
 	}
 }

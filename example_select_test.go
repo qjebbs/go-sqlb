@@ -19,7 +19,7 @@ func Example_elimination() {
 		EnableElimination().
 		// Will be eliminated since not required.
 		With(baz, sqlf.F("SELECT 1")).
-		Distinct().Select(foo.AllColumns()).
+		Distinct().Select(foo.Column("*")).
 		From(foo).
 		InnerJoin(bar, sqlf.F(
 			"?=?",
@@ -60,7 +60,7 @@ func ExampleSelectBuilder_LeftJoinOptional() {
 	query, args, err := sqlb.NewSelectBuilder().
 		EnableElimination().
 		Distinct(). // *SelectBuilder eliminates optional joins when SELECT DISTINCT is used.
-		Select(foo.AllColumns()).
+		Select(foo.Column("*")).
 		From(foo).
 		// declare an optional LEFT JOIN
 		LeftJoinOptional(bar, sqlf.F(
@@ -91,7 +91,7 @@ func ExampleSelectBuilder_With() {
 		EnableElimination().
 		With(foo, fooBuilder).
 		With(bar, barBuilder).
-		Select(bar.AllColumns()). // requires 'bar'
+		Select(bar.Column("*")). // requires 'bar'
 		From(bar)
 
 	// Tracked dependencies:
@@ -111,7 +111,7 @@ func ExampleSelectBuilder_With() {
 
 func ExampleSelectBuilder_Union() {
 	var foo = sqlb.NewTable("foo", "f")
-	column := foo.AllColumns()
+	column := foo.Column("*")
 	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	query, args, err := sqlb.NewSelectBuilder().
 		Select(column).
@@ -154,7 +154,7 @@ func ExampleSelectBuilder_Debug() {
 	q3 := sqlb.NewSelectBuilder().Debug("q3").
 		EnableElimination().
 		With(cte, cteBuilder).
-		Select(foo.AllColumns()).
+		Select(foo.Column("*")).
 		From(foo).
 		Where(sqlf.F("? IN (?)", fooID, q2))
 	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
@@ -182,7 +182,7 @@ func ExampleSelectBuilder_WithValues() {
 				{3, "Charlie", 3},
 			},
 		).
-		Select(virtual.AllColumns()).
+		Select(virtual.Column("*")).
 		From(virtual).
 		OrderBy(sqlf.F("? ASC", virtual.Column("order")))
 	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})

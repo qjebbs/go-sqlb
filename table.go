@@ -68,31 +68,18 @@ func (t Table) AppliedName() string {
 }
 
 // Column returns a column of the table.
-// It adds table prefix to the column name, e.g.: "id" -> "t.id".
+// It adds table prefix to the column name, e.g.: "id" -> "t"."id"
 //
 // For example:
 //
 //	t := NewTable("table", "t")
-//	t.Column("id")  // "t.id"
-func (t Table) Column(name string) *Column {
-	// TODO: build with proper quoting
-	return &Column{
-		Table: t,
-		Name:  name,
+//	t.Column("id")  // "t"."id"
+//	t.Column("*")  // "t".*
+func (t Table) Column(name string) sqlf.Builder {
+	if name == "*" {
+		return sqlf.F("?.*", t)
 	}
-}
-
-// AllColumns returns all columns of the table, e.g.: "t.*".
-//
-// For example:
-//
-//	t := NewTable("table", "t")
-//	t.AllColumns()  // "t.*"
-func (t Table) AllColumns() *Column {
-	return &Column{
-		Table: t,
-		Name:  "*",
-	}
+	return sqlf.F("?.?", t, sqlf.Identifier(name))
 }
 
 // TableAs returns a new builder that builds t into fragment like `table AS t`
@@ -109,4 +96,19 @@ func (t Table) TableAs() sqlf.Builder {
 			sqlf.Identifier(t.Alias),
 		).BuildTo(ctx)
 	})
+}
+
+// Columns returns columns of the table from names.
+// It adds table prefix to the column name, e.g.: "id" -> "t"."id"
+//
+// For example:
+//
+//	t := NewTable("table", "t")
+//	t.Columns("id", "name")   // "t"."id", "t"."name"
+func (t Table) Columns(names ...string) []sqlf.Builder {
+	r := make([]sqlf.Builder, 0, len(names))
+	for _, name := range names {
+		r = append(r, t.Column(name))
+	}
+	return r
 }

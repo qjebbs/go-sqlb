@@ -40,15 +40,11 @@ func (b *UserSelectBuilder) WithIDs(ids []int64) *UserSelectBuilder {
 }
 
 func (b *UserSelectBuilder) GetUsers(ctx context.Context) ([]*User, error) {
-	b.Select(
-		Users.Column("id"),
-		Users.Column("name"),
-		Users.Column("email"),
-	)
+	b.Select(Users.Columns("id", "name", "email")...)
 	buildCtx := sqlb.NewContext(ctx, dialect.PostgreSQL{})
 	return mapper.SelectManual(buildCtx, b.QueryAble, b.SelectBuilder, func() (*User, []any) {
 		r := &User{}
-		return r, []any{
+		return r, []interface{}{
 			&r.ID, &r.Name, &r.Email,
 		}
 	})

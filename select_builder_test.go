@@ -30,10 +30,7 @@ func TestSelectBuilderDistinctElimination(t *testing.T) {
 				users.Column("id"), locs.Column("id"),
 			),
 		).
-		Distinct().Select(
-		foo.Column("id"),
-		foo.Column("name"),
-	).
+		Distinct().Select(foo.Columns("id", "name")...).
 		From(users).
 		LeftJoinOptional(foo, sqlf.F(
 			"?=?",
@@ -72,10 +69,7 @@ func TestSelectBuilderGroupbyElimination(t *testing.T) {
 			baz,
 			sqlf.F("SELECT * FROM baz WHERE type=$1", "user"),
 		).
-		Select(
-			foo.Column("id"),
-			foo.Column("bar"),
-		).
+		Select(foo.Columns("id", "bar")...).
 		From(foo).
 		LeftJoinOptional(baz, sqlf.F(
 			"?=?",
@@ -136,7 +130,7 @@ func TestSelectBuilderComplexDeps(t *testing.T) {
 			baz,
 			sqlf.F("SELECT 1"), // not referenced, should be eliminated
 		).
-		Distinct().Select(baseTable.AllColumns()).
+		Distinct().Select(baseTable.Column("*")).
 		From(baseTable).
 		LeftJoinOptional(baseTable3, sqlf.F( // required by outer table of subquery
 			"? = ?",

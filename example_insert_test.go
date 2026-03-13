@@ -40,7 +40,7 @@ func ExampleInsertBuilder_complex() {
 		Columns("a", "b").
 		From(
 			sqlb.NewSelectBuilder().
-				Select(bar.AllColumns()).
+				Select(bar.Column("*")).
 				From(bar),
 		).
 		OnConflict([]string{"a"}, sqlf.F("$1 = EXCLUDED.$1", sqlf.Identifier("b"))).

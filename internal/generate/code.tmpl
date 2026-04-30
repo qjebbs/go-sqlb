@@ -87,7 +87,7 @@ import (
 		return new({{ .Name }})
 	}
 
-	func (s *{{ .Name }}) Values() []any {
+	func (s *{{ .Name }}) Fields() []any {
 		{{- range .Select.InitFields }}
 		if s{{ .Selector }} == nil {
 			s{{ .Selector }} = new({{ .Type }})
@@ -100,7 +100,7 @@ import (
 		}
 	}
 
-	func (s *{{ .Name }}) FillValues(dests []any, indexes []int) {
+	func (s *{{ .Name }}) FillFields(target []any, indexes []int) {
 		{{- range .Select.InitFields }}
 		if s{{ .Selector }} == nil {
 			s{{ .Selector }} = new({{ .Type }})
@@ -110,7 +110,7 @@ import (
 			switch index {
 			{{- range $i, $col := .Select.Columns }}
 			case {{ $i }}:
-				dests[i] = &s{{ .Selector }}
+				target[i] = &s{{ .Selector }}
 			{{- end }}
 			}
 		}

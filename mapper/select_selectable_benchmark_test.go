@@ -10,9 +10,9 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
-func BenchmarkSelectModelScan(b *testing.B) {
+func BenchmarkSelectableScan(b *testing.B) {
 	dest := &userListItem{}
-	nFields := len(dest.Values())
+	nFields := len(dest.Fields())
 	indexes := make([]int, nFields)
 	for i := 0; i < nFields; i++ {
 		indexes[i] = i
@@ -21,11 +21,11 @@ func BenchmarkSelectModelScan(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		values := make([]any, len(indexes))
-		dest.FillValues(values, indexes)
+		dest.FillFields(values, indexes)
 	}
 }
 
-func BenchmarkSelectModelBuild(b *testing.B) {
+func BenchmarkSelectableBuild(b *testing.B) {
 	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
 	for i := 0; i < b.N; i++ {
 		_, _ = mapper.Select[*userListItem](ctx, nil, makeBuilder())

@@ -18,7 +18,8 @@ func Example_cRUD() {
 	// Model represents the base model with common fields.
 	type Model struct {
 		// ID is the model ID.
-		// pk means primary key, which is used to locate records for Load / Update / Delete operations.
+		// model tag is required for Load / Update / Delete / Insert operations.
+		// pk means primary key.
 		// returning means the ID will be returned after insertion.
 		ID int64 `sqlb:"model;col:id;pk;returning"`
 		// Created is the creation time.
@@ -119,13 +120,35 @@ type userListItem struct {
 }
 
 func Example_complexSelect() {
+	Users := sqlb.NewTable("users")
+	Orgs := sqlb.NewTable("orgs")
+	b := sqlb.NewSelectBuilder().
+		From(Users).
+		InnerJoin(Orgs, sqlf.F(
+			"? = ?",
+			// Without code generation, you have to write the column names manually,
+			// which is error-prone and not refactor-friendly.
+			Users.Column("org_id"),
+			Orgs.Column("id"),
+		)).
+		WhereEquals(Orgs.Column("id"), 1).
+		WhereIsNull(Users.Column("deleted"))
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
+	_, err := mapper.Select[*userListItem](ctx, nil, b, mapper.WithDebug())
+	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+		fmt.Println(err)
+	}
+	// Output:
+	// [Select(*mapper_test.userListItem)] SELECT "users"."id", "users"."created", "users"."updated", "users"."deleted", "users"."org_id", "users"."name", "orgs"."id", "orgs"."created", "orgs"."updated", "orgs"."deleted", "orgs"."name" FROM "users" INNER JOIN "orgs" ON "users"."org_id" = "orgs"."id" WHERE "orgs"."id" = 1 AND "users"."deleted" IS NULL
+}
+
+func Example_complexSelectWithCodeGen() {
 
 	// sqlbgen (//go:generate go run github.com/qjebbs/go-sqlb/cmd/sqlbgen .)
 	// will generate the methods for User and Org models based on the struct
 	// tags, e.g.:
 	//
-	// func (s *User) Table() sqlb.Table
-	// func (s *Org) Table() sqlb.Table
+	// func (*User) Table() sqlb.Table
 	// func (*User) ColumnID() sqlf.Builder
 	// func (*User) ColumnDeleted() sqlf.Builder
 	// ...

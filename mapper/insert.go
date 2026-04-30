@@ -33,6 +33,7 @@ func InsertOne[T any](ctx sqlb.Context, db QueryAble, value T, options ...Option
 // The struct tag syntax is: `key[:value][;key[:value]]...`, e.g. `sqlb:"pk;col:id;table:users;"`
 //
 // The supported struct tags are:
+//   - model: [Required] This tag marks the structure as a model, which is required for the current operation. This tag must be placed on a top-level struct field, or on an embedded struct field with a nesting level of no more than one level. sqlbgen will generate model code for such struct as well.
 //   - table<:name>: [Inheritable] Declare the database table for the current field and its sub-fields / subsequent sibling fields, e.g. `table:foo;`
 //   - col<:name>: Specify the column associated with the field.
 //   - pk: The column is primary key, which is excluded from INSERT statement.

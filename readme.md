@@ -1,73 +1,44 @@
-# Go SQL Builder with Struct Mapping
 
-> [!WARNING]
-> This package is in an alpha stage. The API is subject to change.
+# Go SQL Builder (`sqlb`)
 
-sqlb is a powerful SQL builder and struct mapper. It provides,
+**sqlb** is a powerful, flexible SQL builder for Go.
+It helps you programmatically construct complex SQL queries with full transparency and zero hidden behavior.
 
-- SQL builders to craft complex queries.
-- Effortlessly map query results to Go structs.
-- Declarative automation of common CRUD operations.
+## Features
 
-With sqlb, All queries are explicitly coded or declared, there is no hidden behavior, preserving both flexibility and transparency in your database interactions.
+- Chainable, composable SQL builders for SELECT, INSERT, UPDATE, DELETE, and more
+- Support for advanced SQL features: WITH-CTE, JOIN, subqueries, expressions, etc.
+- Full control over query structure, no hidden magic, no forced conventions
+- Works seamlessly with any database/sql driver
 
-## Complex SELECT with Struct Mapping
-
-sqlb provides a select builder shipped with WITH-CTE / JOIN
-Elimination abilities, allowing you to build sophisticated SQL queries programmatically,
-and easily map the results to nested structs with `mapper.Select()`.
+## Example: Building a Complex SELECT
 
 ```go
-func Example_complexSelect() {
-	type Model struct {
-		ID      int        `sqlb:"col:id"`
-		Created *time.Time `sqlb:"col:created"`
-		Updated *time.Time `sqlb:"col:updated"`
-		Deleted *time.Time `sqlb:"col:deleted"`
-	}
+import (
+	"context"
+	"fmt"
 
-	type User struct {
-		// 'from' defines the from table in SQL for this struct,
-		// it can be inherited by nested fields and by subsequent sibling fields of the current struct.
-		Model `sqlb:"from:u"`
-		// For fields without 'sel' tag, mapper constructs the selection column
-		// from the 'from' tag (inherited here) and the 'col' tag of the field.
-		// It is equivalent to:
-		//  table := sqlb.NewTable("", "u")
-		//  identifier := table.Column("name")
-		//  const expr = "?.?"
-		//  sel := sqlf.F(expr, table, identifier)
-		Name string `sqlb:"col:name"`
-	}
+	"github.com/qjebbs/go-sqlb"
+	"github.com/qjebbs/go-sqlb/dialect"
+)
 
-	type userListItem struct {
-		User
-		// OrgName is from another table and could be NULL,
-		// 'sel' works together with 'from', which is equivalent to:
-		//  table := sqlb.NewTable("", "o")
-		//  expr := "COALESCE(?.name,'')"
-		//  sel := sqlf.F(expr, table)
-		OrgName string `sqlb:"sel:COALESCE(?.name,'');from:o"`
-	}
-
+func Example_select() {
 	Users := sqlb.NewTable("users", "u")
-	Orgs := sqlb.NewTable("orgs", "o")
 	b := sqlb.NewSelectBuilder().
+		Select(Users.Column("*")).
 		From(Users).
-		LeftJoin(Orgs, sqlf.F(
-			"? = ?",
-			Users.Column("org_id"),
-			Orgs.Column("id"),
-		)).
-		WhereEquals(Orgs.Column("id"), 1).
+		WhereEquals(Users.Column("org_id"), 1).
 		WhereIsNull(Users.Column("deleted_at"))
 	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
-	_, err := mapper.Select[*userListItem](ctx, nil, b, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
+	query, args, err := b.Build(ctx)
+	if err != nil {
 		fmt.Println(err)
 	}
+	fmt.Println(query)
+	fmt.Println(args)
 	// Output:
-	// [Select(*mapper_test.userListItem)] SELECT "u"."id", "u"."created", "u"."updated", "u"."deleted", "u"."name", COALESCE("o".name,'') FROM "users" AS "u" LEFT JOIN "orgs" AS "o" ON "u"."org_id" = "o"."id" WHERE "o"."id" = 1 AND "u"."deleted_at" IS NULL
+	// SELECT "u".* FROM "users" AS "u" WHERE "u"."org_id" = $1 AND "u"."deleted_at" IS NULL
+	// [1]
 }
 ```
 
@@ -75,110 +46,15 @@ See Also:
 
 - [example_select_test.go](./example_select_test.go) for more SELECT builder examples.
 
+## About Struct Mapping
 
-## CRUD Operations
+> **Note:** Struct mapping and CRUD automation features have been moved to the [sqlm](https://github.com/qjebbs/sqlm) project.
+> `sqlb` now focuses solely on SQL query building.
 
-sqlb provides declarative struct mapping via `mapper` package,
+## The Go SQL Tools Family
 
-To avoid unnecessary abstraction, all CRUD operation inputs must represent explicit objects, not arbitrary query conditions. Therefore:
+This project is part of a family of Go SQL tools, each designed for a different level of abstraction and automation:
 
-- Insert() supports batch insertion of multiple records, as each item is a concrete object to be inserted.
-- Load(), Update(), and Delete() only operate on a single record at a time. If you need to update or delete multiple records in bulk, please use the sqlb package to construct the corresponding SQL statements manually.
-
-```go
-
-import (
-	"errors"
-	"fmt"
-	"time"
-
-	"github.com/qjebbs/go-sqlb"
-	"github.com/qjebbs/go-sqlb/mapper"
-	"github.com/qjebbs/go-sqlf/v4"
-)
-
-func Example_cRUD() {
-	// Model represents the base model with common fields.
-	type Model struct {
-		// ID is the model ID.
-		// pk means primary key, which is used to locate records for Load / Update / Delete operations.
-		// returning means the ID will be returned after insertion.
-		ID int64 `sqlb:"col:id;pk;returning"`
-		// Created is the creation time.
-		// readonly means this field will be excluded from INSERT / UPDATE, created usually set by DB default value.
-		Created *time.Time `sqlb:"col:created;readonly"`
-		// Updated is the last update time.
-		// conflict_set means when inserting an existing record, the Updated will be updated.
-		Updated *time.Time `sqlb:"col:updated;conflict_set"`
-		// soft_delete indicates this column is used for soft deletion.
-		// When deleting, the column will be set to current time or true instead of actually deleting the record.
-		// When loading, records with non-zero value in this column will be ignored.
-		// conflict_set means when inserting an deleted record, undelete it.
-		Deleted *time.Time `sqlb:"col:deleted;soft_delete;conflict_set"`
-	}
-
-	type User struct {
-		// The value defined by 'tables' and 'from' can be inherited by nested fields
-		// and by subsequent sibling fields of the current struct.
-		Model `sqlb:"table:users"`
-		// unique indicates this column has a unique constraint, which can be used to locate records for Load / Delete operation.
-		// conflict_on indicates the column(s) to check for conflict during insert.
-		Email string `sqlb:"col:email;required;unique;conflict_on"`
-		// conflict_set without value means to use excluded column value
-		Name string `sqlb:"col:name;conflict_set"`
-	}
-
-	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
-	err := mapper.Insert(ctx, nil, []*User{
-		{Email: "alice@example.org", Name: "Alice"},
-		{Email: "bob@example.org", Name: ""},
-	}, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-
-	_, err = mapper.Load(ctx, nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-	_, err = mapper.Exists(ctx, nil, &User{Model: Model{ID: 1}}, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-
-	// Partial update: only non-zero fields will be updated.
-	// Here we located the record by unique Email field.
-	err = mapper.Patch(ctx, nil, &User{
-		Email: "alice@example.org",
-		Name:  "Happy Alice",
-	}, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-
-	err = mapper.Update(ctx, nil, &User{Email: "alice@example.org"}, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-
-	// You don't have to set the .Deleted field manually, mapper will set it to current time automatically.
-	// But here we set it to a fixed value to make the example output deterministic.
-	user := &User{Model: Model{ID: 1}}
-	user.Deleted = &time.Time{}
-	err = mapper.Delete(ctx, nil, user, mapper.WithDebug())
-	if err != nil && !errors.Is(err, mapper.ErrNilDB) {
-		fmt.Println(err)
-	}
-	// Output:
-	// [Insert(*mapper_test.User)] INSERT INTO "users" ("email", "name") VALUES ('alice@example.org', 'Alice'), ('bob@example.org', DEFAULT) ON CONFLICT ("email") DO UPDATE SET "updated" = EXCLUDED."updated", "deleted" = EXCLUDED."deleted", "name" = EXCLUDED."name" RETURNING "id"
-	// [Load(*mapper_test.User)] SELECT "created", "updated", "email", "name" FROM "users" WHERE "id" = 1 AND "deleted" IS NULL
-	// [Exists(*mapper_test.User)] SELECT 1 FROM "users" WHERE "id" = 1 AND "deleted" IS NULL
-	// [Patch(*mapper_test.User)] UPDATE "users" SET "name" = 'Happy Alice' WHERE "email" = 'alice@example.org' AND "deleted" IS NULL
-	// [Update(*mapper_test.User)] UPDATE "users" SET "updated" = NULL, "name" = '' WHERE "email" = 'alice@example.org' AND "deleted" IS NULL
-	// [Delete(*mapper_test.User)] UPDATE "users" SET "deleted" = '0001-01-01 00:00:00 +0000 UTC' WHERE "id" = 1 AND "deleted" IS NULL
-}
-```
-
-## Development Guide
-
-Some tests in the mapper package rely on code generated by sqlbgen, which generates code based on struct tags and not included in the repository.So run `go generate ./...` to generate the code before running the tests.
+1. **[go-sqlf](https://github.com/qjebbs/go-sqlf)** — Minimalist SQL fragment builder. For simple, manual SQL composition with parameter binding and zero magic.
+2. **go-sqlb** (this project) — Advanced SQL builder. For programmatically building complex queries (CTE, JOIN, expressions, etc.) with chainable, declarative, and composable APIs.
+3. **[go-sqlm](https://github.com/qjebbs/sqlm)** — Struct mapping. Declarative struct mapping, automatic CRUD, batch operations, and high-performance zero-reflection code generation.

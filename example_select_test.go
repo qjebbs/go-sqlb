@@ -9,6 +9,25 @@ import (
 	"github.com/qjebbs/go-sqlf/v4"
 )
 
+func Example_select() {
+	Users := sqlb.NewTable("users", "u")
+	b := sqlb.NewSelectBuilder().
+		Select(Users.Column("*")).
+		From(Users).
+		WhereEquals(Users.Column("org_id"), 1).
+		WhereIsNull(Users.Column("deleted_at"))
+	ctx := sqlb.NewContext(context.Background(), dialect.PostgreSQL{})
+	query, args, err := b.Build(ctx)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(query)
+	fmt.Println(args)
+	// Output:
+	// SELECT "u".* FROM "users" AS "u" WHERE "u"."org_id" = $1 AND "u"."deleted_at" IS NULL
+	// [1]
+}
+
 func Example_elimination() {
 	var (
 		foo = sqlb.NewTable("foo", "f")
